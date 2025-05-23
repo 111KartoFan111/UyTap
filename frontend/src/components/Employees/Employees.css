@@ -1,15 +1,15 @@
-.guests {
+.employees {
   height: 100%;
 }
 
-.guests-header {
+.employees-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 24px;
 }
 
-.guests-header h1 {
+.employees-header h1 {
   font-size: 32px;
   font-weight: 600;
   margin: 0;
@@ -47,25 +47,25 @@
   cursor: pointer;
 }
 
-.guests-content {
+.employees-content {
   background: white;
   border-radius: 12px;
   padding: 32px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
-.guests-table-container h2 {
+.employees-table-container h2 {
   font-size: 18px;
   margin: 0 0 20px 0;
   color: #666;
 }
 
-.guests-table {
+.employees-table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.guests-table th {
+.employees-table th {
   text-align: left;
   padding: 12px;
   font-size: 12px;
@@ -74,35 +74,36 @@
   border-bottom: 1px solid #e0e0e0;
 }
 
-.guests-table td {
+.employees-table td {
   padding: 12px;
   border-bottom: 1px solid #f0f0f0;
 }
 
-.guests-table tbody tr {
+.employees-table tbody tr {
   cursor: pointer;
 }
 
-.guests-table tbody tr:hover {
+.employees-table tbody tr:hover {
   background: #f8f9fa;
 }
 
-.guests-table td:first-child {
+.employees-table td:first-child {
   width: 60px;
 }
 
-.guests-table td img {
+.employees-table td img {
   width: 40px;
   height: 40px;
   border-radius: 50%;
 }
 
-.group-badge {
+.department-badge, .status-badge {
   display: inline-block;
   padding: 4px 12px;
   border-radius: 12px;
   color: white;
   font-size: 12px;
+  font-weight: 500;
 }
 
 .show-all-section {
@@ -125,8 +126,8 @@
   background: #f0f0f0;
 }
 
-/* Guest Modal */
-.guest-modal {
+/* Employee Modal */
+.employee-modal {
   position: fixed;
   top: 0;
   right: 0;
@@ -179,30 +180,40 @@
   font-size: 14px;
 }
 
-.guest-profile {
+.btn-outline:hover {
+  background: #f8f9fa;
+}
+
+.employee-profile {
   text-align: center;
   padding: 32px;
   border-bottom: 1px solid #e0e0e0;
 }
 
-.guest-profile img {
+.employee-profile img {
   width: 120px;
   height: 120px;
   border-radius: 50%;
   margin-bottom: 16px;
 }
 
-.guest-profile h2 {
+.employee-profile h2 {
   font-size: 24px;
+  margin: 0 0 8px 0;
+}
+
+.employee-position {
+  font-size: 16px;
+  color: #666;
   margin: 0 0 12px 0;
 }
 
-.group-badge.large {
+.status-badge.large, .department-badge.large {
   font-size: 14px;
   padding: 6px 16px;
 }
 
-.guest-tabs {
+.employee-tabs {
   display: flex;
   border-bottom: 1px solid #e0e0e0;
   padding: 0 24px;
@@ -223,15 +234,15 @@
   border-bottom-color: #3498db;
 }
 
-.guest-info {
+.employee-info {
   padding: 32px;
 }
 
-.guest-info section {
+.employee-info section {
   margin-bottom: 32px;
 }
 
-.guest-info h3 {
+.employee-info h3 {
   font-size: 11px;
   text-transform: uppercase;
   color: #999;
@@ -248,51 +259,19 @@
 
 .info-row label {
   color: #666;
+  font-weight: 500;
 }
 
-.family-member {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.family-member img {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-}
-
-/* Tablet Styles */
-@media (max-width: 1024px) {
-  .guests-content {
-    padding: 24px;
-  }
-  
-  .modal-content {
-    width: 90%;
-    max-width: 500px;
-  }
-  
-  .guests-table {
-    font-size: 14px;
-  }
-  
-  .guests-table th,
-  .guests-table td {
-    padding: 10px 8px;
-  }
-}
-
-/* Mobile Styles */
-@media (max-width: 768px) {
-  .guests-header {
+/* Mobile Styles для телефонов 375px - 450px */
+@media (max-width: 450px) {
+  .employees-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
     margin-bottom: 20px;
   }
   
-  .guests-header h1 {
+  .employees-header h1 {
     font-size: 24px;
   }
   
@@ -309,40 +288,40 @@
     width: 100%;
   }
   
-  .guests-content {
+  .employees-content {
     padding: 16px;
     border-radius: 8px;
   }
   
-  .guests-table-container h2 {
+  .employees-table-container h2 {
     font-size: 16px;
     margin-bottom: 16px;
   }
   
   /* Hide some columns on mobile */
-  .guests-table th:nth-child(3),
-  .guests-table td:nth-child(3),
-  .guests-table th:nth-child(4),
-  .guests-table td:nth-child(4) {
+  .employees-table th:nth-child(4),
+  .employees-table td:nth-child(4),
+  .employees-table th:nth-child(5),
+  .employees-table td:nth-child(5) {
     display: none;
   }
   
-  .guests-table th,
-  .guests-table td {
+  .employees-table th,
+  .employees-table td {
     padding: 12px 8px;
     font-size: 13px;
   }
   
-  .guests-table td:first-child {
+  .employees-table td:first-child {
     width: 50px;
   }
   
-  .guests-table td img {
+  .employees-table td img {
     width: 32px;
     height: 32px;
   }
   
-  .group-badge {
+  .department-badge, .status-badge {
     font-size: 10px;
     padding: 2px 8px;
   }
@@ -353,7 +332,7 @@
   }
   
   /* Mobile Modal */
-  .guest-modal {
+  .employee-modal {
     padding: 10px;
   }
   
@@ -374,6 +353,8 @@
   .modal-actions {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   
   .btn-outline {
@@ -381,29 +362,34 @@
     justify-content: center;
     padding: 10px 12px;
     font-size: 12px;
+    min-width: 100px;
   }
   
-  .guest-profile {
+  .employee-profile {
     padding: 24px 20px;
   }
   
-  .guest-profile img {
+  .employee-profile img {
     width: 80px;
     height: 80px;
   }
   
-  .guest-profile h2 {
+  .employee-profile h2 {
     font-size: 20px;
   }
   
-  .guest-tabs {
+  .employee-position {
+    font-size: 14px;
+  }
+  
+  .employee-tabs {
     padding: 0 20px;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
   
-  .guest-tabs::-webkit-scrollbar {
+  .employee-tabs::-webkit-scrollbar {
     display: none;
   }
   
@@ -413,11 +399,11 @@
     font-size: 12px;
   }
   
-  .guest-info {
+  .employee-info {
     padding: 20px;
   }
   
-  .guest-info section {
+  .employee-info section {
     margin-bottom: 24px;
   }
   
@@ -435,102 +421,9 @@
   .info-row span {
     font-size: 14px;
   }
-}
-
-/* Small Mobile Styles */
-@media (max-width: 480px) {
-  .guests-header h1 {
-    font-size: 20px;
-  }
   
-  .guests-content {
-    padding: 12px;
-  }
-  
-  .guests-table-container h2 {
-    font-size: 14px;
-  }
-  
-  /* Show only essential columns */
-  .guests-table th:nth-child(5),
-  .guests-table td:nth-child(5) {
-    display: none;
-  }
-  
-  .guests-table th,
-  .guests-table td {
-    padding: 8px 6px;
+  .department-badge.large, .status-badge.large {
     font-size: 12px;
-  }
-  
-  .guests-table td:first-child {
-    width: 40px;
-  }
-  
-  .guests-table td img {
-    width: 28px;
-    height: 28px;
-  }
-  
-  .group-badge {
-    font-size: 9px;
-    padding: 2px 6px;
-  }
-  
-  .show-all-btn {
-    padding: 20px 12px;
-    font-size: 12px;
-  }
-  
-  .modal-header {
-    padding: 12px 16px;
-  }
-  
-  .btn-outline {
-    font-size: 11px;
-    padding: 8px 10px;
-  }
-  
-  .guest-profile {
-    padding: 16px;
-  }
-  
-  .guest-profile img {
-    width: 64px;
-    height: 64px;
-  }
-  
-  .guest-profile h2 {
-    font-size: 18px;
-  }
-  
-  .guest-tabs {
-    padding: 0 16px;
-  }
-  
-  .guest-info {
-    padding: 16px;
-  }
-  
-  .guest-info h3 {
-    font-size: 10px;
-    margin-bottom: 12px;
-  }
-  
-  .info-row {
-    margin-bottom: 12px;
-  }
-  
-  .info-row label {
-    font-size: 11px;
-  }
-  
-  .info-row span {
-    font-size: 13px;
-  }
-  
-  .family-member img {
-    width: 20px;
-    height: 20px;
+    padding: 4px 12px;
   }
 }

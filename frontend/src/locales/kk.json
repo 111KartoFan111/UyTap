@@ -34,15 +34,17 @@
     "activityLog": "Әрекеттер журналы",
     "monthNames": {
       "jan": "Қаңтар",
-      "feb": "Ақпан", 
+      "feb": "Ақпан",
       "mar": "Наурыз",
       "apr": "Сәуір",
-      "may": "Мамыр", 
+      "may": "Мамыр",
       "jun": "Маусым",
       "jul": "Шілде",
       "aug": "Тамыз",
       "sep": "Қыркүйек",
-      "oct": "Қазан"
+      "oct": "Қазан",
+      "nov": "Қараша",
+      "dec": "Желтоқсан"
     }
   },
   "conversations": {
@@ -197,5 +199,30 @@
       "phoneRequired": "Телефон нөмірін көрсетіңіз",
       "documentRequired": "Құжат нөмірін көрсетіңіз"
     }
+  },
+  "employees": {
+    "title": "Қызметкерлер",
+    "recentEmployees": "Соңғы қызметкерлер",
+    "allEmployees": "Барлық қызметкерлер",
+    "showAllEmployees": "Барлық қызметкерлерді көрсету",
+    "name": "Аты",
+    "position": "Лауазымы",
+    "department": "Бөлім",
+    "phone": "Телефон",
+    "email": "Email",
+    "status": "Мәртебе",
+    "editEmployee": "Өңдеу",
+    "call": "Қоңырау",
+    "personalInfo": "Жеке ақпарат",
+    "workInfo": "Жұмыс ақпараты",
+    "schedule": "Кесте",
+    "documents": "Құжаттар",
+    "contactInformation": "БАЙЛАНЫС АҚПАРАТЫ",
+    "workInformation": "ЖҰМЫС АҚПАРАТЫ",
+    "firstName": "Аты",
+    "lastName": "Тегі",
+    "hireDate": "Жалдау күні",
+    "workSchedule": "Жұмыс кестесі",
+    "salary": "Жалақы"
   }
 }

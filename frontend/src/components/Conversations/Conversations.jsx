@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiSearch, FiFilter, FiX, FiPhone, FiMail, FiPaperclip, FiSend } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiX, FiPhone, FiMail, FiPaperclip, FiSend, FiArrowLeft } from 'react-icons/fi';
 import { useTranslation } from '../../contexts/LanguageContext';
 import './Conversations.css';
 
@@ -10,6 +10,7 @@ const Conversations = () => {
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [showTaskPanel, setShowTaskPanel] = useState(false);
   const [messageText, setMessageText] = useState('');
+  const [mobileView, setMobileView] = useState('list'); // 'list', 'chat', 'panel'
 
   useEffect(() => {
     const loadData = async () => {
@@ -22,13 +23,40 @@ const Conversations = () => {
       });
       
       setConversations(enrichedConversations);
-      if (enrichedConversations.length > 0) {
+      if (enrichedConversations.length > 0 && window.innerWidth > 768) {
         setSelectedConversation(enrichedConversations[1]);
       }
     };
 
     loadData();
   }, []);
+
+  // Handle mobile conversation selection
+  const handleConversationSelect = (conversation) => {
+    setSelectedConversation(conversation);
+    if (window.innerWidth <= 768) {
+      setMobileView('chat');
+    }
+  };
+
+  // Handle mobile back navigation
+  const handleMobileBack = () => {
+    if (mobileView === 'panel') {
+      setMobileView('chat');
+      setShowTaskPanel(false);
+    } else if (mobileView === 'chat') {
+      setMobileView('list');
+      setSelectedConversation(null);
+    }
+  };
+
+  // Handle task panel toggle
+  const handleTaskPanelToggle = () => {
+    setShowTaskPanel(true);
+    if (window.innerWidth <= 768) {
+      setMobileView('panel');
+    }
+  };
 
   const handleTaskToggle = (task) => {
     setSelectedTasks(prev => 
@@ -59,12 +87,12 @@ const Conversations = () => {
 
       <div className="conversations-layout">
         {/* Conversations List */}
-        <div className="conversations-list">
+        <div className={`conversations-list ${mobileView !== 'list' ? 'hidden' : ''}`}>
           {conversations.map(conv => (
             <div 
               key={conv.id}
               className={`conversation-item ${selectedConversation?.id === conv.id ? 'active' : ''} ${conv.unread ? 'unread' : ''}`}
-              onClick={() => setSelectedConversation(conv)}
+              onClick={() => handleConversationSelect(conv)}
             >
               <img 
                 src={`https://i.pravatar.cc/48?img=${conv.id + 40}`} 
@@ -82,10 +110,13 @@ const Conversations = () => {
         </div>
 
         {/* Chat Area */}
-        <div className="chat-area">
+        <div className={`chat-area ${mobileView === 'chat' ? 'active' : ''}`}>
           {selectedConversation && (
             <>
               <div className="chat-header">
+                <button className="mobile-back-btn" onClick={handleMobileBack}>
+                  <FiArrowLeft size={20} />
+                </button>
                 <div className="chat-guest-info">
                   <img 
                     src={`https://i.pravatar.cc/48?img=${selectedConversation.id + 40}`} 
@@ -101,10 +132,10 @@ const Conversations = () => {
                     <span className="online-badge">• {t('conversations.online')}</span>
                   )}
                 </div>
-                <button className="create-task-btn" onClick={() => setShowTaskPanel(true)}>
+                <button className="create-task-btn" onClick={handleTaskPanelToggle}>
                   {t('conversations.createTask')}
                 </button>
-                <button className="close-btn">
+                <button className="close-btn" onClick={() => window.innerWidth > 768 && setSelectedConversation(null)}>
                   <FiX />
                 </button>
               </div>
@@ -162,10 +193,13 @@ const Conversations = () => {
         </div>
 
         {/* Guest Details Panel */}
-        <div className={`guest-panel ${showTaskPanel ? 'show-tasks' : ''}`}>
+        <div className={`guest-panel ${showTaskPanel ? 'show-tasks' : ''} ${mobileView === 'panel' ? 'active' : ''}`}>
           {selectedConversation?.guestData && (
             <>
               <div className="guest-header">
+                <button className="mobile-back-btn" onClick={handleMobileBack}>
+                  <FiArrowLeft size={20} />
+                </button>
                 <img 
                   src={`https://i.pravatar.cc/100?img=${selectedConversation.id + 40}`} 
                   alt={selectedConversation.guest} 
