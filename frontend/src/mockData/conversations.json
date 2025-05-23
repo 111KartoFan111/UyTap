@@ -1,0 +1,92 @@
+{
+  "conversations": [
+    {
+      "id": 1,
+      "guestId": 1,
+      "guest": "Ea Tipene",
+      "lastMessage": "Can you send a bottle of red wine to Room 103?",
+      "unread": true,
+      "status": "online",
+      "room": "103",
+      "checkIn": "2018-06-17",
+      "checkOut": "2018-06-30",
+      "messages": [
+        {
+          "id": 1,
+          "sender": "guest",
+          "text": "Hello, could you arrange for an extra pillow in Room 103?",
+          "time": "2018-06-17 10:30",
+          "images": []
+        },
+        {
+          "id": 2,
+          "sender": "hotel",
+          "text": "Certainly, Mr. Tipene! We'll have an extra pillow sent to Room 103 within the hour.",
+          "time": "2018-06-17 10:35",
+          "reaction": 5
+        },
+        {
+          "id": 3,
+          "sender": "guest",
+          "text": "Can you send a bottle of red wine to Room 103?",
+          "time": "2018-06-18 14:20",
+          "images": []
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "guestId": 3,
+      "guest": "Jumaima Al Nour",
+      "lastMessage": "Thank you for the great stay!",
+      "unread": false,
+      "status": "offline",
+      "room": "202",
+      "checkIn": "2018-06-10",
+      "checkOut": "2018-06-23",
+      "messages": [
+        {
+          "id": 1,
+          "sender": "guest",
+          "text": "Is it possible to extend my checkout time to 2 PM?",
+          "time": "2018-06-22 09:15",
+          "images": []
+        },
+        {
+          "id": 2,
+          "sender": "hotel",
+          "text": "Yes, Ms. Al Nour, we can extend your checkout to 2 PM. Enjoy your stay!",
+          "time": "2018-06-22 09:20",
+          "reaction": 10
+        },
+        {
+          "id": 3,
+          "sender": "guest",
+          "text": "Thank you for the great stay!",
+          "time": "2018-06-23 13:45",
+          "images": []
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "guestId": 6,
+      "guest": "Morganne Flaherty",
+      "lastMessage": "Any recommendations for local restaurants?",
+      "unread": true,
+      "status": "online",
+      "room": "105",
+      "checkIn": "2018-06-18",
+      "checkOut": "2018-06-24",
+      "messages": [
+        {
+          "id": 1,
+          "sender": "guest",
+          "text": "Any recommendations for local restaurants?",
+          "time": "2018-06-18 18:00",
+          "images": []
+        }
+      ]
+    }
+  ]
+}

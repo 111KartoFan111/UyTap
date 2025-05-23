@@ -1,0 +1,62 @@
+{
+  "bookings": [
+    {
+      "month": "Jan",
+      "count": 20
+    },
+    {
+      "month": "Feb",
+      "count": 25
+    },
+    {
+      "month": "Mar",
+      "count": 30
+    },
+    {
+      "month": "Apr",
+      "count": 28
+    },
+    {
+      "month": "May",
+      "count": 35
+    },
+    {
+      "month": "Jun",
+      "count": 40
+    },
+    {
+      "month": "Jul",
+      "count": 38
+    },
+    {
+      "month": "Aug",
+      "count": 45
+    }
+  ],
+  "satisfactionRate": {
+    "current": 92,
+    "change": 5,
+    "negative": 10,
+    "neutral": 15,
+    "positive": 75
+  },
+  "newGuests": {
+    "current": 15,
+    "change": 10,
+    "goal": 20,
+    "thisMonth": [
+      {
+        "name": "Farhad Tarokh",
+        "daysAgo": 3
+      },
+      {
+        "name": "Mahnaz Farzin",
+        "daysAgo": 5
+      },
+      {
+        "name": "Rickie Baroch",
+        "daysAgo": 7
+      }
+    ]
+  }
+}

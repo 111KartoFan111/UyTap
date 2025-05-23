@@ -1,0 +1,201 @@
+{
+  "common": {
+    "updates": "Обновления",
+    "session": "Сессия",
+    "minutes": "минут",
+    "user": "Пользователь",
+    "userName": "Анна Цибуйская",
+    "search": "Быстрый поиск",
+    "filter": "Фильтр",
+    "view": "Просмотр",
+    "createTask": "Создать задачу",
+    "newGuest": "Новый гость",
+    "newReservation": "Новое бронирование",
+    "guest": "Гость",
+    "guests": "Гости",
+    "cancel": "Отмена"
+  },
+  "dashboard": {
+    "title": "Панель управления",
+    "overview": "Обзор",
+    "satisfactionRate": "Уровень удовлетворенности",
+    "bookings": "Бронирования",
+    "manageBookings": "УПРАВЛЕНИЕ БРОНИРОВАНИЯМИ",
+    "newGuests": "Новые гости",
+    "thisMonthGoal": "План на этот месяц:",
+    "days": "дней",
+    "seeAllGuests": "ПОКАЗАТЬ ВСЕХ ГОСТЕЙ",
+    "urgentTasks": "Срочные и VIP задачи",
+    "seeAllTasks": "ВСЕ ЗАДАЧИ",
+    "calendar": "Календарь",
+    "september": "Сентябрь",
+    "october": "Октябрь",
+    "occupied": "заняты",
+    "activityLog": "Журнал активности",
+    "monthNames": {
+      "jan": "Январь",
+      "feb": "Февраль",
+      "mar": "Март",
+      "apr": "Апрель",
+      "may": "Май",
+      "jun": "Июнь",
+      "jul": "Июль",
+      "aug": "Август",
+      "sep": "Сентябрь",
+      "oct": "Октябрь"
+    }
+  },
+  "conversations": {
+    "title": "Сообщения",
+    "online": "Онлайн",
+    "replyPlaceholder": "Ответить...",
+    "createTask": "Создать задачу",
+    "youAssigned": "Анна Цибуйская (вы) назначена этому разговору",
+    "reaction": "Реакция",
+    "seconds": "сек",
+    "expiredChats": "Просроченные чаты",
+    "noMessagesYet": "Сообщений пока нет",
+    "trusted": "Доверенный",
+    "call": "Звонок",
+    "email": "Почта",
+    "tasks": "Задачи",
+    "cleanRoom": "Убрать комнату",
+    "changeLinenTowels": "Заменить постельное белье и полотенца при выходе гостей",
+    "complimentaryWine": "Принести комплиментарную бутылку красного вина",
+    "allTasks": "ВСЕ ЗАДАЧИ"
+  },
+  "guests": {
+    "title": "Гости",
+    "mostRecent": "Недавние",
+    "allGuests": "Все гости",
+    "showAllGuests": "Показать всех гостей",
+    "name": "Имя",
+    "reservations": "Бронирования",
+    "nightsStayed": "Ночей",
+    "lastVisit": "Последний визит",
+    "group": "Группа",
+    "newReservation": "Новое бронирование",
+    "payment": "Оплата",
+    "guestDetails": "Данные гостя",
+    "stayDetails": "Детали размещения",
+    "history": "История",
+    "notes": "Заметки",
+    "documents": "Документы",
+    "contactInformation": "КОНТАКТНАЯ ИНФОРМАЦИЯ",
+    "firstName": "Имя",
+    "lastName": "Фамилия",
+    "email": "Электронная почта",
+    "phone": "Телефон",
+    "sex": "Пол",
+    "address": "АДРЕС",
+    "country": "Страна",
+    "city": "Город",
+    "familyMembers": "ЧЛЕНЫ СЕМЬИ",
+    "spouse": "Супруг(а)",
+    "child": "Ребенок"
+  },
+  "tasks": {
+    "title": "Задачи",
+    "columns": {
+      "inbox": "Входящие",
+      "next": "Следующие",
+      "inProgress": "В работе",
+      "finished": "Выполнены",
+      "failed": "Провалены"
+    },
+    "priorities": {
+      "urgent": "Срочно",
+      "high": "Высокий",
+      "medium": "Средний",
+      "low": "Низкий"
+    },
+    "statuses": {
+      "inbox": "Ожидает назначения",
+      "next": "Готов к выполнению",
+      "inProgress": "Выполняется",
+      "finished": "Завершена",
+      "failed": "Не выполнена"
+    },
+    "actions": {
+      "newTask": "Новая задача",
+      "assignTask": "Назначить задачу",
+      "completeTask": "Завершить задачу",
+      "cancelTask": "Отменить задачу"
+    },
+    "filters": {
+      "byPriority": "По приоритету",
+      "byStatus": "По статусу",
+      "byAssignee": "По исполнителю",
+      "byRoom": "По комнате"
+    },
+    "showCompleted": "Показать выполненные",
+    "assignees": "Исполнители",
+    "board": "Доска",
+    "list": "Список",
+    "newTask": "Новая задача"
+  },
+  "rooms": {
+    "title": "Комнаты",
+    "views": {
+      "timeline": "Временная шкала",
+      "scheme": "Схема"
+    },
+    "roomTypes": {
+      "standard": "СТАНДАРТНЫЕ НОМЕРА",
+      "superior": "НОМЕРА ЛЮКС",
+      "villas": "ВИЛЛЫ"
+    },
+    "room": "Комната",
+    "type": "Тип",
+    "statuses": {
+      "occupied": "Занято",
+      "available": "Доступно",
+      "maintenance": "На обслуживании"
+    },
+    "maintenance": {
+      "extraBed": "Дополнительная кровать",
+      "tvNotWorking": "Телевизор не работает"
+    },
+    "newGuest": "Новый гость",
+    "currentGuests": "Текущие гости",
+    "checkIn": "Дата заезда",
+    "checkOut": "Дата выезда",
+    "maintenanceInfo": "Информация об обслуживании",
+    "actions": {
+      "book": "Забронировать",
+      "messageGuest": "Написать гостю",
+      "viewHistory": "История"
+    }
+  },
+  "booking": {
+    "title": "Бронирование номера",
+    "rentalPeriod": "Период аренды номера",
+    "checkInDate": "Дата заезда",
+    "checkOutDate": "Дата выезда",
+    "nights": "Количество ночей: {count}",
+    "guestCount": "Количество гостей",
+    "guestInformation": "Информация о гостях",
+    "guest": "Гость",
+    "fullName": "ФИО",
+    "fullNamePlaceholder": "Иванов Иван Иванович",
+    "phone": "Номер телефона",
+    "documentType": "Тип документа",
+    "documentNumber": "Номер документа",
+    "passport": "Паспорт",
+    "idCard": "Удостоверение личности",
+    "paymentMethod": "Способ оплаты",
+    "cash": "Наличные",
+    "card": "Безналичный",
+    "confirmBooking": "Подтвердить бронирование",
+    "success": "Номер {room} успешно забронирован!",
+    "errors": {
+      "checkInRequired": "Укажите дату заезда",
+      "checkOutRequired": "Укажите дату выезда",
+      "invalidDateRange": "Дата выезда должна быть позже даты заезда",
+      "pastDate": "Дата заезда не может быть в прошлом",
+      "fullNameRequired": "Укажите ФИО",
+      "phoneRequired": "Укажите номер телефона",
+      "documentRequired": "Укажите номер документа"
+    }
+  }
+}

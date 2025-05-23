@@ -1,0 +1,476 @@
+.conversations {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.conversations-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.conversations-header h1 {
+  font-size: 32px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  width: 200px;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background: #27ae60;
+}
+
+.conversations-layout {
+  display: flex;
+  height: calc(100vh - 200px);
+  gap: 0;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* Conversations List */
+.conversations-list {
+  width: 320px;
+  border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
+}
+
+.conversation-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  cursor: pointer;
+  position: relative;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.conversation-item:hover {
+  background: #f8f9fa;
+}
+
+.conversation-item.active {
+  background: #f0f7ff;
+}
+
+.conversation-item.unread {
+  font-weight: 500;
+}
+
+.guest-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.conversation-info {
+  flex: 1;
+}
+
+.conversation-info h4 {
+  font-size: 14px;
+  margin: 0 0 4px 0;
+  font-weight: 500;
+}
+
+.conversation-info p {
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unread-indicator {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  background: #e74c3c;
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.online-status {
+  position: absolute;
+  bottom: 20px;
+  left: 52px;
+  width: 12px;
+  height: 12px;
+  background: #27ae60;
+  border-radius: 50%;
+  border: 2px solid white;
+}
+
+/* Chat Area */
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  background: white;
+}
+
+.chat-guest-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.chat-guest-info img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.chat-guest-info h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.chat-guest-info p {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+}
+
+.online-badge {
+  color: #27ae60;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.create-task-btn {
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: 8px;
+}
+
+.messages-container {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background: #f8f9fa;
+}
+
+.message {
+  margin-bottom: 24px;
+}
+
+.message.sent {
+  margin-left: 60px;
+}
+
+.message.received {
+  margin-right: 60px;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.message-sender {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.message-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.message p {
+  background: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.message.sent p {
+  background: #e3f2fd;
+}
+
+.message-images {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.image-placeholder {
+  width: 100px;
+  height: 100px;
+  background: #e0e0e0;
+  border-radius: 8px;
+}
+
+.message-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.no-messages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+}
+
+.message-input {
+  display: flex;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+  background: white;
+}
+
+.message-input input {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
+}
+
+.attach-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: 8px;
+}
+
+/* Guest Panel */
+.guest-panel {
+  width: 400px;
+  border-left: 1px solid #e0e0e0;
+  background: white;
+  overflow-y: auto;
+}
+
+.guest-panel.show-tasks {
+  width: 500px;
+}
+
+.guest-header {
+  text-align: center;
+  padding: 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.guest-header img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin-bottom: 16px;
+}
+
+.guest-header h2 {
+  font-size: 20px;
+  margin: 0 0 8px 0;
+}
+
+.trusted-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #27ae60;
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+.guest-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.guest-actions button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.detail-tabs {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 24px;
+}
+
+.detail-tabs button {
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+}
+
+.detail-tabs button.active {
+  color: #3498db;
+  border-bottom-color: #3498db;
+}
+
+.detail-content {
+  padding: 24px;
+}
+
+.detail-content section {
+  margin-bottom: 32px;
+}
+
+.detail-content h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #999;
+  margin: 0 0 16px 0;
+  letter-spacing: 0.5px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.detail-row label {
+  color: #666;
+}
+
+.family-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.family-member img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.tasks-panel {
+  padding: 24px;
+  background: #f8f9fa;
+  margin: 0 -24px;
+}
+
+.tasks-panel h4 {
+  font-size: 16px;
+  margin: 0 0 16px 0;
+}
+
+.task-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.task-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.all-tasks-btn {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}

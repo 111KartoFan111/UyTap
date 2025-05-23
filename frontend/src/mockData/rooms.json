@@ -1,0 +1,76 @@
+{
+  "rooms": [
+    {
+      "id": 1,
+      "number": "103",
+      "type": "Standard",
+      "status": "occupied",
+      "currentGuests": ["Keniesha Wood"],
+      "checkInDate": "2018-06-17",
+      "checkOutDate": "2018-06-30"
+    },
+    {
+      "id": 2,
+      "number": "105",
+      "type": "Standard",
+      "status": "occupied",
+      "currentGuests": ["Alex Walker"],
+      "checkInDate": "2018-06-18",
+      "checkOutDate": "2018-06-24"
+    },
+    {
+      "id": 3,
+      "number": "107",
+      "type": "Standard",
+      "status": "occupied",
+      "currentGuests": ["Farhad Tarokh"],
+      "checkInDate": "2018-06-23",
+      "checkOutDate": "2018-06-24"
+    },
+    {
+      "id": 4,
+      "number": "202",
+      "type": "Superior",
+      "status": "occupied",
+      "currentGuests": ["Usha Oliver"],
+      "checkInDate": "2018-06-10",
+      "checkOutDate": "2018-07-05"
+    },
+    {
+      "id": 5,
+      "number": "Villa 1",
+      "type": "Villa",
+      "status": "maintenance",
+      "currentGuests": [],
+      "checkInDate": null,
+      "checkOutDate": null
+    },
+    {
+      "id": 6,
+      "number": "Villa 2",
+      "type": "Villa",
+      "status": "occupied",
+      "currentGuests": ["Sung Jin-Shil"],
+      "checkInDate": "2018-06-22",
+      "checkOutDate": "2018-06-24"
+    },
+    {
+      "id": 7,
+      "number": "101",
+      "type": "Standard",
+      "status": "available",
+      "currentGuests": [],
+      "checkInDate": null,
+      "checkOutDate": null
+    },
+    {
+      "id": 8,
+      "number": "203",
+      "type": "Superior",
+      "status": "available",
+      "currentGuests": [],
+      "checkInDate": null,
+      "checkOutDate": null
+    }
+  ]
+}

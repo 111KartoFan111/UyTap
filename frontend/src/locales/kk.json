@@ -1,0 +1,201 @@
+{
+  "common": {
+    "updates": "Жаңартулар",
+    "session": "Сессия", 
+    "minutes": "минут",
+    "user": "Пайдаланушы",
+    "userName": "Анна Цибуйская",
+    "search": "Жылдам іздеу",
+    "filter": "Сүзгі",
+    "view": "Көрініс",
+    "createTask": "Тапсырма жасау",
+    "newGuest": "Жаңа қонақ",
+    "newReservation": "Жаңа брондау",
+    "guest": "Қонақ",
+    "guests": "Қонақтар",
+    "cancel": "Бас тарту"
+  },
+  "dashboard": {
+    "title": "Басқару панелі",
+    "overview": "Шолу",
+    "satisfactionRate": "Қанағаттану деңгейі",
+    "bookings": "Брондаулар",
+    "newGuests": "Жаңа қонақтар",
+    "manageBookings": "БРОНДАУЛАРДЫ БАСҚАРУ",
+    "thisMonthGoal": "Осы айдағы жоспар:",
+    "days": "күн",
+    "seeAllGuests": "БАРЛЫҚ ҚОНАҚТАРДЫ КӨРСЕТУ",
+    "urgentTasks": "Шұғыл және VIP тапсырмалар",
+    "seeAllTasks": "БАРЛЫҚ ТАПСЫРМАЛАР",
+    "calendar": "Күнтізбе",
+    "september": "Қыркүйек",
+    "october": "Қазан",
+    "occupied": "бос емес",
+    "activityLog": "Әрекеттер журналы",
+    "monthNames": {
+      "jan": "Қаңтар",
+      "feb": "Ақпан", 
+      "mar": "Наурыз",
+      "apr": "Сәуір",
+      "may": "Мамыр", 
+      "jun": "Маусым",
+      "jul": "Шілде",
+      "aug": "Тамыз",
+      "sep": "Қыркүйек",
+      "oct": "Қазан"
+    }
+  },
+  "conversations": {
+    "title": "Хабарламалар",
+    "online": "Желіде",
+    "replyPlaceholder": "Жауап беру...",
+    "createTask": "Тапсырма жасау",
+    "youAssigned": "Анна Цибуйская (сіз) осы әңгімеге тағайындалды",
+    "reaction": "Реакция",
+    "seconds": "сек",
+    "expiredChats": "Мерзімі өткен чаттар",
+    "noMessagesYet": "Әзірше хабарлама жоқ",
+    "trusted": "Сенімді",
+    "call": "Қоңырау",
+    "email": "Пошта",
+    "tasks": "Тапсырмалар",
+    "cleanRoom": "Бөлмені тазалау",
+    "changeLinenTowels": "Қонақтар шыққанда төсек жабдықтары мен сүлгілерді ауыстыру",
+    "complimentaryWine": "Комплиментке қызыл шарап бөтелкесін әкелу",
+    "allTasks": "БАРЛЫҚ ТАПСЫРМАЛАР"
+  },
+  "guests": {
+    "title": "Қонақтар",
+    "mostRecent": "Соңғы",
+    "allGuests": "Барлық қонақтар",
+    "showAllGuests": "Барлық қонақтарды көрсету",
+    "name": "Аты",
+    "reservations": "Брондаулар",
+    "nightsStayed": "Түндер",
+    "lastVisit": "Соңғы келуі", 
+    "group": "Топ",
+    "newReservation": "Жаңа брондау",
+    "payment": "Төлем",
+    "guestDetails": "Қонақ мәліметтері",
+    "stayDetails": "Орналасу мәліметтері",
+    "history": "Тарих",
+    "notes": "Жазбалар", 
+    "documents": "Құжаттар",
+    "contactInformation": "БАЙЛАНЫС АҚПАРАТЫ",
+    "firstName": "Аты",
+    "lastName": "Тегі",
+    "email": "Электрондық пошта",
+    "phone": "Телефон",
+    "sex": "Жынысы",
+    "address": "МЕКЕНЖАЙ",
+    "country": "Ел", 
+    "city": "Қала",
+    "familyMembers": "ОТБАСЫ МҮШЕЛЕРІ",
+    "spouse": "Жұбайы",
+    "child": "Бала"
+  },
+  "tasks": {
+    "title": "Тапсырмалар",
+    "columns": {
+      "inbox": "Кіріс",
+      "next": "Келесі",
+      "inProgress": "Орындалуда",
+      "finished": "Аяқталды", 
+      "failed": "Сәтсіз"
+    },
+    "priorities": {
+      "urgent": "Шұғыл",
+      "high": "Жоғары",
+      "medium": "Орташа",
+      "low": "Төмен"
+    },
+    "statuses": {
+      "inbox": "Тағайындауды күтуде",
+      "next": "Орындауға дайын",
+      "inProgress": "Орындалуда",
+      "finished": "Аяқталды",
+      "failed": "Орындалмады"
+    },
+    "actions": {
+      "newTask": "Жаңа тапсырма",
+      "assignTask": "Тапсырманы тағайындау",
+      "completeTask": "Тапсырманы аяқтау",
+      "cancelTask": "Тапсырманы болдырмау"
+    },
+    "filters": {
+      "byPriority": "Басымдылық бойынша",
+      "byStatus": "Күй бойынша",
+      "byAssignee": "Орындаушы бойынша",
+      "byRoom": "Бөлме бойынша"
+    },
+    "showCompleted": "Аяқталғандарды көрсету",
+    "assignees": "Орындаушылар",
+    "board": "Тақта",
+    "list": "Тізім",
+    "newTask": "Жаңа тапсырма"
+  },
+  "rooms": {
+    "title": "Бөлмелер",
+    "views": {
+      "timeline": "Уақыт шкаласы",
+      "scheme": "Сызба"
+    },
+    "roomTypes": {
+      "standard": "СТАНДАРТТЫ БӨЛМЕЛЕР",
+      "superior": "ЛЮКС БӨЛМЕЛЕР",
+      "villas": "ВИЛЛАЛАР"
+    },
+    "room": "Бөлме",
+    "type": "Түрі",
+    "statuses": {
+      "occupied": "Бос емес",
+      "available": "Бос",
+      "maintenance": "Қызмет көрсетілуде"
+    },
+    "maintenance": {
+      "extraBed": "Қосымша төсек",
+      "tvNotWorking": "Теледидар істемейді"
+    },
+    "newGuest": "Жаңа қонақ",
+    "currentGuests": "Қазіргі қонақтар",
+    "checkIn": "Келу күні",
+    "checkOut": "Кету күні",
+    "maintenanceInfo": "Қызмет көрсету туралы ақпарат",
+    "actions": {
+      "book": "Брондау",
+      "messageGuest": "Қонаққа хабарлама жазу",
+      "viewHistory": "Тарихы"
+    }
+  },
+  "booking": {
+    "title": "Бөлме брондау",
+    "rentalPeriod": "Жалға алу мерзімі",
+    "checkInDate": "Келу күні",
+    "checkOutDate": "Кету күні",
+    "nights": "Түндер саны: {count}",
+    "guestCount": "Қонақтар саны",
+    "guestInformation": "Қонақтар туралы ақпарат",
+    "guest": "Қонақ",
+    "fullName": "Толық аты",
+    "fullNamePlaceholder": "Иванов Иван Иванович",
+    "phone": "Телефон нөмірі",
+    "documentType": "Құжат түрі",
+    "documentNumber": "Құжат нөмірі",
+    "passport": "Паспорт",
+    "idCard": "Жеке куәлік",
+    "paymentMethod": "Төлем тәсілі",
+    "cash": "Қолма-қол ақша",
+    "card": "Қолма-қол емес",
+    "confirmBooking": "Брондауды растау",
+    "success": "{room} номері сәтті брондалды!",
+    "errors": {
+      "checkInRequired": "Келу күнін көрсетіңіз",
+      "checkOutRequired": "Кету күнін көрсетіңіз",
+      "invalidDateRange": "Кету күні келу күнінен кейін болуы керек",
+      "pastDate": "Келу күні өткен уақытта болмауы керек",
+      "fullNameRequired": "Толық атын көрсетіңіз",
+      "phoneRequired": "Телефон нөмірін көрсетіңіз",
+      "documentRequired": "Құжат нөмірін көрсетіңіз"
+    }
+  }
+}

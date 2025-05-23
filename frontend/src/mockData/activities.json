@@ -1,0 +1,39 @@
+{
+  "activities": [
+    {
+      "id": 1,
+      "room": "103",
+      "action": "Guest entered room",
+      "user": "Maria Peterson",
+      "time": "2 min"
+    },
+    {
+      "id": 2,
+      "room": "103",
+      "action": "Housekeeping exited room",
+      "user": null,
+      "time": "12 min"
+    },
+    {
+      "id": 3,
+      "room": "103",
+      "action": "Housekeeping entered room",
+      "user": null,
+      "time": "14 min"
+    },
+    {
+      "id": 4,
+      "room": "203",
+      "action": "Guests checked out",
+      "user": null,
+      "time": "35 min"
+    },
+    {
+      "id": 5,
+      "room": "203",
+      "action": "Housekeeping started cleaning",
+      "user": null,
+      "time": "54 min"
+    }
+  ]
+}

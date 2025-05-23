@@ -1,0 +1,64 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Clean Room 103",
+      "room": "103",
+      "status": "inbox",
+      "priority": "high",
+      "assignee": "Maria Peterson",
+      "dueDate": "2018-09-08",
+      "description": "Deep clean after guest checkout"
+    },
+    {
+      "id": 2,
+      "title": "Replace TV in Villa 1",
+      "room": "Villa 1",
+      "status": "inProgress",
+      "priority": "urgent",
+      "assignee": "John Smith",
+      "dueDate": "2018-09-09",
+      "description": "TV reported not working by guest"
+    },
+    {
+      "id": 3,
+      "title": "Deliver Extra Bed to Villa 2",
+      "room": "Villa 2",
+      "status": "next",
+      "priority": "medium",
+      "assignee": null,
+      "dueDate": "2018-09-10",
+      "description": "Guest requested additional bed for family"
+    },
+    {
+      "id": 4,
+      "title": "Restock Amenities in Room 202",
+      "room": "202",
+      "status": "finished",
+      "priority": "low",
+      "assignee": "Anna Lee",
+      "dueDate": "2018-09-07",
+      "description": "Restock towels and toiletries"
+    },
+    {
+      "id": 5,
+      "title": "Fix AC in Room 105",
+      "room": "105",
+      "status": "failed",
+      "priority": "urgent",
+      "assignee": "Mike Johnson",
+      "dueDate": "2018-09-06",
+      "description": "AC unit repair failed, needs replacement"
+    },
+    {
+      "id": 6,
+      "title": "Provide Complimentary Wine to Room 103",
+      "room": "103",
+      "status": "inbox",
+      "priority": "medium",
+      "assignee": null,
+      "dueDate": "2018-09-08",
+      "description": "Guest Ea Tipene requested red wine"
+    }
+  ]
+}
