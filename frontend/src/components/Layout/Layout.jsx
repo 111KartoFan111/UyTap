@@ -8,7 +8,9 @@ import {
   FiGrid,
   FiSettings,
   FiHelpCircle,
-  FiGlobe
+  FiGlobe,
+  FiMenu,
+  FiUser
 } from 'react-icons/fi';
 import { useTranslation } from '../../contexts/LanguageContext';
 import './Layout.css';
@@ -16,18 +18,47 @@ import './Layout.css';
 const Layout = ({ children }) => {
   const { t, language, setLanguage, languages } = useTranslation();
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navItems = [
     { path: '/', icon: FiHome, label: t('dashboard.title') },
     { path: '/conversations', icon: FiMessageCircle, label: t('conversations.title') },
     { path: '/guests', icon: FiUsers, label: t('guests.title') },
     { path: '/tasks', icon: FiCheckSquare, label: t('tasks.title') },
-    { path: '/rooms', icon: FiGrid, label: t('rooms.title') }
+    { path: '/rooms', icon: FiGrid, label: t('rooms.title') },
+    { path: '/employees', icon: FiUsers, label: t('employees.title') }
   ];
+
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+  };
+
+  const handleNavClick = () => {
+    // Close sidebar on mobile after navigation
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  };
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {/* Mobile Navigation Toggle */}
+      {!sidebarOpen && (
+        <button 
+          className="mobile-nav-toggle"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <FiMenu size={20} />
+        </button>
+      )}
+
+      {/* Mobile Overlay */}
+      <div 
+        className={`mobile-overlay ${sidebarOpen ? 'show' : ''}`}
+        onClick={closeSidebar}
+      />
+
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="logo">
           <div className="logo-icon">💎</div>
         </div>
@@ -38,6 +69,7 @@ const Layout = ({ children }) => {
               key={item.path}
               to={item.path} 
               className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}
+              onClick={handleNavClick}
             >
               <item.icon size={20} />
             </NavLink>

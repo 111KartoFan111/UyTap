@@ -131,8 +131,8 @@ const Dashboard = () => {
           </div>
           <div className="calendar-grid">
             <div className="weekdays">
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
-                <span key={day}>{day}</span>
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                <span key={index}>{day}</span>
               ))}
             </div>
             <div className="days">

@@ -42,7 +42,9 @@
       "jul": "Июль",
       "aug": "Август",
       "sep": "Сентябрь",
-      "oct": "Октябрь"
+      "oct": "Октябрь",
+      "nov": "Ноябрь",
+      "dec": "Декабрь"
     }
   },
   "conversations": {
@@ -197,5 +199,30 @@
       "phoneRequired": "Укажите номер телефона",
       "documentRequired": "Укажите номер документа"
     }
+  },
+"employees": {
+    "title": "Сотрудники",
+    "recentEmployees": "Недавние сотрудники",
+    "allEmployees": "Все сотрудники",
+    "showAllEmployees": "Показать всех сотрудников",
+    "name": "Имя",
+    "position": "Должность",
+    "department": "Отдел",
+    "phone": "Телефон",
+    "email": "Email",
+    "status": "Статус",
+    "editEmployee": "Редактировать",
+    "call": "Звонок",
+    "personalInfo": "Личная информация",
+    "workInfo": "Рабочая информация", 
+    "schedule": "График",
+    "documents": "Документы",
+    "contactInformation": "КОНТАКТНАЯ ИНФОРМАЦИЯ",
+    "workInformation": "РАБОЧАЯ ИНФОРМАЦИЯ",
+    "firstName": "Имя",
+    "lastName": "Фамилия",
+    "hireDate": "Дата найма",
+    "workSchedule": "График работы",
+    "salary": "Зарплата"
   }
 }

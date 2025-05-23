@@ -474,3 +474,288 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* Mobile Back Button */
+.mobile-back-btn {
+  display: none;
+  padding: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+}
+
+/* Tablet Styles */
+@media (max-width: 1024px) {
+  .conversations-layout {
+    height: calc(100vh - 180px);
+  }
+  
+  .guest-panel {
+    width: 350px;
+  }
+  
+  .guest-panel.show-tasks {
+    width: 400px;
+  }
+  
+  .conversations-list {
+    width: 280px;
+  }
+  
+  .detail-content {
+    padding: 20px;
+  }
+  
+  .messages-container {
+    padding: 20px;
+  }
+}
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+  .conversations-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  
+  .conversations-header h1 {
+    font-size: 24px;
+  }
+  
+  .header-controls {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+  }
+  
+  .search-box input {
+    width: 100%;
+  }
+  
+  .status-indicator {
+    display: none;
+  }
+  
+  .conversations-layout {
+    height: calc(100vh - 160px);
+    position: relative;
+  }
+  
+  .conversations-list {
+    width: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    z-index: 10;
+    background: white;
+    transition: transform 0.3s ease;
+  }
+  
+  .conversations-list.hidden {
+    transform: translateX(-100%);
+  }
+  
+  .chat-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .chat-area.active {
+    transform: translateX(0);
+  }
+  
+  .guest-panel {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 15;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .guest-panel.active {
+    transform: translateX(0);
+  }
+  
+  .mobile-back-btn {
+    display: flex;
+  }
+  
+  .chat-header {
+    padding: 12px 16px;
+  }
+  
+  .chat-guest-info h3 {
+    font-size: 14px;
+  }
+  
+  .chat-guest-info p {
+    font-size: 11px;
+  }
+  
+  .create-task-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .messages-container {
+    padding: 16px;
+  }
+  
+  .message.sent {
+    margin-left: 20px;
+  }
+  
+  .message.received {
+    margin-right: 20px;
+  }
+  
+  .message-input {
+    padding: 12px 16px;
+  }
+  
+  .guest-header {
+    padding: 20px 16px;
+  }
+  
+  .guest-header img {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .guest-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .guest-actions button {
+    justify-content: center;
+  }
+  
+  .detail-tabs {
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .detail-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .detail-tabs button {
+    white-space: nowrap;
+    padding: 12px 12px;
+    font-size: 12px;
+  }
+  
+  .detail-content {
+    padding: 16px;
+  }
+  
+  .detail-row {
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  
+  .tasks-panel {
+    padding: 16px;
+    margin: 0 -16px;
+  }
+}
+
+/* Small Mobile Styles */
+@media (max-width: 480px) {
+  .conversations-header h1 {
+    font-size: 20px;
+  }
+  
+  .header-controls {
+    gap: 8px;
+  }
+  
+  .search-box {
+    padding: 6px 12px;
+  }
+  
+  .filter-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .conversation-item {
+    padding: 12px 16px;
+  }
+  
+  .guest-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .conversation-info h4 {
+    font-size: 13px;
+  }
+  
+  .conversation-info p {
+    font-size: 12px;
+  }
+  
+  .chat-guest-info img {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .messages-container {
+    padding: 12px;
+  }
+  
+  .message {
+    margin-bottom: 16px;
+  }
+  
+  .message.sent {
+    margin-left: 10px;
+  }
+  
+  .message.received {
+    margin-right: 10px;
+  }
+  
+  .message p {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  
+  .image-placeholder {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .guest-header img {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .guest-header h2 {
+    font-size: 18px;
+  }
+}
