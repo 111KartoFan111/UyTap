@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rental_postgres
+    environment:
+      POSTGRES_DB: rental_system
+      POSTGRES_USER: rental_admin
+      POSTGRES_PASSWORD: rental_pass_2024
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - rental_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rental_admin -d rental_system"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Adminer для управления БД
+  adminer:
+    image: adminer:4.8.1
+    container_name: rental_adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - rental_network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+  # Backend API
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rental_backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql://rental_admin:rental_pass_2024@postgres:5432/rental_system
+      
+      # JWT
+      SECRET_KEY: your-super-secret-jwt-key-change-in-production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      
+      # App settings
+      DEBUG: "true"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
+      
+      # Security
+      BCRYPT_ROUNDS: 12
+      
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_logs:/app/logs
+    networks:
+      - rental_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    # Добавляем команду для создания папки логов
+    command: >
+      sh -c "
+        mkdir -p /app/logs &&
+        chown -R app:app /app/logs &&
+        uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  rental_network:
+    driver: bridge

@@ -103,8 +103,6 @@ const Dashboard = () => {
           </div>
           <button className="see-all-btn">{t('dashboard.seeAllGuests')}</button>
         </div>
-
-        {/* Urgent Tasks */}
         <div className="card tasks-card">
           <h3>{t('dashboard.urgentTasks')}</h3>
           {data.tasks.map(task => (
