@@ -1,7 +1,8 @@
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
 import re
+import uuid
 from models.models import UserRole, UserStatus, OrganizationStatus
 
 
@@ -40,7 +41,7 @@ class OrganizationUpdate(BaseModel):
 
 
 class OrganizationResponse(OrganizationBase):
-    id: str
+    id: Union[str, uuid.UUID]
     status: OrganizationStatus
     subscription_plan: str
     max_users: int
@@ -50,6 +51,12 @@ class OrganizationResponse(OrganizationBase):
     created_at: datetime
     updated_at: datetime
     settings: Dict[str, Any]
+
+    @validator('id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
 
     class Config:
         from_attributes = True
@@ -66,7 +73,7 @@ class UserBase(BaseModel):
 
     @validator('phone')
     def validate_phone(cls, v):
-        if v and not re.match(r'^\+?[\d\s\-\(\)]+, v'):
+        if v and not re.match(r'^\+?[\d\s\-\(\)]+$', v):
             raise ValueError('Invalid phone number format')
         return v
 
@@ -77,14 +84,29 @@ class UserCreate(UserBase):
 
     @validator('password')
     def validate_password(cls, v):
+        errors = []
+        
+        if len(v) < 8:
+            errors.append("Password must be at least 8 characters long")
+        
+        if len(v) > 128:
+            errors.append("Password must be no more than 128 characters")
+        
         if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
+            errors.append("Password must contain at least one uppercase letter")
+        
         if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
+            errors.append("Password must contain at least one lowercase letter")
+        
         if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
+            errors.append("Password must contain at least one digit")
+        
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
-            raise ValueError('Password must contain at least one special character')
+            errors.append("Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)")
+        
+        if errors:
+            raise ValueError("; ".join(errors))
+        
         return v
 
 
@@ -98,14 +120,14 @@ class UserUpdate(BaseModel):
 
     @validator('phone')
     def validate_phone(cls, v):
-        if v and not re.match(r'^\+?[\d\s\-\(\)]+, v'):
+        if v and not re.match(r'^\+?[\d\s\-\(\)]+$', v):
             raise ValueError('Invalid phone number format')
         return v
 
 
 class UserResponse(UserBase):
-    id: str
-    organization_id: Optional[str]
+    id: Union[str, uuid.UUID]
+    organization_id: Optional[Union[str, uuid.UUID]]
     status: UserStatus
     email_verified: bool
     phone_verified: bool
@@ -116,7 +138,19 @@ class UserResponse(UserBase):
     updated_at: datetime
     avatar_url: Optional[str]
     preferences: Dict[str, Any]
-    organization: Optional[OrganizationResponse]
+    organization: Optional[OrganizationResponse] = None
+
+    @validator('id', pre=True)
+    def convert_id_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+
+    @validator('organization_id', pre=True)
+    def convert_org_id_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
 
     class Config:
         from_attributes = True
@@ -162,14 +196,29 @@ class ChangePasswordRequest(BaseModel):
 
     @validator('new_password')
     def validate_new_password(cls, v):
+        errors = []
+        
+        if len(v) < 8:
+            errors.append("Password must be at least 8 characters long")
+        
+        if len(v) > 128:
+            errors.append("Password must be no more than 128 characters")
+        
         if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
+            errors.append("Password must contain at least one uppercase letter")
+        
         if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
+            errors.append("Password must contain at least one lowercase letter")
+        
         if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
+            errors.append("Password must contain at least one digit")
+        
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
-            raise ValueError('Password must contain at least one special character')
+            errors.append("Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)")
+        
+        if errors:
+            raise ValueError("; ".join(errors))
+        
         return v
 
 
@@ -184,14 +233,29 @@ class ResetPasswordConfirm(BaseModel):
 
     @validator('new_password')
     def validate_new_password(cls, v):
+        errors = []
+        
+        if len(v) < 8:
+            errors.append("Password must be at least 8 characters long")
+        
+        if len(v) > 128:
+            errors.append("Password must be no more than 128 characters")
+        
         if not re.search(r'[A-Z]', v):
-            raise ValueError('Password must contain at least one uppercase letter')
+            errors.append("Password must contain at least one uppercase letter")
+        
         if not re.search(r'[a-z]', v):
-            raise ValueError('Password must contain at least one lowercase letter')
+            errors.append("Password must contain at least one lowercase letter")
+        
         if not re.search(r'\d', v):
-            raise ValueError('Password must contain at least one digit')
+            errors.append("Password must contain at least one digit")
+        
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
-            raise ValueError('Password must contain at least one special character')
+            errors.append("Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)")
+        
+        if errors:
+            raise ValueError("; ".join(errors))
+        
         return v
 
 
@@ -230,28 +294,40 @@ class TokenData(BaseModel):
 
 # Схемы для аудита
 class UserActionResponse(BaseModel):
-    id: str
+    id: Union[str, uuid.UUID]
     action: str
     resource_type: Optional[str]
-    resource_id: Optional[str]
+    resource_id: Optional[Union[str, uuid.UUID]]
     details: Optional[Dict[str, Any]]
     success: bool
     error_message: Optional[str]
     created_at: datetime
     user: Optional[UserResponse]
 
+    @validator('id', 'resource_id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+
     class Config:
         from_attributes = True
 
 
 class LoginAttemptResponse(BaseModel):
-    id: str
+    id: Union[str, uuid.UUID]
     email: str
     success: bool
     failure_reason: Optional[str]
     ip_address: Optional[str]
     user_agent: Optional[str]
     created_at: datetime
+
+    @validator('id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
 
     class Config:
         from_attributes = True
