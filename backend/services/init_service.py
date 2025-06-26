@@ -18,11 +18,32 @@ class DatabaseInitService:
     def create_tables():
         """Создание всех таблиц"""
         try:
-            # Создаем все таблицы
+            # Сначала создаем схемы и расширения
+            with engine.connect() as conn:
+                # Создаем схему audit
+                conn.execute(text('CREATE SCHEMA IF NOT EXISTS audit'))
+                
+                # Создаем расширения (если доступны)
+                try:
+                    conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
+                    print("✅ Extension uuid-ossp created")
+                except Exception as e:
+                    print(f"⚠️  Warning: Could not create uuid-ossp extension: {e}")
+                
+                try:
+                    conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pg_trgm"'))
+                    print("✅ Extension pg_trgm created")
+                except Exception as e:
+                    print(f"⚠️  Warning: Could not create pg_trgm extension: {e}")
+                
+                conn.commit()
+            
+            # Теперь создаем все таблицы
             Base.metadata.create_all(bind=engine)
+            print("✅ All tables created successfully")
             return True
         except Exception as e:
-            print(f"Ошибка при создании таблиц: {e}")
+            print(f"❌ Error creating tables: {e}")
             return False
     
     @staticmethod
@@ -35,7 +56,8 @@ class DatabaseInitService:
             ).first()
             
             return system_user is not None
-        except Exception:
+        except Exception as e:
+            print(f"❌ Error checking database initialization: {e}")
             return False
     
     @staticmethod
@@ -216,21 +238,15 @@ class DatabaseInitService:
     
     @staticmethod
     def run_database_migrations(db: Session):
-        """Выполнение миграций и настройка БД"""
+        """Выполнение миграций и настройка БД (вызывается после создания таблиц)"""
         try:
-            # Проверяем расширения PostgreSQL
-            db.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
-            db.execute(text('CREATE EXTENSION IF NOT EXISTS "pg_trgm"'))
-            
-            # Создаем схему audit если не существует
-            db.execute(text('CREATE SCHEMA IF NOT EXISTS audit'))
-            
-            db.commit()
+            # Дополнительные настройки после создания таблиц
+            print("✅ Database migrations completed successfully")
             
         except Exception as e:
             db.rollback()
-            print(f"Ошибка с подключением к базе данных: {e}")
-            raise e
+            print(f"❌ Database migration error: {e}")
+            # Не поднимаем исключение, чтобы приложение могло запуститься
     
     @staticmethod
     def cleanup_old_data(db: Session):

@@ -240,3 +240,15 @@ async def get_system_status(db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get system status: {str(e)}"
         )
+
+@router.get("/system/status")
+async def get_system_status(db: Session = Depends(get_db)):
+    """Проверка статуса инициализации системы"""
+    try:
+        logger.info("🔍 Checking system status...")
+        is_initialized = DatabaseInitService.is_database_initialized(db)
+        logger.info(f"🔍 System initialized: {is_initialized}")
+        return {"initialized": is_initialized}
+    except Exception as e:
+        logger.error(f"❌ Error checking system status: {e}")
+        return {"initialized": False, "error": str(e)}

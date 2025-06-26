@@ -15,6 +15,25 @@
     "guests": "Қонақтар",
     "cancel": "Бас тарту"
   },
+  "auth": {
+    "login": "Жүйеге кіру",
+    "logout": "Шығу",
+    "email": "Электрондық пошта",
+    "emailPlaceholder": "Email енгізіңіз",
+    "password": "Құпия сөз",
+    "passwordPlaceholder": "Құпия сөз енгізіңіз",
+    "organization": "Ұйым",
+    "organizationPlaceholder": "Ұйым slug-ын енгізіңіз",
+    "organizationHint": "Ұйым slug-ын енгізіңіз (мысалы: hotel-paradise, my-company)",
+    "loggingIn": "Кіруде...",
+    "noAccount": "Тіркелгі жоқ па?",
+    "contactAdmin": "Жүйе әкімшісіне хабарласыңыз",
+    "systemTitle": "Жалдау басқару жүйесі",
+    "systemSubtitle": "Жылжымайтын мүлікті басқарудың кәсіби шешімі",
+    "invalidCredentials": "Қате email немесе құпия сөз",
+    "networkError": "Желі қатесі. Қосылымды тексеріңіз",
+    "sessionExpired": "Сессия аяқталды. Қайта кіру керек"
+  },
   "dashboard": {
     "title": "Басқару панелі",
     "overview": "Шолу",

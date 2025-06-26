@@ -39,9 +39,15 @@ async def lifespan(app: FastAPI):
     try:
         # Создаем таблицы если их нет
         logger.info("📊 Creating database tables...")
-        DatabaseInitService.create_tables()
+        success = DatabaseInitService.create_tables()
         
-        # Выполняем миграции
+        if success:
+            logger.info("✅ Database tables created successfully")
+        else:
+            logger.error("❌ Failed to create database tables")
+            raise Exception("Database table creation failed")
+        
+        # Выполняем дополнительные миграции
         with SessionLocal() as db:
             DatabaseInitService.run_database_migrations(db)
         

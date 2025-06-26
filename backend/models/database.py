@@ -15,7 +15,7 @@ engine = create_engine(
     max_overflow=30,
     pool_pre_ping=True,
     pool_recycle=300,
-    echo=False  # Для production установить False
+    echo=os.getenv("SQL_ECHO", "false").lower() == "true"  # Используем переменную окружения
 )
 
 # Создаем сессию

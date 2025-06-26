@@ -11,15 +11,17 @@ const translations = {
 // Контекст языка
 const LanguageContext = createContext();
 
-export const useTranslation = () => {
+// Хук для использования переводов
+export function useTranslation() {
   const context = useContext(LanguageContext);
   if (!context) {
     throw new Error('useTranslation должен использоваться внутри LanguageProvider');
   }
   return context;
-};
+}
 
-export const LanguageProvider = ({ children }) => {
+// Провайдер языка
+export function LanguageProvider({ children }) {
   // Получаем начальный язык из localStorage или по умолчанию русский
   const [language, setLanguage] = useState(() => {
     const savedLanguage = localStorage.getItem('app_language');
@@ -68,4 +70,4 @@ export const LanguageProvider = ({ children }) => {
       {children}
     </LanguageContext.Provider>
   );
-};
+}
