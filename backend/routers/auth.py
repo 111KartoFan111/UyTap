@@ -16,7 +16,6 @@ from schemas.auth import (
     ResetPasswordRequest, ResetPasswordConfirm, SystemInitRequest
 )
 from services.auth_service import AuthService
-from services.init_service import DatabaseInitService
 from utils.dependencies import get_current_user, get_current_active_user
 from utils.rate_limiter import RateLimiter
 
@@ -168,87 +167,3 @@ async def login(
             detail=f"Internal server error during login: {str(e)}"
         )
 
-
-# Системные endpoints (только для system_owner)
-@router.post("/system/init", response_model=dict)
-async def initialize_system(
-    request: Request,
-    init_data: SystemInitRequest,
-    db: Session = Depends(get_db)
-):
-    """Инициализация системы (только при первом запуске)"""
-    
-    try:
-        client_info = get_client_info(request)
-        
-        print(f"🔍 System initialization attempt")
-        print(f"🔍 Organization data: {init_data.organization.dict()}")
-        print(f"🔍 Admin user email: {init_data.admin_user.email}")
-        
-        # Проверяем, не инициализирована ли уже система
-        if DatabaseInitService.is_database_initialized(db):
-            print(f"❌ System already initialized")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="System is already initialized"
-            )
-        
-        # Инициализируем систему
-        print(f"🔍 Initializing system...")
-        result = DatabaseInitService.initialize_system(db, init_data)
-        print(f"✅ System initialized successfully")
-        
-        return result
-        
-    except HTTPException as http_ex:
-        print(f"❌ HTTP Exception in init: {http_ex.status_code} - {http_ex.detail}")
-        raise
-    except Exception as e:
-        print(f"❌ Unexpected error in system init: {str(e)}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initialize system: {str(e)}"
-        )
-
-
-@router.get("/system/status")
-async def get_system_status(db: Session = Depends(get_db)):
-    """Получение статуса системы"""
-    
-    try:
-        print(f"🔍 Checking system status...")
-        is_initialized = DatabaseInitService.is_database_initialized(db)
-        print(f"🔍 System initialized: {is_initialized}")
-        
-        if is_initialized:
-            stats = DatabaseInitService.get_system_stats(db)
-            return {
-                "initialized": True,
-                "stats": stats
-            }
-        else:
-            return {
-                "initialized": False,
-                "message": "System needs to be initialized"
-            }
-            
-    except Exception as e:
-        print(f"❌ Error getting system status: {str(e)}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get system status: {str(e)}"
-        )
-
-@router.get("/system/status")
-async def get_system_status(db: Session = Depends(get_db)):
-    """Проверка статуса инициализации системы"""
-    try:
-        logger.info("🔍 Checking system status...")
-        is_initialized = DatabaseInitService.is_database_initialized(db)
-        logger.info(f"🔍 System initialized: {is_initialized}")
-        return {"initialized": is_initialized}
-    except Exception as e:
-        logger.error(f"❌ Error checking system status: {e}")
-        return {"initialized": False, "error": str(e)}

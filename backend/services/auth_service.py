@@ -92,36 +92,38 @@ class AuthService:
         organization_slug: Optional[str] = None
     ) -> Optional[User]:
         """Аутентификация пользователя"""
-        query = db.query(User).filter(User.email == email)
-        
-        # Для system_owner не требуется организация
-        if organization_slug:
-            organization = db.query(Organization).filter(
-                Organization.slug == organization_slug
-            ).first()
-            if not organization:
-                return None
-            query = query.filter(User.organization_id == organization.id)
-        else:
-            # Ищем среди system_owner
-            query = query.filter(User.role == UserRole.SYSTEM_OWNER)
-        
-        user = query.first()
-        
+
+        user = db.query(User).filter(User.email == email).first()
+
         if not user or not AuthService.verify_password(password, user.password_hash):
             return None
-            
-        # Проверяем статус пользователя
+
+        # ✅ Если роль SYSTEM_OWNER — разрешаем без организации
+        if user.role == UserRole.SYSTEM_OWNER:
+            return user
+
+        # Для остальных пользователей обязательна организация
+        if not organization_slug:
+            return None
+
+        organization = db.query(Organization).filter(
+            Organization.slug == organization_slug
+        ).first()
+
+        if not organization or user.organization_id != organization.id:
+            return None
+
+        # Проверка статуса пользователя
         if user.status != UserStatus.ACTIVE:
             return None
-            
-        # Проверяем статус организации (если есть)
+
+        # Проверка статуса организации (если есть)
         if user.organization and user.organization.status not in [
             OrganizationStatus.ACTIVE, 
             OrganizationStatus.TRIAL
         ]:
             return None
-            
+
         return user
     
     @staticmethod

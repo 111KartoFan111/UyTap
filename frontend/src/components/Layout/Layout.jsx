@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { 
   FiHome, 
   FiMessageCircle, 
@@ -12,13 +12,11 @@ import {
   FiMenu,
   FiUser,
   FiLogOut,
-  FiLogIn,
-  FiTool
+  FiLogIn
 } from 'react-icons/fi';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import LoginModal from '../Auth/LoginModal';
-import SystemInitModal from '../Auth/SystemInitModal';
 import './Layout.css';
 
 const Layout = ({ children }) => {
@@ -27,8 +25,6 @@ const Layout = ({ children }) => {
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showInitModal, setShowInitModal] = useState(false);
-  const [systemInitialized, setSystemInitialized] = useState(null); // null = checking, true/false = result
 
   const navItems = [
     { path: '/', icon: FiHome, label: t('dashboard.title') },
@@ -38,26 +34,6 @@ const Layout = ({ children }) => {
     { path: '/rooms', icon: FiGrid, label: t('rooms.title') },
     { path: '/employees', icon: FiUsers, label: t('employees.title') }
   ];
-
-  // Проверяем инициализацию системы при загрузке
-  useEffect(() => {
-    checkSystemStatus();
-  }, []);
-
-  const checkSystemStatus = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/api/auth/system/status');
-      if (response.ok) {
-        const data = await response.json();
-        setSystemInitialized(data.initialized);
-      } else {
-        setSystemInitialized(false);
-      }
-    } catch (error) {
-      console.error('Error checking system status:', error);
-      setSystemInitialized(false);
-    }
-  };
 
   const closeSidebar = () => {
     setSidebarOpen(false);
@@ -79,84 +55,6 @@ const Layout = ({ children }) => {
     setShowLoginModal(true);
     closeSidebar();
   };
-
-  const handleInitSystem = () => {
-    setShowInitModal(true);
-  };
-
-  const handleInitSuccess = () => {
-    setSystemInitialized(true);
-    checkSystemStatus(); // Перепроверяем статус
-  };
-
-  // Если система не инициализирована, показываем экран инициализации
-  if (systemInitialized === false) {
-    return (
-      <>
-        <div className="login-screen">
-          <div className="login-container">
-            <div className="login-logo">
-              <div className="logo-icon">💎</div>
-              <h1>Система не инициализирована</h1>
-              <p>Необходимо выполнить первоначальную настройку системы</p>
-            </div>
-            
-            <button className="main-login-btn" onClick={handleInitSystem}>
-              <FiTool size={20} />
-              Инициализировать систему
-            </button>
-
-            <div className="language-selector-bottom">
-              <button 
-                className="language-btn"
-                onClick={() => setShowLanguageMenu(!showLanguageMenu)}
-              >
-                <FiGlobe size={16} />
-                {languages.find(lang => lang.code === language)?.name}
-              </button>
-              {showLanguageMenu && (
-                <div className="language-menu">
-                  {languages.map(lang => (
-                    <button 
-                      key={lang.code}
-                      onClick={() => {
-                        setLanguage(lang.code);
-                        setShowLanguageMenu(false);
-                      }}
-                      className={language === lang.code ? 'active' : ''}
-                    >
-                      {lang.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <SystemInitModal 
-          isOpen={showInitModal} 
-          onClose={() => setShowInitModal(false)}
-          onSuccess={handleInitSuccess}
-        />
-      </>
-    );
-  }
-
-  // Показываем загрузку пока проверяем статус
-  if (systemInitialized === null) {
-    return (
-      <div className="login-screen">
-        <div className="login-container">
-          <div className="login-logo">
-            <div className="logo-icon">💎</div>
-            <h1>Загрузка...</h1>
-            <p>Проверка состояния системы</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Если пользователь не авторизован, показываем экран входа
   if (!isAuthenticated) {
@@ -309,12 +207,6 @@ const Layout = ({ children }) => {
       <LoginModal 
         isOpen={showLoginModal} 
         onClose={() => setShowLoginModal(false)} 
-      />
-
-      <SystemInitModal 
-        isOpen={showInitModal} 
-        onClose={() => setShowInitModal(false)}
-        onSuccess={handleInitSuccess}
       />
     </div>
   );
