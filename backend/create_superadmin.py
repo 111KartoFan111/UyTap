@@ -25,7 +25,7 @@ def create_superadmin():
     
     # Данные суперадмина
     superadmin_data = {
-        "email": "admin@system.local",
+        "email": "admin@system.com",
         "password": "Admin123!",
         "first_name": "System",
         "last_name": "Administrator",

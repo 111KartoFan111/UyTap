@@ -201,7 +201,7 @@ const AdminDashboard = () => {
           <div className="organizations-list">
             <div className="sidebar-header">
               <h3>
-                <FiBuilding /> Организации ({organizations.length})
+                Организации ({organizations.length})
               </h3>
               <div className="search-box">
                 <FiSearch />
@@ -346,6 +346,12 @@ const AdminDashboard = () => {
                     </div>
                     <button className="btn-outline">
                       <FiFilter /> Фильтр
+                    </button>
+                    <button 
+                        className="btn-primary"
+                        onClick={() => setShowCreateUserModal(true)}
+                        >
+                        <FiUserPlus /> Добавить сотрудника
                     </button>
                   </div>
                 </div>

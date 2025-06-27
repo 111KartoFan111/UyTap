@@ -95,8 +95,8 @@ class DatabaseInitService:
             # Создаем системного администратора
             system_admin = User(
                 organization_id=None,  # Системный пользователь не привязан к организации
-                email="admin@system.local",
-                password_hash=AuthService.hash_password("SystemAdmin123!"),
+                email="admin@system.com",
+                password_hash=AuthService.hash_password("Admin123!"),
                 first_name="System",
                 last_name="Administrator",
                 role=UserRole.SYSTEM_OWNER,
