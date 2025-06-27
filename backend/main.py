@@ -11,7 +11,7 @@ import time
 # Импорты приложения
 from models.database import engine, SessionLocal
 from models.models import Base
-from routers import auth
+from routers import auth, admin  # Добавляем admin router
 from services.init_service import DatabaseInitService
 from utils.logging_config import setup_logging
 from utils.exceptions import (
@@ -95,10 +95,11 @@ app = FastAPI(
     * 👥 **Система ролей** - от владельца системы до уборщика
     * 📊 **Аудит действий** - полное логирование всех операций
     * 🛡️ **Rate limiting** - защита от злоупотреблений
+    * 🔧 **Админская панель** - управление организациями и пользователями
     
     ## Роли пользователей
     
-    * **System Owner** - владелец системы
+    * **System Owner** - владелец системы (доступ к админке)
     * **Admin** - администратор (арендодатель)
     * **Manager** - менеджер
     * **Technical Staff** - технический персонал
@@ -163,6 +164,7 @@ app.add_exception_handler(Exception, general_exception_handler)
 
 # Подключение роутеров
 app.include_router(auth.router)
+app.include_router(admin.router)  # Добавляем админский роутер
 
 # Корневой endpoint
 @app.get("/", tags=["Root"])
@@ -172,6 +174,7 @@ async def root():
         "message": "🏠 Rental System API",
         "version": "1.0.0",
         "docs": "/api/docs",
+        "admin": "/admin",
         "status": "🟢 Online"
     }
 
@@ -207,7 +210,13 @@ async def system_info():
         "version": "1.0.0",
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "environment": os.getenv("ENVIRONMENT", "development"),
-        "debug": os.getenv("DEBUG", "false").lower() == "true"
+        "debug": os.getenv("DEBUG", "false").lower() == "true",
+        "features": {
+            "admin_panel": True,
+            "multi_tenant": True,
+            "audit_logging": True,
+            "rate_limiting": True
+        }
     }
 
 
