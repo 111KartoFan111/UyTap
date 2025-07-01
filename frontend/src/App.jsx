@@ -6,12 +6,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout/Layout';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import AdminLogin from './components/Admin/AdminLogin';
-import Dashboard from './components/Dashboard/Dashboard';
-import Conversations from './components/Conversations/Conversations';
-import Guests from './components/Guests/Guests';
-import Tasks from './components/Tasks/Tasks';
-import Rooms from './components/Rooms/Rooms';
-import Employees from './components/Employees/Employees';
+import RoleBasedRouter from './utils/RoleBasedRouter';
 import { useAuth } from './contexts/AuthContext';
 import './App.css';
 
@@ -19,12 +14,10 @@ import './App.css';
 const AdminRoute = ({ children }) => {
   const { user } = useAuth();
   
-  // Если пользователь залогинен и это system_owner - показываем админку
   if (user && user.role === 'system_owner') {
     return children;
   }
   
-  // Иначе показываем форму входа
   return <AdminLogin />;
 };
 
@@ -45,17 +38,10 @@ function App() {
                 } 
               />
               
-              {/* Обычные роуты с Layout */}
+              {/* Основные роуты с ролевым роутингом */}
               <Route path="/*" element={
                 <Layout>
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/conversations" element={<Conversations />} />
-                    <Route path="/guests" element={<Guests />} />
-                    <Route path="/tasks" element={<Tasks />} />
-                    <Route path="/rooms" element={<Rooms />} />
-                    <Route path="/employees" element={<Employees />} />
-                  </Routes>
+                  <RoleBasedRouter />
                 </Layout>
               } />
             </Routes>
