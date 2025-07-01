@@ -1,3 +1,4 @@
+# backend/main.py - ОБНОВЛЕННАЯ ВЕРСИЯ
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -11,7 +12,11 @@ import time
 # Импорты приложения
 from models.database import engine, SessionLocal
 from models.models import Base
-from routers import auth, admin  # Добавляем admin router
+# Импортируем все роутеры
+from routers import (
+    auth, admin, properties, rentals, clients, 
+    orders, reports, documents, tasks, payroll, inventory
+)
 from services.init_service import DatabaseInitService
 from utils.logging_config import setup_logging
 from utils.exceptions import (
@@ -34,7 +39,7 @@ async def lifespan(app: FastAPI):
     """Жизненный цикл приложения"""
     
     # Startup
-    logger.info("🚀 Starting Rental System API...")
+    logger.info("🚀 Starting Enhanced Rental System API...")
     
     try:
         # Создаем таблицы если их нет
@@ -62,14 +67,19 @@ async def lifespan(app: FastAPI):
                 logger.warning("⚠️  System needs to be initialized")
                 logger.info("📝 Use POST /api/auth/system/init to initialize the system")
         
+        # Запускаем фоновые задачи
+        from services.background_service import BackgroundService
+        BackgroundService.start_scheduled_tasks()
+        logger.info("✅ Background tasks started")
+        
     except Exception as e:
-        logger.error(f"❌ Failed to initialize database: {e}")
+        logger.error(f"❌ Failed to initialize application: {e}")
         raise
     
     yield
     
     # Shutdown
-    logger.info("🛑 Shutting down Rental System API...")
+    logger.info("🛑 Shutting down Enhanced Rental System API...")
     
     # Очистка старых данных
     try:
@@ -82,30 +92,49 @@ async def lifespan(app: FastAPI):
 
 # Создание приложения FastAPI
 app = FastAPI(
-    title="Rental System API",
+    title="Enhanced Rental System API",
     description="""
-    🏠 **Система управления арендой недвижимости**
+    🏠 **Комплексная система управления арендой недвижимости**
     
-    API для управления арендой квартир с поддержкой мультитенантности.
+    Полнофункциональная API для управления арендой квартир с расширенными возможностями.
     
-    ## Особенности
+    ## Основные модули
     
-    * 🔐 **Безопасная авторизация** с JWT токенами
-    * 🏢 **Мультитенантность** - изоляция данных между организациями
-    * 👥 **Система ролей** - от владельца системы до уборщика
-    * 📊 **Аудит действий** - полное логирование всех операций
-    * 🛡️ **Rate limiting** - защита от злоупотреблений
-    * 🔧 **Админская панель** - управление организациями и пользователями
+    * 🏢 **Управление помещениями** - добавление, редактирование, статусы
+    * 👥 **Управление клиентами** - база клиентов, история, аналитика
+    * 📋 **Система аренды** - создание, продление, заселение/выселение
+    * ✅ **Управление задачами** - уборка, обслуживание, автоназначение
+    * 🛒 **Заказы в номер** - еда, услуги, доставка
+    * 💰 **Финансы и отчеты** - доходы, расходы, зарплата
+    * 📄 **Документооборот** - договоры, акты, ЭСФ
+    * 📊 **Аналитика** - загруженность, производительность
+    * 📦 **Склад** - учет материалов, списание
     
-    ## Роли пользователей
+    ## Роли и права доступа
     
-    * **System Owner** - владелец системы (доступ к админке)
-    * **Admin** - администратор (арендодатель)
-    * **Manager** - менеджер
+    * **System Owner** - владелец системы (полный доступ)
+    * **Admin** - администратор организации 
+    * **Manager** - менеджер (аренда, клиенты)
     * **Technical Staff** - технический персонал
-    * **Accountant** - бухгалтер
-    * **Cleaner** - уборщик
-    * **Storekeeper** - кладовщик
+    * **Accountant** - бухгалтер (финансы, отчеты)
+    * **Cleaner** - уборщик (задачи уборки)
+    * **Storekeeper** - кладовщик (склад, материалы)
+    
+    ## Ключевые особенности
+    
+    * 🔐 **Мультитенантность** - изоляция данных между организациями
+    * 🔄 **Автоматизация** - автоназначение задач, расчет зарплаты
+    * 📱 **Мобильная поддержка** - адаптивный интерфейс
+    * 🛡️ **Безопасность** - JWT токены, аудит действий
+    * 📈 **Масштабируемость** - поддержка больших объемов данных
+    * 🌍 **Локализация** - поддержка казахского и русского языков
+    
+    ## Интеграции
+    
+    * **ЭСФ/ЭАВР** - интеграция с ИС ЭСФ Казахстана
+    * **Платежи** - поддержка различных способов оплаты
+    * **Отчетность** - экспорт в Excel, PDF
+    * **Уведомления** - SMS, email, push-уведомления
     
     ## Авторизация
     
@@ -114,9 +143,9 @@ app = FastAPI(
     Authorization: Bearer <your_token>
     ```
     """,
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/api/docs",
-    redoc_url="/api/redoc",
+    redoc_url="/api/redoc", 
     openapi_url="/api/openapi.json",
     lifespan=lifespan
 )
@@ -162,20 +191,41 @@ app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, general_exception_handler)
 
-# Подключение роутеров
+# Подключение всех роутеров
 app.include_router(auth.router)
-app.include_router(admin.router)  # Добавляем админский роутер
+app.include_router(admin.router)
+app.include_router(properties.router)
+app.include_router(rentals.router)
+app.include_router(clients.router)
+app.include_router(orders.router)
+app.include_router(reports.router)
+app.include_router(documents.router)
+app.include_router(tasks.router)
+app.include_router(payroll.router)
+app.include_router(inventory.router)
 
 # Корневой endpoint
 @app.get("/", tags=["Root"])
 async def root():
     """Корневой endpoint API"""
     return {
-        "message": "🏠 Rental System API",
-        "version": "1.0.0",
+        "message": "🏠 Enhanced Rental System API",
+        "version": "2.0.0",
         "docs": "/api/docs",
         "admin": "/admin",
-        "status": "🟢 Online"
+        "status": "🟢 Online",
+        "features": [
+            "🏢 Property Management",
+            "👥 Client Management", 
+            "📋 Rental Management",
+            "✅ Task Management",
+            "🛒 Room Orders",
+            "💰 Financial Reports",
+            "📄 Document Management",
+            "📊 Analytics & Reports",
+            "📦 Inventory Management",
+            "🔐 Multi-tenant Security"
+        ]
     }
 
 # Health check endpoint
@@ -190,7 +240,18 @@ async def health_check():
         return {
             "status": "🟢 Healthy",
             "database": "🟢 Connected",
-            "timestamp": datetime.now().isoformat()
+            "version": "2.0.0",
+            "timestamp": datetime.now().isoformat(),
+            "modules": {
+                "properties": "✅ Active",
+                "rentals": "✅ Active", 
+                "clients": "✅ Active",
+                "tasks": "✅ Active",
+                "orders": "✅ Active",
+                "reports": "✅ Active",
+                "documents": "✅ Active",
+                "inventory": "✅ Active"
+            }
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -204,20 +265,89 @@ async def health_check():
 # Информация о системе
 @app.get("/api/info", tags=["System"])
 async def system_info():
-    """Информация о системе"""
+    """Подробная информация о системе"""
     return {
-        "name": "Rental System API",
-        "version": "1.0.0",
+        "name": "Enhanced Rental System API",
+        "version": "2.0.0",
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "environment": os.getenv("ENVIRONMENT", "development"),
         "debug": os.getenv("DEBUG", "false").lower() == "true",
+        "modules": {
+            "properties": {
+                "description": "Управление помещениями",
+                "endpoints": ["/api/properties"]
+            },
+            "rentals": {
+                "description": "Управление арендой",
+                "endpoints": ["/api/rentals"]
+            },
+            "clients": {
+                "description": "Управление клиентами", 
+                "endpoints": ["/api/clients"]
+            },
+            "tasks": {
+                "description": "Управление задачами",
+                "endpoints": ["/api/tasks"]
+            },
+            "orders": {
+                "description": "Заказы в номер",
+                "endpoints": ["/api/orders"]
+            },
+            "reports": {
+                "description": "Отчеты и аналитика",
+                "endpoints": ["/api/reports"]
+            },
+            "documents": {
+                "description": "Документооборот",
+                "endpoints": ["/api/documents"]
+            },
+            "payroll": {
+                "description": "Расчет зарплаты",
+                "endpoints": ["/api/payroll"]
+            },
+            "inventory": {
+                "description": "Управление складом",
+                "endpoints": ["/api/inventory"]
+            }
+        },
         "features": {
-            "admin_panel": True,
             "multi_tenant": True,
+            "admin_panel": True, 
             "audit_logging": True,
-            "rate_limiting": True
-        }
+            "rate_limiting": True,
+            "document_generation": True,
+            "esf_integration": True,
+            "auto_task_assignment": True,
+            "payroll_calculation": True,
+            "inventory_tracking": True,
+            "client_analytics": True,
+            "financial_reports": True
+        },
+        "supported_languages": ["ru", "kk"],
+        "supported_formats": ["JSON", "Excel", "PDF"],
+        "integrations": ["ЭСФ/ЭАВР", "SMS", "Email", "Payment Systems"]
     }
+
+
+# Endpoint для получения статистики системы
+@app.get("/api/system/stats", tags=["System"])
+async def get_system_stats():
+    """Получить статистику системы"""
+    with SessionLocal() as db:
+        from services.init_service import DatabaseInitService
+        stats = DatabaseInitService.get_system_stats(db)
+        
+        # Добавляем дополнительную статистику
+        from models.extended_models import Property, Rental, Task, RoomOrder
+        
+        stats["modules"] = {
+            "properties": db.query(Property).count(),
+            "active_rentals": db.query(Rental).filter(Rental.is_active == True).count(),
+            "pending_tasks": db.query(Task).filter(Task.status == "pending").count(),
+            "pending_orders": db.query(RoomOrder).filter(RoomOrder.status == "pending").count()
+        }
+        
+        return stats
 
 
 if __name__ == "__main__":
