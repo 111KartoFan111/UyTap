@@ -57,7 +57,7 @@ class InventoryResponse(InventoryBase):
 
 class InventoryMovementBase(BaseModel):
     inventory_id: str
-    movement_type: str = Field(..., regex="^(in|out|adjustment|writeoff)$")
+    movement_type: str = Field(..., pattern="^(in|out|adjustment|writeoff)$")
     quantity: float = Field(..., ne=0)
     unit_cost: Optional[float] = Field(None, ge=0)
     reason: Optional[str] = Field(None, max_length=255)
