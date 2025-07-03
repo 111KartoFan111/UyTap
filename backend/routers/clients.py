@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import desc, and_, func
+from sqlalchemy import desc, and_, func , or_
 import uuid
 
 from models.database import get_db

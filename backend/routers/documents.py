@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 import uuid
 
+from fastapi.responses import FileResponse
+from sqlalchemy import and_ , or_
 from models.database import get_db
 from models.extended_models import Document, DocumentType, Rental, Client
 from schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse
@@ -11,6 +13,7 @@ from models.models import User, UserRole
 from services.auth_service import AuthService
 from utils.dependencies import get_current_active_user
 from services.document_service import DocumentService
+
 
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
 
