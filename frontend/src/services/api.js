@@ -1,220 +1,701 @@
-// API Service with mock implementations
-// These functions will be replaced with real API calls when backend is ready
+// services/api.js - Real API integration
+const API_BASE_URL = 'http://localhost:8000';
 
-// Guest API
-export const guestAPI = {
-  // Get all guests
-  async getGuests() {
-    const data = await import('../mockData/guests.json');
-    return data.guests;
-  },
+// API Request helper with auth token
+const apiRequest = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('access_token');
+  
+  const config = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...options.headers
+    },
+    ...options
+  };
 
-  // Get single guest
-  async getGuest(id) {
-    const data = await import('../mockData/guests.json');
-    return data.guests.find(g => g.id === id);
-  },
-
-  // Create new guest
-  async createGuest(guestData) {
-    // Mock implementation - will be replaced with real API call
-    console.log('Creating guest:', guestData);
-    return { ...guestData, id: Date.now() };
-  },
-
-  // Update guest
-  async updateGuest(id, guestData) {
-    console.log('Updating guest:', id, guestData);
-    return { ...guestData, id };
-  },
-
-  // Delete guest
-  async deleteGuest(id) {
-    console.log('Deleting guest:', id);
-    return { success: true };
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    
+    if (response.status === 401) {
+      // Token expired, try to refresh
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        // Retry original request with new token
+        config.headers.Authorization = `Bearer ${localStorage.getItem('access_token')}`;
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        return await handleResponse(retryResponse);
+      } else {
+        // Redirect to login
+        localStorage.clear();
+        window.location.href = '/';
+        throw new Error('Session expired');
+      }
+    }
+    
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('API Request failed:', error);
+    throw error;
   }
 };
 
-// Room API
-export const roomAPI = {
-  // Get all rooms
-  async getRooms() {
-    const data = await import('../mockData/rooms.json');
-    return data.rooms;
-  },
+const handleResponse = async (response) => {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `HTTP ${response.status}`);
+  }
+  
+  return response.json();
+};
 
-  // Get single room
-  async getRoom(id) {
-    const data = await import('../mockData/rooms.json');
-    return data.rooms.find(r => r.id === id);
-  },
+const refreshToken = async () => {
+  try {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) return false;
 
-  // Update room status
-  async updateRoomStatus(id, status) {
-    console.log('Updating room status:', id, status);
-    return { id, status };
-  },
+    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
 
-  // Check in guest
-  async checkInGuest(roomId, guestId, checkInDate, checkOutDate) {
-    console.log('Check in:', { roomId, guestId, checkInDate, checkOutDate });
-    return { success: true };
-  },
-
-  // Check out guest
-  async checkOutGuest(roomId) {
-    console.log('Check out:', roomId);
-    return { success: true };
+    if (response.ok) {
+      const data = await response.json();
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('refresh_token', data.refresh_token);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
   }
 };
 
-// Task API
-export const taskAPI = {
-  // Get all tasks
-  async getTasks() {
-    const data = await import('../mockData/tasks.json');
-    return data.tasks;
-  },
-
-  // Get single task
-  async getTask(id) {
-    const data = await import('../mockData/tasks.json');
-    return data.tasks.find(t => t.id === id);
-  },
-
-  // Create task
-  async createTask(taskData) {
-    console.log('Creating task:', taskData);
-    return { ...taskData, id: Date.now(), createdAt: new Date().toISOString() };
-  },
-
-  // Update task
-  async updateTask(id, taskData) {
-    console.log('Updating task:', id, taskData);
-    return { ...taskData, id };
-  },
-
-  // Update task status
-  async updateTaskStatus(id, status) {
-    console.log('Updating task status:', id, status);
-    return { id, status };
-  },
-
-  // Assign task
-  async assignTask(id, assigneeId) {
-    console.log('Assigning task:', id, assigneeId);
-    return { id, assigneeId };
-  }
-};
-
-// Booking API
-export const bookingAPI = {
-  // Get bookings data
-  async getBookings() {
-    const data = await import('../mockData/bookings.json');
-    return data.bookings;
-  },
-
-  // Get dashboard stats
-  async getDashboardStats() {
-    const data = await import('../mockData/bookings.json');
-    return {
-      satisfactionRate: data.satisfactionRate,
-      newGuests: data.newGuests
-    };
-  },
-
-  // Create booking
-  async createBooking(bookingData) {
-    console.log('Creating booking:', bookingData);
-    return { ...bookingData, id: Date.now(), createdAt: new Date().toISOString() };
-  },
-
-  // Cancel booking
-  async cancelBooking(id) {
-    console.log('Cancelling booking:', id);
-    return { success: true };
-  }
-};
-
-// Conversation API
-export const conversationAPI = {
-  // Get all conversations
-  async getConversations() {
-    const data = await import('../mockData/conversations.json');
-    return data.conversations;
-  },
-
-  // Get single conversation
-  async getConversation(id) {
-    const data = await import('../mockData/conversations.json');
-    return data.conversations.find(c => c.id === id);
-  },
-
-  // Send message
-  async sendMessage(conversationId, message) {
-    console.log('Sending message:', conversationId, message);
-    return {
-      id: Date.now(),
-      conversationId,
-      text: message,
-      sender: 'hotel',
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    };
-  },
-
-  // Mark as read
-  async markAsRead(conversationId) {
-    console.log('Marking as read:', conversationId);
-    return { success: true };
-  }
-};
-
-// Activity API
-export const activityAPI = {
-  // Get recent activities
-  async getActivities() {
-    const data = await import('../mockData/activities.json');
-    return data.activities;
-  },
-
-  // Log activity
-  async logActivity(activityData) {
-    console.log('Logging activity:', activityData);
-    return { ...activityData, id: Date.now(), time: 'just now' };
-  }
-};
-
-// Auth API (for future use)
+// Auth API
 export const authAPI = {
-  // Login
-  async login(email, password) {
-    console.log('Login:', email);
-    // Mock successful login
-    return {
-      user: {
-        id: 1,
-        name: 'Ann Tsibuiski',
-        email: email,
-        role: 'manager'
-      },
-      token: 'mock-jwt-token'
-    };
+  async login(email, password, organizationSlug) {
+    return apiRequest('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password,
+        organization_slug: organizationSlug,
+        device_info: {
+          platform: navigator.platform,
+          mobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        }
+      })
+    });
   },
 
-  // Logout
-  async logout() {
-    console.log('Logout');
-    return { success: true };
+  async logout(refreshToken) {
+    return apiRequest('/api/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({
+        refresh_token: refreshToken,
+        logout_all_devices: false
+      })
+    });
   },
 
-  // Get current user
   async getCurrentUser() {
-    return {
-      id: 1,
-      name: 'Ann Tsibuiski',
-      email: 'ann.tsibuiski@hotel.com',
-      role: 'manager'
-    };
+    return apiRequest('/api/auth/me');
+  },
+
+  async checkSystemStatus() {
+    return fetch(`${API_BASE_URL}/api/auth/system/status`)
+      .then(response => response.json());
+  },
+
+  async initializeSystem(initData) {
+    return fetch(`${API_BASE_URL}/api/auth/system/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(initData)
+    }).then(handleResponse);
   }
+};
+
+// Clients API
+export const clientsAPI = {
+  async getClients(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/clients?${searchParams}`);
+  },
+
+  async getClient(id) {
+    return apiRequest(`/api/clients/${id}`);
+  },
+
+  async createClient(clientData) {
+    return apiRequest('/api/clients', {
+      method: 'POST',
+      body: JSON.stringify(clientData)
+    });
+  },
+
+  async updateClient(id, clientData) {
+    return apiRequest(`/api/clients/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(clientData)
+    });
+  },
+
+  async deleteClient(id) {
+    return apiRequest(`/api/clients/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getClientHistory(id) {
+    return apiRequest(`/api/clients/${id}/history`);
+  },
+
+  async getClientStatistics(id) {
+    return apiRequest(`/api/clients/${id}/statistics`);
+  },
+
+  async bulkImport(clientsData) {
+    return apiRequest('/api/clients/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify(clientsData)
+    });
+  }
+};
+
+// Properties API
+export const propertiesAPI = {
+  async getProperties(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/properties?${searchParams}`);
+  },
+
+  async getProperty(id) {
+    return apiRequest(`/api/properties/${id}`);
+  },
+
+  async createProperty(propertyData) {
+    return apiRequest('/api/properties', {
+      method: 'POST',
+      body: JSON.stringify(propertyData)
+    });
+  },
+
+  async updateProperty(id, propertyData) {
+    return apiRequest(`/api/properties/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(propertyData)
+    });
+  },
+
+  async deleteProperty(id) {
+    return apiRequest(`/api/properties/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async updatePropertyStatus(id, status) {
+    return apiRequest(`/api/properties/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  async getPropertyTasks(id, status = null) {
+    const params = status ? `?status=${status}` : '';
+    return apiRequest(`/api/properties/${id}/tasks${params}`);
+  },
+
+  async createPropertyTask(id, taskData) {
+    return apiRequest(`/api/properties/${id}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(taskData)
+    });
+  },
+
+  async checkAvailability(id, startDate, endDate) {
+    return apiRequest(`/api/properties/${id}/availability?start_date=${startDate}&end_date=${endDate}`);
+  },
+
+  async getPropertyStatistics(id, periodDays = 30) {
+    return apiRequest(`/api/properties/${id}/statistics?period_days=${periodDays}`);
+  }
+};
+
+// Rentals API
+export const rentalsAPI = {
+  async getRentals(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/rentals?${searchParams}`);
+  },
+
+  async getRental(id) {
+    return apiRequest(`/api/rentals/${id}`);
+  },
+
+  async createRental(rentalData) {
+    return apiRequest('/api/rentals', {
+      method: 'POST',
+      body: JSON.stringify(rentalData)
+    });
+  },
+
+  async updateRental(id, rentalData) {
+    return apiRequest(`/api/rentals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(rentalData)
+    });
+  },
+
+  async checkIn(id) {
+    return apiRequest(`/api/rentals/${id}/check-in`, {
+      method: 'POST'
+    });
+  },
+
+  async checkOut(id) {
+    return apiRequest(`/api/rentals/${id}/check-out`, {
+      method: 'POST'
+    });
+  },
+
+  async cancelRental(id, reason) {
+    return apiRequest(`/api/rentals/${id}?reason=${encodeURIComponent(reason)}`, {
+      method: 'DELETE'
+    });
+  }
+};
+
+// Tasks API
+export const tasksAPI = {
+  async getTasks(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/tasks?${searchParams}`);
+  },
+
+  async getTask(id) {
+    return apiRequest(`/api/tasks/${id}`);
+  },
+
+  async createTask(taskData) {
+    return apiRequest('/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify(taskData)
+    });
+  },
+
+  async updateTask(id, taskData) {
+    return apiRequest(`/api/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(taskData)
+    });
+  },
+
+  async assignTask(id, assignedTo) {
+    return apiRequest(`/api/tasks/${id}/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ assigned_to: assignedTo })
+    });
+  },
+
+  async startTask(id) {
+    return apiRequest(`/api/tasks/${id}/start`, {
+      method: 'POST'
+    });
+  },
+
+  async completeTask(id, completionData = {}) {
+    return apiRequest(`/api/tasks/${id}/complete`, {
+      method: 'POST',
+      body: JSON.stringify(completionData)
+    });
+  },
+
+  async cancelTask(id, reason) {
+    return apiRequest(`/api/tasks/${id}?reason=${encodeURIComponent(reason)}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getMyTasks(status = null) {
+    const params = status ? `?status=${status}` : '';
+    return apiRequest(`/api/tasks/my/assigned${params}`);
+  },
+
+  async getTaskStatistics(periodDays = 30, userId = null) {
+    const params = new URLSearchParams({ period_days: periodDays });
+    if (userId) params.append('user_id', userId);
+    return apiRequest(`/api/tasks/statistics/overview?${params}`);
+  },
+
+  async getEmployeeWorkload(role = null) {
+    const params = role ? `?role=${role}` : '';
+    return apiRequest(`/api/tasks/workload/employees${params}`);
+  },
+
+  async getUrgentTasks() {
+    return apiRequest('/api/tasks/urgent');
+  },
+
+  async autoAssignTasks(taskIds) {
+    return apiRequest('/api/tasks/auto-assign', {
+      method: 'POST',
+      body: JSON.stringify({ task_ids: taskIds })
+    });
+  },
+
+  async createRecurringTasks() {
+    return apiRequest('/api/tasks/maintenance/create-recurring', {
+      method: 'POST'
+    });
+  }
+};
+
+// Orders API
+export const ordersAPI = {
+  async getOrders(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/orders?${searchParams}`);
+  },
+
+  async getOrder(id) {
+    return apiRequest(`/api/orders/${id}`);
+  },
+
+  async createOrder(orderData) {
+    return apiRequest('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify(orderData)
+    });
+  },
+
+  async updateOrder(id, orderData) {
+    return apiRequest(`/api/orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(orderData)
+    });
+  },
+
+  async assignOrder(id, assignedTo) {
+    return apiRequest(`/api/orders/${id}/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ assigned_to: assignedTo })
+    });
+  },
+
+  async completeOrder(id, completionNotes = null) {
+    return apiRequest(`/api/orders/${id}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ completion_notes: completionNotes })
+    });
+  },
+
+  async getOrderStatistics(periodDays = 30) {
+    return apiRequest(`/api/orders/statistics/overview?period_days=${periodDays}`);
+  }
+};
+
+// Inventory API
+export const inventoryAPI = {
+  async getItems(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/inventory?${searchParams}`);
+  },
+
+  async getItem(id) {
+    return apiRequest(`/api/inventory/${id}`);
+  },
+
+  async createItem(itemData) {
+    return apiRequest('/api/inventory', {
+      method: 'POST',
+      body: JSON.stringify(itemData)
+    });
+  },
+
+  async updateItem(id, itemData) {
+    return apiRequest(`/api/inventory/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(itemData)
+    });
+  },
+
+  async deleteItem(id) {
+    return apiRequest(`/api/inventory/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async createMovement(itemId, movementData) {
+    return apiRequest(`/api/inventory/${itemId}/movement`, {
+      method: 'POST',
+      body: JSON.stringify(movementData)
+    });
+  },
+
+  async getMovements(itemId, params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/inventory/${itemId}/movements?${searchParams}`);
+  },
+
+  async getLowStockItems() {
+    return apiRequest('/api/inventory/low-stock/alert');
+  },
+
+  async getStatistics() {
+    return apiRequest('/api/inventory/statistics/overview');
+  },
+
+  async bulkUpdateStock(updates) {
+    return apiRequest('/api/inventory/bulk-update-stock', {
+      method: 'POST',
+      body: JSON.stringify(updates)
+    });
+  },
+
+  async exportData(format, category = null) {
+    const params = category ? `?category=${category}` : '';
+    const response = await fetch(`${API_BASE_URL}/api/inventory/export/${format}${params}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) throw new Error('Export failed');
+    return response.blob();
+  }
+};
+
+// Documents API
+export const documentsAPI = {
+  async getDocuments(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/documents?${searchParams}`);
+  },
+
+  async getDocument(id) {
+    return apiRequest(`/api/documents/${id}`);
+  },
+
+  async createDocument(documentData) {
+    return apiRequest('/api/documents', {
+      method: 'POST',
+      body: JSON.stringify(documentData)
+    });
+  },
+
+  async updateDocument(id, documentData) {
+    return apiRequest(`/api/documents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(documentData)
+    });
+  },
+
+  async downloadDocument(id) {
+    const response = await fetch(`${API_BASE_URL}/api/documents/${id}/download`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) throw new Error('Download failed');
+    return response.blob();
+  },
+
+  async signDocument(id, signatureData) {
+    return apiRequest(`/api/documents/${id}/sign`, {
+      method: 'POST',
+      body: JSON.stringify(signatureData)
+    });
+  },
+
+  async generateRentalContract(rentalId) {
+    return apiRequest(`/api/documents/rental/${rentalId}/generate-contract`, {
+      method: 'POST'
+    });
+  },
+
+  async generateWorkAct(rentalId) {
+    return apiRequest(`/api/documents/rental/${rentalId}/generate-act`, {
+      method: 'POST'
+    });
+  },
+
+  async sendESF(id) {
+    return apiRequest(`/api/documents/${id}/send-esf`, {
+      method: 'POST'
+    });
+  }
+};
+
+// Payroll API
+export const payrollAPI = {
+  async getPayrolls(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/payroll?${searchParams}`);
+  },
+
+  async getPayroll(id) {
+    return apiRequest(`/api/payroll/${id}`);
+  },
+
+  async createPayroll(payrollData) {
+    return apiRequest('/api/payroll', {
+      method: 'POST',
+      body: JSON.stringify(payrollData)
+    });
+  },
+
+  async updatePayroll(id, payrollData) {
+    return apiRequest(`/api/payroll/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payrollData)
+    });
+  },
+
+  async markAsPaid(id, paymentMethod) {
+    return apiRequest(`/api/payroll/${id}/pay`, {
+      method: 'POST',
+      body: JSON.stringify({ payment_method: paymentMethod })
+    });
+  },
+
+  async calculateMonthly(year, month, userId = null) {
+    const params = new URLSearchParams({ year, month });
+    if (userId) params.append('user_id', userId);
+    return apiRequest(`/api/payroll/calculate-monthly?${params}`, {
+      method: 'POST'
+    });
+  },
+
+  async getStatistics(year, month = null) {
+    const params = new URLSearchParams({ year });
+    if (month) params.append('month', month);
+    return apiRequest(`/api/payroll/statistics/overview?${params}`);
+  },
+
+  async exportData(format, year, month = null) {
+    const params = new URLSearchParams({ year });
+    if (month) params.append('month', month);
+    
+    const response = await fetch(`${API_BASE_URL}/api/payroll/export/${format}?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) throw new Error('Export failed');
+    return response.blob();
+  }
+};
+
+// Reports API
+export const reportsAPI = {
+  async getFinancialSummary(startDate, endDate) {
+    return apiRequest(`/api/reports/financial-summary?start_date=${startDate}&end_date=${endDate}`);
+  },
+
+  async getPropertyOccupancy(startDate, endDate, propertyId = null) {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    if (propertyId) params.append('property_id', propertyId);
+    return apiRequest(`/api/reports/property-occupancy?${params}`);
+  },
+
+  async getEmployeePerformance(startDate, endDate, role = null, userId = null) {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    if (role) params.append('role', role);
+    if (userId) params.append('user_id', userId);
+    return apiRequest(`/api/reports/employee-performance?${params}`);
+  },
+
+  async getClientAnalytics(startDate, endDate) {
+    return apiRequest(`/api/reports/client-analytics?start_date=${startDate}&end_date=${endDate}`);
+  },
+
+  async getMyPayroll(periodStart = null, periodEnd = null) {
+    const params = new URLSearchParams();
+    if (periodStart) params.append('period_start', periodStart);
+    if (periodEnd) params.append('period_end', periodEnd);
+    return apiRequest(`/api/reports/my-payroll?${params}`);
+  },
+
+  async exportFinancialSummary(startDate, endDate, format = 'xlsx') {
+    const response = await fetch(`${API_BASE_URL}/api/reports/financial-summary/export?start_date=${startDate}&end_date=${endDate}&format=${format}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) throw new Error('Export failed');
+    return response.blob();
+  }
+};
+
+// Admin API
+export const adminAPI = {
+  async getOrganizations(params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/admin/organizations?${searchParams}`);
+  },
+
+  async getOrganization(id) {
+    return apiRequest(`/api/admin/organizations/${id}`);
+  },
+
+  async createOrganization(orgData) {
+    return apiRequest('/api/admin/organizations', {
+      method: 'POST',
+      body: JSON.stringify(orgData)
+    });
+  },
+
+  async updateOrganization(id, orgData) {
+    return apiRequest(`/api/admin/organizations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(orgData)
+    });
+  },
+
+  async deleteOrganization(id) {
+    return apiRequest(`/api/admin/organizations/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getOrganizationUsers(orgId, params = {}) {
+    const searchParams = new URLSearchParams(params);
+    return apiRequest(`/api/admin/organizations/${orgId}/users?${searchParams}`);
+  },
+
+  async createOrganizationUser(orgId, userData) {
+    return apiRequest(`/api/admin/organizations/${orgId}/users`, {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  async deleteUser(userId) {
+    return apiRequest(`/api/admin/users/${userId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getSystemStats() {
+    return apiRequest('/api/admin/stats');
+  }
+};
+
+export default {
+  authAPI,
+  clientsAPI,
+  propertiesAPI,
+  rentalsAPI,
+  tasksAPI,
+  ordersAPI,
+  inventoryAPI,
+  documentsAPI,
+  payrollAPI,
+  reportsAPI,
+  adminAPI
 };

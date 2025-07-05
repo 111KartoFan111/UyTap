@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -14,16 +15,34 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sessionTimer, setSessionTimer] = useState(0);
+  const [systemInitialized, setSystemInitialized] = useState(null);
 
-  // Загрузка данных пользователя при запуске
+  // Check system status on mount
+  useEffect(() => {
+    checkSystemStatus();
+  }, []);
+
+  // Load user data on mount
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     const userData = localStorage.getItem('user_data');
     
     if (token && userData) {
       try {
-        setUser(JSON.parse(userData));
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
         startSessionTimer();
+        
+        // Verify token is still valid
+        authAPI.getCurrentUser()
+          .then(currentUser => {
+            setUser(currentUser);
+            localStorage.setItem('user_data', JSON.stringify(currentUser));
+          })
+          .catch(() => {
+            // Token invalid, logout
+            logout();
+          });
       } catch (error) {
         console.error('Error parsing user data:', error);
         logout();
@@ -32,16 +51,40 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  // Таймер сессии
+  // Session timer
   useEffect(() => {
     let interval;
     if (user) {
       interval = setInterval(() => {
         setSessionTimer(prev => prev + 1);
-      }, 60000); // Обновляем каждую минуту
+      }, 60000); // Update every minute
     }
     return () => clearInterval(interval);
   }, [user]);
+
+  const checkSystemStatus = async () => {
+    try {
+      const status = await authAPI.checkSystemStatus();
+      setSystemInitialized(status.initialized);
+    } catch (error) {
+      console.error('Failed to check system status:', error);
+      setSystemInitialized(false);
+    }
+  };
+
+  const initializeSystem = async (initData) => {
+    try {
+      setLoading(true);
+      await authAPI.initializeSystem(initData);
+      setSystemInitialized(true);
+      return { success: true };
+    } catch (error) {
+      console.error('System initialization failed:', error);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const startSessionTimer = () => {
     const loginTime = localStorage.getItem('login_time');
@@ -53,30 +96,11 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password, organizationSlug) => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          organization_slug: organizationSlug,
-          device_info: {
-            platform: navigator.platform,
-            mobile: /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-          }
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Login failed');
-      }
-
-      const data = await response.json();
+      setLoading(true);
       
-      // Сохраняем токены и данные пользователя
+      const data = await authAPI.login(email, password, organizationSlug);
+      
+      // Save tokens and user data
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
       localStorage.setItem('user_data', JSON.stringify(data.user));
@@ -89,6 +113,8 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -97,22 +123,13 @@ export const AuthProvider = ({ children }) => {
       const refreshToken = localStorage.getItem('refresh_token');
       
       if (refreshToken) {
-        // Уведомляем сервер о выходе
-        await fetch('http://localhost:8000/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          },
-          body: JSON.stringify({
-            refresh_token: refreshToken
-          }),
-        });
+        // Notify server about logout
+        await authAPI.logout(refreshToken);
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Очищаем локальные данные
+      // Clear local data regardless of server response
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user_data');
@@ -123,32 +140,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const refreshToken = async () => {
+  const refreshUserData = async () => {
     try {
-      const refresh_token = localStorage.getItem('refresh_token');
-      if (!refresh_token) {
-        throw new Error('No refresh token');
-      }
-
-      const response = await fetch('http://localhost:8000/api/auth/refresh', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh_token }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Token refresh failed');
-      }
-
-      const data = await response.json();
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
-      
-      return data.access_token;
+      const currentUser = await authAPI.getCurrentUser();
+      setUser(currentUser);
+      localStorage.setItem('user_data', JSON.stringify(currentUser));
+      return currentUser;
     } catch (error) {
-      console.error('Token refresh error:', error);
+      console.error('Failed to refresh user data:', error);
       logout();
       return null;
     }
@@ -168,9 +167,12 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     sessionTimer: formatSessionTime(),
+    systemInitialized,
     login,
     logout,
-    refreshToken,
+    refreshUserData,
+    initializeSystem,
+    checkSystemStatus,
     isAuthenticated: !!user
   };
 

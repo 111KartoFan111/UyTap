@@ -35,3 +35,6 @@ flake8==6.1.0
 
 # Scheduling
 schedule==1.2.0
+
+
+reportlab

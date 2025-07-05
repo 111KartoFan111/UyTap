@@ -7,10 +7,12 @@ import {
   FiCalendar,
   FiPlus,
   FiBarChart2,
-  FiSettings
+  FiSettings,
+  FiAlertCircle
 } from 'react-icons/fi';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useData } from '../../contexts/DataContext';
 import RentalModal from './RentalModal.jsx';
 import ClientModal from './ClientModal.jsx';
 import FloorPlan from './FloorPlan.jsx';
@@ -19,47 +21,103 @@ import './ManagerDashboard.css';
 const ManagerDashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { 
+    properties, 
+    clients, 
+    rentals, 
+    reports,
+    loading, 
+    error, 
+    utils 
+  } = useData();
+  
   const [activeTab, setActiveTab] = useState('floor-plan');
   const [showRentalModal, setShowRentalModal] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
   
   const [stats, setStats] = useState({
-    totalRooms: 50,
-    occupiedRooms: 32,
-    availableRooms: 15,
-    maintenanceRooms: 3,
-    totalClients: 127,
-    activeRentals: 32,
-    monthlyRevenue: 2450000,
-    occupancyRate: 64
+    totalRooms: 0,
+    occupiedRooms: 0,
+    availableRooms: 0,
+    maintenanceRooms: 0,
+    totalClients: 0,
+    activeRentals: 0,
+    monthlyRevenue: 0,
+    occupancyRate: 0
   });
 
-  const [recentActivities, setRecentActivities] = useState([
-    {
-      id: 1,
-      type: 'rental_started',
-      client: 'Анна Петрова',
-      room: '2-15',
-      time: '10:30',
-      amount: 85000
-    },
-    {
-      id: 2,
-      type: 'rental_ended',
-      client: 'Марат Саметов',
-      room: '1-08',
-      time: '09:15',
-      amount: 65000
-    },
-    {
-      id: 3,
-      type: 'maintenance_requested',
-      room: '3-22',
-      issue: 'Сантехника',
-      time: '08:45'
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [dashboardData, setDashboardData] = useState({
+    properties: [],
+    clientsList: [],
+    rentalsList: [],
+    financialSummary: null
+  });
+
+  // Load dashboard data
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      // Get current date for reports
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      // Load all necessary data in parallel
+      const [
+        propertiesData,
+        clientsData,
+        rentalsData,
+        financialData
+      ] = await Promise.all([
+        properties.getAll(),
+        clients.getAll({ limit: 50 }),
+        rentals.getAll({ is_active: true }),
+        reports.getFinancialSummary(startDate, endDate).catch(() => null)
+      ]);
+
+      setDashboardData({
+        properties: propertiesData,
+        clientsList: clientsData,
+        rentalsList: rentalsData,
+        financialSummary: financialData
+      });
+
+      // Calculate stats
+      const occupiedCount = propertiesData.filter(p => p.status === 'occupied').length;
+      const availableCount = propertiesData.filter(p => p.status === 'available').length;
+      const maintenanceCount = propertiesData.filter(p => p.status === 'maintenance').length;
+      const occupancyRate = propertiesData.length > 0 ? (occupiedCount / propertiesData.length) * 100 : 0;
+
+      setStats({
+        totalRooms: propertiesData.length,
+        occupiedRooms: occupiedCount,
+        availableRooms: availableCount,
+        maintenanceRooms: maintenanceCount,
+        totalClients: clientsData.length,
+        activeRentals: rentalsData.length,
+        monthlyRevenue: financialData?.total_revenue || 0,
+        occupancyRate: Math.round(occupancyRate)
+      });
+
+      // Generate recent activities from rentals data
+      const activities = rentalsData.slice(0, 5).map((rental, index) => ({
+        id: rental.id,
+        type: rental.checked_in ? 'rental_active' : 'rental_started',
+        client: `${rental.client?.first_name || ''} ${rental.client?.last_name || ''}`.trim() || 'Клиент',
+        room: rental.property?.number || rental.property_id,
+        time: new Date(rental.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        amount: rental.total_amount
+      }));
+      setRecentActivities(activities);
+
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
     }
-  ]);
+  };
 
   const tabs = [
     { id: 'floor-plan', label: 'План этажа', icon: FiHome },
@@ -76,10 +134,56 @@ const ManagerDashboard = () => {
     }
   };
 
+  const handleCreateRental = async (rentalData) => {
+    try {
+      await rentals.create({
+        property_id: selectedRoom?.id || rentalData.roomNumber,
+        client_id: rentalData.clientId,
+        rental_type: rentalData.rentalType,
+        start_date: rentalData.startDate,
+        end_date: rentalData.endDate,
+        rate: rentalData.rate,
+        total_amount: rentalData.totalAmount,
+        deposit: rentalData.deposit,
+        payment_method: rentalData.paymentMethod,
+        guest_count: 1,
+        notes: rentalData.notes
+      });
+
+      // Reload dashboard data
+      await loadDashboardData();
+      setShowRentalModal(false);
+      setSelectedRoom(null);
+    } catch (error) {
+      console.error('Failed to create rental:', error);
+    }
+  };
+
+  const handleCreateClient = async (clientData) => {
+    try {
+      await clients.create({
+        first_name: clientData.name.split(' ')[0] || '',
+        last_name: clientData.name.split(' ').slice(1).join(' ') || '',
+        phone: clientData.phone,
+        email: clientData.email,
+        source: clientData.source
+      });
+
+      // Reload clients data
+      const newClientsData = await clients.getAll({ limit: 50 });
+      setDashboardData(prev => ({ ...prev, clientsList: newClientsData }));
+      setStats(prev => ({ ...prev, totalClients: newClientsData.length }));
+      
+      setShowClientModal(false);
+    } catch (error) {
+      console.error('Failed to create client:', error);
+    }
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'floor-plan':
-        return <FloorPlan onRoomClick={handleRoomClick} />;
+        return <FloorPlan properties={dashboardData.properties} onRoomClick={handleRoomClick} />;
       case 'rentals':
         return renderRentalsTab();
       case 'clients':
@@ -89,7 +193,7 @@ const ManagerDashboard = () => {
       case 'settings':
         return renderSettingsTab();
       default:
-        return <FloorPlan onRoomClick={handleRoomClick} />;
+        return <FloorPlan properties={dashboardData.properties} onRoomClick={handleRoomClick} />;
     }
   };
 
@@ -100,6 +204,7 @@ const ManagerDashboard = () => {
         <button 
           className="btn-primary"
           onClick={() => setShowRentalModal(true)}
+          disabled={loading}
         >
           <FiPlus /> Новая аренда
         </button>
@@ -109,17 +214,17 @@ const ManagerDashboard = () => {
         <div className="rental-types">
           <div className="rental-type-card">
             <h3>Почасовая аренда</h3>
-            <p>Активных: 8</p>
+            <p>Активных: {dashboardData.rentalsList.filter(r => r.rental_type === 'hourly').length}</p>
             <div className="price-range">₸ 2,500 - 4,000 / час</div>
           </div>
           <div className="rental-type-card">
             <h3>Посуточная аренда</h3>
-            <p>Активных: 18</p>
+            <p>Активных: {dashboardData.rentalsList.filter(r => r.rental_type === 'daily').length}</p>
             <div className="price-range">₸ 15,000 - 25,000 / сутки</div>
           </div>
           <div className="rental-type-card">
             <h3>Помесячная аренда</h3>
-            <p>Активных: 6</p>
+            <p>Активных: {dashboardData.rentalsList.filter(r => r.rental_type === 'monthly').length}</p>
             <div className="price-range">₸ 180,000 - 350,000 / месяц</div>
           </div>
         </div>
@@ -127,20 +232,21 @@ const ManagerDashboard = () => {
         <div className="active-rentals">
           <h3>Активные аренды</h3>
           <div className="rentals-list">
-            {[
-              { room: '2-15', client: 'Анна Петрова', type: 'Посуточно', endDate: '2025-07-05', amount: 20000 },
-              { room: '1-08', client: 'Дмитрий Ким', type: 'Помесячно', endDate: '2025-07-31', amount: 250000 },
-              { room: '3-22', client: 'Света Жанова', type: 'Почасово', endDate: '2025-07-01 18:00', amount: 3500 }
-            ].map((rental, index) => (
-              <div key={index} className="rental-item">
+            {dashboardData.rentalsList.slice(0, 10).map((rental) => (
+              <div key={rental.id} className="rental-item">
                 <div className="rental-info">
-                  <span className="room-number">{rental.room}</span>
-                  <span className="client-name">{rental.client}</span>
-                  <span className="rental-type">{rental.type}</span>
+                  <span className="room-number">{rental.property?.number || rental.property_id}</span>
+                  <span className="client-name">
+                    {rental.client ? `${rental.client.first_name} ${rental.client.last_name}` : 'Клиент'}
+                  </span>
+                  <span className="rental-type">
+                    {rental.rental_type === 'hourly' ? 'Почасово' : 
+                     rental.rental_type === 'daily' ? 'Посуточно' : 'Помесячно'}
+                  </span>
                 </div>
                 <div className="rental-details">
-                  <span className="end-date">До: {rental.endDate}</span>
-                  <span className="amount">₸ {rental.amount.toLocaleString()}</span>
+                  <span className="end-date">До: {new Date(rental.end_date).toLocaleDateString()}</span>
+                  <span className="amount">₸ {rental.total_amount?.toLocaleString()}</span>
                 </div>
               </div>
             ))}
@@ -157,6 +263,7 @@ const ManagerDashboard = () => {
         <button 
           className="btn-primary"
           onClick={() => setShowClientModal(true)}
+          disabled={loading}
         >
           <FiPlus /> Добавить клиента
         </button>
@@ -165,15 +272,21 @@ const ManagerDashboard = () => {
       <div className="clients-stats">
         <div className="stat-card">
           <h3>Всего клиентов</h3>
-          <div className="stat-number">127</div>
+          <div className="stat-number">{stats.totalClients}</div>
         </div>
         <div className="stat-card">
           <h3>Новые за месяц</h3>
-          <div className="stat-number">15</div>
+          <div className="stat-number">
+            {dashboardData.clientsList.filter(c => {
+              const createdDate = new Date(c.created_at);
+              const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+              return createdDate > monthAgo;
+            }).length}
+          </div>
         </div>
         <div className="stat-card">
-          <h3>Повторные аренды</h3>
-          <div className="stat-number">68%</div>
+          <h3>Активные аренды</h3>
+          <div className="stat-number">{stats.activeRentals}</div>
         </div>
       </div>
 
@@ -183,23 +296,19 @@ const ManagerDashboard = () => {
             <tr>
               <th>ФИО</th>
               <th>Телефон</th>
-              <th>Кол-во аренд</th>
+              <th>Email</th>
               <th>Последний визит</th>
               <th>Источник</th>
             </tr>
           </thead>
           <tbody>
-            {[
-              { name: 'Анна Петрова', phone: '+7 777 123 45 67', rentals: 3, lastVisit: '2025-06-28', source: 'Instagram' },
-              { name: 'Марат Саметов', phone: '+7 777 234 56 78', rentals: 1, lastVisit: '2025-06-25', source: 'Рекомендация' },
-              { name: 'Дмитрий Ким', phone: '+7 777 345 67 89', rentals: 5, lastVisit: '2025-06-30', source: 'Booking.com' }
-            ].map((client, index) => (
-              <tr key={index}>
-                <td>{client.name}</td>
-                <td>{client.phone}</td>
-                <td>{client.rentals}</td>
-                <td>{client.lastVisit}</td>
-                <td>{client.source}</td>
+            {dashboardData.clientsList.slice(0, 10).map((client) => (
+              <tr key={client.id}>
+                <td>{client.first_name} {client.last_name}</td>
+                <td>{client.phone || '—'}</td>
+                <td>{client.email || '—'}</td>
+                <td>{client.last_visit ? new Date(client.last_visit).toLocaleDateString() : '—'}</td>
+                <td>{client.source || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -216,22 +325,33 @@ const ManagerDashboard = () => {
         <div className="report-card">
           <h3>Финансовый отчет</h3>
           <p>Доходы и расходы за период</p>
-          <button className="btn-outline">Сформировать</button>
+          {dashboardData.financialSummary && (
+            <div className="report-preview">
+              <span>Выручка: ₸ {dashboardData.financialSummary.total_revenue?.toLocaleString()}</span>
+            </div>
+          )}
+          <button className="btn-outline" disabled={loading}>Сформировать</button>
         </div>
         <div className="report-card">
           <h3>Загруженность</h3>
           <p>Анализ занятости помещений</p>
-          <button className="btn-outline">Сформировать</button>
+          <div className="report-preview">
+            <span>Загруженность: {stats.occupancyRate}%</span>
+          </div>
+          <button className="btn-outline" disabled={loading}>Сформировать</button>
         </div>
         <div className="report-card">
           <h3>Клиентская база</h3>
           <p>Статистика по клиентам</p>
-          <button className="btn-outline">Сформировать</button>
+          <div className="report-preview">
+            <span>Всего клиентов: {stats.totalClients}</span>
+          </div>
+          <button className="btn-outline" disabled={loading}>Сформировать</button>
         </div>
         <div className="report-card">
           <h3>Сотрудники</h3>
           <p>Отчет по работе персонала</p>
-          <button className="btn-outline">Сформировать</button>
+          <button className="btn-outline" disabled={loading}>Сформировать</button>
         </div>
       </div>
     </div>
@@ -261,6 +381,15 @@ const ManagerDashboard = () => {
     </div>
   );
 
+  if (loading && !dashboardData.properties.length) {
+    return (
+      <div className="manager-dashboard loading">
+        <div className="loading-spinner"></div>
+        <p>Загрузка данных...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="manager-dashboard">
       <div className="manager-header">
@@ -269,6 +398,14 @@ const ManagerDashboard = () => {
           <span>Привет, {user.first_name}!</span>
         </div>
       </div>
+
+      {error && (
+        <div className="error-banner">
+          <FiAlertCircle />
+          <span>{error}</span>
+          <button onClick={utils.clearError}>×</button>
+        </div>
+      )}
 
       <div className="stats-overview">
         <div className="stat-card">
@@ -323,6 +460,7 @@ const ManagerDashboard = () => {
               key={tab.id}
               className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
+              disabled={loading}
             >
               <tab.icon />
               <span>{tab.label}</span>
@@ -345,11 +483,8 @@ const ManagerDashboard = () => {
                 {activity.type === 'rental_started' && (
                   <span>Начата аренда: <strong>{activity.client}</strong> в комнате <strong>{activity.room}</strong></span>
                 )}
-                {activity.type === 'rental_ended' && (
-                  <span>Завершена аренда: <strong>{activity.client}</strong> в комнате <strong>{activity.room}</strong></span>
-                )}
-                {activity.type === 'maintenance_requested' && (
-                  <span>Заявка на обслуживание: <strong>{activity.room}</strong> - {activity.issue}</span>
+                {activity.type === 'rental_active' && (
+                  <span>Активная аренда: <strong>{activity.client}</strong> в комнате <strong>{activity.room}</strong></span>
                 )}
               </div>
               {activity.amount && (
@@ -357,6 +492,11 @@ const ManagerDashboard = () => {
               )}
             </div>
           ))}
+          {recentActivities.length === 0 && (
+            <div className="no-activities">
+              <p>Нет последних событий</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -367,21 +507,14 @@ const ManagerDashboard = () => {
             setShowRentalModal(false);
             setSelectedRoom(null);
           }}
-          onSubmit={(rentalData) => {
-            console.log('New rental:', rentalData);
-            setShowRentalModal(false);
-            setSelectedRoom(null);
-          }}
+          onSubmit={handleCreateRental}
         />
       )}
 
       {showClientModal && (
         <ClientModal
           onClose={() => setShowClientModal(false)}
-          onSubmit={(clientData) => {
-            console.log('New client:', clientData);
-            setShowClientModal(false);
-          }}
+          onSubmit={handleCreateClient}
         />
       )}
     </div>
