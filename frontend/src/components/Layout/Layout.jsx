@@ -1,360 +1,320 @@
+// frontend/src/components/Layout/Layout.jsx
 import { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
 import { 
   FiHome, 
-  FiMessageCircle, 
   FiUsers, 
-  FiCheckSquare, 
-  FiGrid,
+  FiCalendar, 
+  FiClipboard, 
+  FiPackage, 
+  FiFileText,
+  FiDollarSign,
+  FiBarChart2,
   FiSettings,
-  FiHelpCircle,
+  FiLogOut,
+  FiUser,
+  FiBell,
   FiGlobe,
   FiMenu,
-  FiUser,
-  FiLogOut,
-  FiLogIn,
-  FiAlertCircle,
-  FiWifi,
-  FiWifiOff
+  FiX
 } from 'react-icons/fi';
-import { useTranslation } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useData } from '../../contexts/DataContext';
-import LoginModal from '../Auth/LoginModal';
+import { useTranslation } from '../../contexts/LanguageContext';
 import './Layout.css';
 
 const Layout = ({ children }) => {
+  const { user, logout, sessionTimer } = useAuth();
   const { t, language, setLanguage, languages } = useTranslation();
-  const { user, logout, sessionTimer, isAuthenticated, systemInitialized } = useAuth();
-  const { loading, error, utils } = useData();
-  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('online');
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
-  // Monitor connection status
+  // Load notifications
   useEffect(() => {
-    const handleOnline = () => setConnectionStatus('online');
-    const handleOffline = () => setConnectionStatus('offline');
+    if (user) {
+      loadNotifications();
+    }
+  }, [user]);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+  const loadNotifications = async () => {
+    try {
+      // Здесь будет загрузка уведомлений через API
+      // const notifications = await notificationsAPI.getNotifications();
+      // setNotifications(notifications);
+      
+      // Временно - пустой массив
+      setNotifications([]);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+    }
+  };
 
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Navigation items based on user role
-  const getNavItems = () => {
-    if (!user) return [];
-
+  // Navigation items based on role
+  const getNavigationItems = () => {
     const baseItems = [
-      { path: '/', icon: FiHome, label: t('dashboard.title') }
+      { 
+        id: 'dashboard', 
+        label: t('navigation.dashboard'), 
+        icon: FiHome, 
+        path: '/' 
+      }
     ];
 
-    switch (user.role) {
-      case 'system_owner':
-      case 'admin':
-      case 'manager':
-        return [
-          ...baseItems,
-          { path: '/properties', icon: FiGrid, label: 'Помещения' },
-          { path: '/clients', icon: FiUsers, label: 'Клиенты' },
-          { path: '/rentals', icon: FiHome, label: 'Аренда' },
-          { path: '/tasks', icon: FiCheckSquare, label: t('tasks.title') },
-          { path: '/reports', icon: FiMessageCircle, label: 'Отчеты' }
-        ];
-      case 'accountant':
-        return [
-          ...baseItems,
-          { path: '/clients', icon: FiUsers, label: 'Клиенты' },
-          { path: '/rentals', icon: FiHome, label: 'Аренда' },
-          { path: '/reports', icon: FiMessageCircle, label: 'Финансы' },
-          { path: '/payroll', icon: FiCheckSquare, label: 'Зарплата' }
-        ];
-      case 'cleaner':
-      case 'technical_staff':
-      case 'storekeeper':
-        return [
-          ...baseItems,
-          { path: '/tasks', icon: FiCheckSquare, label: 'Мои задачи' },
-          { path: '/inventory', icon: FiGrid, label: 'Склад' }
-        ];
-      default:
-        return baseItems;
-    }
-  };
+    const roleBasedItems = {
+      'system_owner': [
+        { id: 'admin', label: 'Администрирование', icon: FiSettings, path: '/admin' }
+      ],
+      'admin': [
+        { id: 'properties', label: t('navigation.properties'), icon: FiHome, path: '/properties' },
+        { id: 'clients', label: t('navigation.clients'), icon: FiUsers, path: '/clients' },
+        { id: 'rentals', label: t('navigation.rentals'), icon: FiCalendar, path: '/rentals' },
+        { id: 'tasks', label: t('navigation.tasks'), icon: FiClipboard, path: '/tasks' },
+        { id: 'inventory', label: t('navigation.inventory'), icon: FiPackage, path: '/inventory' },
+        { id: 'documents', label: t('navigation.documents'), icon: FiFileText, path: '/documents' },
+        { id: 'payroll', label: t('navigation.payroll'), icon: FiDollarSign, path: '/payroll' },
+        { id: 'reports', label: t('navigation.reports'), icon: FiBarChart2, path: '/reports' },
+        { id: 'settings', label: t('navigation.settings'), icon: FiSettings, path: '/settings' }
+      ],
+      'manager': [
+        { id: 'properties', label: t('navigation.properties'), icon: FiHome, path: '/properties' },
+        { id: 'clients', label: t('navigation.clients'), icon: FiUsers, path: '/clients' },
+        { id: 'rentals', label: t('navigation.rentals'), icon: FiCalendar, path: '/rentals' },
+        { id: 'tasks', label: t('navigation.tasks'), icon: FiClipboard, path: '/tasks' },
+        { id: 'reports', label: t('navigation.reports'), icon: FiBarChart2, path: '/reports' }
+      ],
+      'accountant': [
+        { id: 'financial', label: 'Финансы', icon: FiDollarSign, path: '/financial' },
+        { id: 'documents', label: t('navigation.documents'), icon: FiFileText, path: '/documents' },
+        { id: 'payroll', label: t('navigation.payroll'), icon: FiDollarSign, path: '/payroll' },
+        { id: 'reports', label: t('navigation.reports'), icon: FiBarChart2, path: '/reports' }
+      ],
+      'cleaner': [
+        { id: 'my-tasks', label: 'Мои задачи', icon: FiClipboard, path: '/my-tasks' },
+        { id: 'schedule', label: 'Расписание', icon: FiCalendar, path: '/schedule' }
+      ],
+      'technical_staff': [
+        { id: 'my-tasks', label: 'Мои задачи', icon: FiClipboard, path: '/my-tasks' },
+        { id: 'maintenance', label: 'Обслуживание', icon: FiSettings, path: '/maintenance' },
+        { id: 'inventory', label: t('navigation.inventory'), icon: FiPackage, path: '/inventory' }
+      ],
+      'storekeeper': [
+        { id: 'inventory', label: t('navigation.inventory'), icon: FiPackage, path: '/inventory' },
+        { id: 'supplies', label: 'Поставки', icon: FiPackage, path: '/supplies' }
+      ]
+    };
 
-  const navItems = getNavItems();
-
-  const closeSidebar = () => {
-    setSidebarOpen(false);
-  };
-
-  const handleNavClick = () => {
-    // Close sidebar on mobile after navigation
-    if (window.innerWidth <= 768) {
-      setSidebarOpen(false);
-    }
+    return [...baseItems, ...(roleBasedItems[user?.role] || [])];
   };
 
   const handleLogout = async () => {
-    await logout();
-    closeSidebar();
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
-  const handleLogin = () => {
-    setShowLoginModal(true);
-    closeSidebar();
-  };
+  const navigationItems = getNavigationItems();
 
-  // If system is not initialized, don't render layout
-  if (systemInitialized === false) {
-    return null;
-  }
-
-  // If user is not authenticated, show login screen
-  if (!isAuthenticated) {
-    return (
-      <>
-        <div className="login-screen">
-          <div className="login-container">
-            <div className="login-logo">
-              <div className="logo-icon">💎</div>
-              <h1>{t('auth.systemTitle')}</h1>
-              <p>{t('auth.systemSubtitle')}</p>
-            </div>
-            
-            <button className="main-login-btn" onClick={handleLogin}>
-              <FiLogIn size={20} />
-              {t('auth.login')}
-            </button>
-
-            <div className="language-selector-bottom">
-              <button 
-                className="language-btn"
-                onClick={() => setShowLanguageMenu(!showLanguageMenu)}
-              >
-                <FiGlobe size={16} />
-                {languages.find(lang => lang.code === language)?.name}
-              </button>
-              {showLanguageMenu && (
-                <div className="language-menu">
-                  {languages.map(lang => (
-                    <button 
-                      key={lang.code}
-                      onClick={() => {
-                        setLanguage(lang.code);
-                        setShowLanguageMenu(false);
-                      }}
-                      className={language === lang.code ? 'active' : ''}
-                    >
-                      {lang.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <LoginModal 
-          isOpen={showLoginModal} 
-          onClose={() => setShowLoginModal(false)} 
-        />
-      </>
-    );
+  if (!user) {
+    return children;
   }
 
   return (
-    <div className="layout">
-      {/* Global loading indicator */}
-      {loading && (
-        <div className="global-loading">
-          <div className="loading-bar"></div>
-        </div>
-      )}
-
-      {/* Global error notification */}
-      {error && (
-        <div className="global-error">
-          <FiAlertCircle />
-          <span>{error}</span>
-          <button onClick={utils.clearError}>×</button>
-        </div>
-      )}
-
-      {/* Connection status indicator */}
-      {connectionStatus === 'offline' && (
-        <div className="connection-status offline">
-          <FiWifiOff />
-          <span>Нет подключения к интернету</span>
-        </div>
-      )}
-
-      {/* Mobile Navigation Toggle */}
-      {!sidebarOpen && (
+    <div className="app-layout">
+      {/* Mobile header */}
+      <div className="mobile-header">
         <button 
-          className="mobile-nav-toggle"
-          onClick={() => setSidebarOpen(true)}
+          className="menu-toggle"
+          onClick={() => setShowSidebar(!showSidebar)}
         >
-          <FiMenu size={20} />
+          {showSidebar ? <FiX /> : <FiMenu />}
         </button>
-      )}
-
-      {/* Mobile Overlay */}
-      <div 
-        className={`mobile-overlay ${sidebarOpen ? 'show' : ''}`}
-        onClick={closeSidebar}
-      />
-
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="logo">
-          <div className="logo-icon">💎</div>
-          <span className="logo-text">RentMS</span>
+        <div className="mobile-logo">
+          <h2>PropertyMS</h2>
         </div>
-        
-        <nav className="nav-menu">
-          {navItems.map(item => (
-            <NavLink 
-              key={item.path}
-              to={item.path} 
-              className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}
-              onClick={handleNavClick}
-              title={item.label}
-            >
-              <item.icon size={20} />
-              <span className="nav-label">{item.label}</span>
-            </NavLink>
-          ))}
+        <div className="mobile-user">
+          <button 
+            className="user-avatar"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+          >
+            <FiUser />
+          </button>
+        </div>
+      </div>
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${showSidebar ? 'sidebar-open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="logo">
+            <h2>PropertyMS</h2>
+          </div>
+          <button 
+            className="sidebar-close"
+            onClick={() => setShowSidebar(false)}
+          >
+            <FiX />
+          </button>
+        </div>
+
+        <nav className="sidebar-nav">
+          {navigationItems.map(item => {
+            const IconComponent = item.icon;
+            return (
+              <button
+                key={item.id}
+                className="nav-item"
+                onClick={() => {
+                  // Здесь будет навигация через React Router
+                  console.log('Navigate to:', item.path);
+                  setShowSidebar(false);
+                }}
+              >
+                <IconComponent />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
-          <button 
-            className="nav-item language-selector"
-            onClick={() => setShowLanguageMenu(!showLanguageMenu)}
-            title="Язык"
-          >
-            <FiGlobe size={20} />
-            <span className="nav-label">
-              {languages.find(lang => lang.code === language)?.name}
-            </span>
-          </button>
-          {showLanguageMenu && (
-            <div className="language-menu">
-              {languages.map(lang => (
-                <button 
-                  key={lang.code}
-                  onClick={() => {
-                    setLanguage(lang.code);
-                    setShowLanguageMenu(false);
-                  }}
-                  className={language === lang.code ? 'active' : ''}
-                >
-                  {lang.name}
-                </button>
-              ))}
+          <div className="user-info">
+            <div className="user-avatar">
+              <FiUser />
             </div>
-          )}
-          
-          <button className="nav-item" title="Настройки">
-            <FiSettings size={20} />
-            <span className="nav-label">Настройки</span>
-          </button>
-          
-          <button className="nav-item" title="Помощь">
-            <FiHelpCircle size={20} />
-            <span className="nav-label">Помощь</span>
-          </button>
-          
-          <button className="nav-item logout-btn" onClick={handleLogout} title="Выйти">
-            <FiLogOut size={20} />
-            <span className="nav-label">Выйти</span>
-          </button>
-          
-          <div className="user-avatar">
-            <img 
-              src={`https://i.pravatar.cc/150?u=${user?.email}`} 
-              alt={user?.first_name || t('common.user')} 
-            />
-            <div className="user-info">
-              <div className="user-name">
-                {user?.first_name} {user?.last_name}
-              </div>
-              <div className="user-role">
-                {user?.role === 'system_owner' ? 'Владелец системы' :
-                 user?.role === 'admin' ? 'Администратор' :
-                 user?.role === 'manager' ? 'Менеджер' :
-                 user?.role === 'accountant' ? 'Бухгалтер' :
-                 user?.role === 'cleaner' ? 'Уборщик' :
-                 user?.role === 'technical_staff' ? 'Техник' :
-                 user?.role === 'storekeeper' ? 'Кладовщик' :
-                 user?.role}
-              </div>
+            <div className="user-details">
+              <div className="user-name">{user.first_name} {user.last_name}</div>
+              <div className="user-role">{user.role}</div>
             </div>
           </div>
         </div>
       </aside>
 
-      <div className="main-container">
-        <header className="header">
+      {/* Main content */}
+      <div className="main-content">
+        {/* Header */}
+        <header className="app-header">
           <div className="header-left">
-            <div className="breadcrumb">
-              <span className="organization-name">
-                {user?.organization?.name || 'Организация'}
-              </span>
+            <button 
+              className="sidebar-toggle"
+              onClick={() => setShowSidebar(!showSidebar)}
+            >
+              <FiMenu />
+            </button>
+          </div>
+
+          <div className="header-right">
+            {/* Language switcher */}
+            <div className="language-switcher">
+              <button className="lang-btn">
+                <FiGlobe />
+                <span>{language.toUpperCase()}</span>
+              </button>
+              <div className="lang-dropdown">
+                {languages.map(lang => (
+                  <button
+                    key={lang.code}
+                    onClick={() => setLanguage(lang.code)}
+                    className={language === lang.code ? 'active' : ''}
+                  >
+                    {lang.name}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="connection-indicator">
-              {connectionStatus === 'online' ? (
-                <div className="status-online">
-                  <FiWifi size={14} />
-                  <span>Онлайн</span>
+
+            {/* Notifications */}
+            <div className="notifications">
+              <button 
+                className="notifications-btn"
+                onClick={() => setShowNotifications(!showNotifications)}
+              >
+                <FiBell />
+                {notifications.length > 0 && (
+                  <span className="notifications-badge">{notifications.length}</span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="notifications-dropdown">
+                  <div className="notifications-header">
+                    <h4>Уведомления</h4>
+                  </div>
+                  <div className="notifications-list">
+                    {notifications.length === 0 ? (
+                      <div className="no-notifications">
+                        Нет новых уведомлений
+                      </div>
+                    ) : (
+                      notifications.map(notification => (
+                        <div key={notification.id} className="notification-item">
+                          {notification.message}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="status-offline">
-                  <FiWifiOff size={14} />
-                  <span>Офлайн</span>
+              )}
+            </div>
+
+            {/* User menu */}
+            <div className="user-menu">
+              <button 
+                className="user-menu-btn"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+              >
+                <div className="user-avatar">
+                  <FiUser />
+                </div>
+                <div className="user-info">
+                  <div className="user-name">{user.first_name}</div>
+                  <div className="session-time">{sessionTimer}</div>
+                </div>
+              </button>
+              
+              {showUserMenu && (
+                <div className="user-dropdown">
+                  <div className="user-dropdown-header">
+                    <div className="user-name">{user.first_name} {user.last_name}</div>
+                    <div className="user-email">{user.email}</div>
+                    <div className="user-role">{user.role}</div>
+                  </div>
+                  <div className="user-dropdown-menu">
+                    <button className="dropdown-item">
+                      <FiUser />
+                      <span>Профиль</span>
+                    </button>
+                    <button className="dropdown-item">
+                      <FiSettings />
+                      <span>Настройки</span>
+                    </button>
+                    <hr />
+                    <button 
+                      className="dropdown-item logout"
+                      onClick={handleLogout}
+                    >
+                      <FiLogOut />
+                      <span>Выйти</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
-          
-          <div className="header-right">
-            <div className="session-info">
-              <span className="session-time">
-                {t('common.session')}: {sessionTimer}
-              </span>
-            </div>
-            
-            <div className="user-menu">
-              <button className="user-button">
-                <img 
-                  src={`https://i.pravatar.cc/32?u=${user?.email}`} 
-                  alt={user?.first_name} 
-                />
-                <span className="user-name-header">
-                  {user?.first_name} {user?.last_name}
-                </span>
-              </button>
-            </div>
-            
-            <button className="logout-btn-header" onClick={handleLogout} title="Выйти">
-              <FiLogOut size={16} />
-            </button>
-          </div>
         </header>
 
-        <main className="content">
+        {/* Page content */}
+        <main className="page-content">
           {children}
         </main>
       </div>
 
-      <LoginModal 
-        isOpen={showLoginModal} 
-        onClose={() => setShowLoginModal(false)} 
-      />
+      {/* Overlay for mobile */}
+      {showSidebar && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => setShowSidebar(false)}
+        />
+      )}
     </div>
   );
 };

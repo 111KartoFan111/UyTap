@@ -4,7 +4,7 @@ import {
   FiEdit2, 
   FiTrash2, 
   FiUsers, 
-  FiHome, // Заменяем FiBuilding на FiHome
+  FiHome, // Заменяем FaBuilding на FiHome
   FiSettings,
   FiEye,
   FiUserPlus,

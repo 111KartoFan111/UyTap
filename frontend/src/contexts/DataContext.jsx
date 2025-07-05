@@ -1,4 +1,6 @@
+// frontend/src/contexts/DataContext.jsx
 import { createContext, useContext, useState, useCallback } from 'react';
+import { useToast } from '../components/Common/Toast';
 import { 
   clientsAPI, 
   propertiesAPI, 
@@ -24,20 +26,49 @@ export const useData = () => {
 export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const toast = useToast();
 
   // Generic error handler
-  const handleError = useCallback((error, operation) => {
+  const handleError = useCallback((error, operation, showToast = true) => {
     console.error(`${operation} failed:`, error);
-    setError(error.message);
-    setTimeout(() => setError(null), 5000); // Clear error after 5 seconds
-  }, []);
+    
+    let errorMessage = 'Произошла ошибка';
+    
+    if (error.message) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
+    setError(errorMessage);
+    
+    if (showToast) {
+      toast.showError(errorMessage);
+    }
+    
+    // Clear error after 10 seconds
+    setTimeout(() => setError(null), 10000);
+  }, [toast]);
+
+  // Generic success handler
+  const handleSuccess = useCallback((message) => {
+    if (message) {
+      toast.showSuccess(message);
+    }
+  }, [toast]);
 
   // Generic loading wrapper
-  const withLoading = useCallback(async (operation, suppressLoading = false) => {
+  const withLoading = useCallback(async (operation, suppressLoading = false, successMessage = null) => {
     try {
       if (!suppressLoading) setLoading(true);
       setError(null);
+      
       const result = await operation();
+      
+      if (successMessage) {
+        handleSuccess(successMessage);
+      }
+      
       return result;
     } catch (error) {
       handleError(error, 'Operation');
@@ -45,110 +76,110 @@ export const DataProvider = ({ children }) => {
     } finally {
       if (!suppressLoading) setLoading(false);
     }
-  }, [handleError]);
+  }, [handleError, handleSuccess]);
 
   // Clients operations
   const clients = {
-    getAll: (params) => withLoading(() => clientsAPI.getClients(params)),
+    getAll: (params) => withLoading(() => clientsAPI.getClients(params), true),
     getById: (id) => withLoading(() => clientsAPI.getClient(id)),
-    create: (data) => withLoading(() => clientsAPI.createClient(data)),
-    update: (id, data) => withLoading(() => clientsAPI.updateClient(id, data)),
-    delete: (id) => withLoading(() => clientsAPI.deleteClient(id)),
+    create: (data) => withLoading(() => clientsAPI.createClient(data), false, 'Клиент успешно создан'),
+    update: (id, data) => withLoading(() => clientsAPI.updateClient(id, data), false, 'Клиент обновлен'),
+    delete: (id) => withLoading(() => clientsAPI.deleteClient(id), false, 'Клиент удален'),
     getHistory: (id) => withLoading(() => clientsAPI.getClientHistory(id)),
     getStatistics: (id) => withLoading(() => clientsAPI.getClientStatistics(id)),
-    bulkImport: (data) => withLoading(() => clientsAPI.bulkImport(data))
+    bulkImport: (data) => withLoading(() => clientsAPI.bulkImport(data), false, 'Клиенты импортированы')
   };
 
   // Properties operations
   const properties = {
-    getAll: (params) => withLoading(() => propertiesAPI.getProperties(params)),
+    getAll: (params) => withLoading(() => propertiesAPI.getProperties(params), true),
     getById: (id) => withLoading(() => propertiesAPI.getProperty(id)),
-    create: (data) => withLoading(() => propertiesAPI.createProperty(data)),
-    update: (id, data) => withLoading(() => propertiesAPI.updateProperty(id, data)),
-    delete: (id) => withLoading(() => propertiesAPI.deleteProperty(id)),
-    updateStatus: (id, status) => withLoading(() => propertiesAPI.updatePropertyStatus(id, status)),
+    create: (data) => withLoading(() => propertiesAPI.createProperty(data), false, 'Помещение создано'),
+    update: (id, data) => withLoading(() => propertiesAPI.updateProperty(id, data), false, 'Помещение обновлено'),
+    delete: (id) => withLoading(() => propertiesAPI.deleteProperty(id), false, 'Помещение удалено'),
+    updateStatus: (id, status) => withLoading(() => propertiesAPI.updatePropertyStatus(id, status), false, 'Статус обновлен'),
     getTasks: (id, status) => withLoading(() => propertiesAPI.getPropertyTasks(id, status)),
-    createTask: (id, data) => withLoading(() => propertiesAPI.createPropertyTask(id, data)),
+    createTask: (id, data) => withLoading(() => propertiesAPI.createPropertyTask(id, data), false, 'Задача создана'),
     checkAvailability: (id, startDate, endDate) => withLoading(() => propertiesAPI.checkAvailability(id, startDate, endDate)),
     getStatistics: (id, periodDays) => withLoading(() => propertiesAPI.getPropertyStatistics(id, periodDays))
   };
 
   // Rentals operations
   const rentals = {
-    getAll: (params) => withLoading(() => rentalsAPI.getRentals(params)),
+    getAll: (params) => withLoading(() => rentalsAPI.getRentals(params), true),
     getById: (id) => withLoading(() => rentalsAPI.getRental(id)),
-    create: (data) => withLoading(() => rentalsAPI.createRental(data)),
-    update: (id, data) => withLoading(() => rentalsAPI.updateRental(id, data)),
-    checkIn: (id) => withLoading(() => rentalsAPI.checkIn(id)),
-    checkOut: (id) => withLoading(() => rentalsAPI.checkOut(id)),
-    cancel: (id, reason) => withLoading(() => rentalsAPI.cancelRental(id, reason))
+    create: (data) => withLoading(() => rentalsAPI.createRental(data), false, 'Аренда создана'),
+    update: (id, data) => withLoading(() => rentalsAPI.updateRental(id, data), false, 'Аренда обновлена'),
+    checkIn: (id) => withLoading(() => rentalsAPI.checkIn(id), false, 'Заселение выполнено'),
+    checkOut: (id) => withLoading(() => rentalsAPI.checkOut(id), false, 'Выселение выполнено'),
+    cancel: (id, reason) => withLoading(() => rentalsAPI.cancelRental(id, reason), false, 'Аренда отменена')
   };
 
   // Tasks operations
   const tasks = {
-    getAll: (params) => withLoading(() => tasksAPI.getTasks(params)),
+    getAll: (params) => withLoading(() => tasksAPI.getTasks(params), true),
     getById: (id) => withLoading(() => tasksAPI.getTask(id)),
-    create: (data) => withLoading(() => tasksAPI.createTask(data)),
-    update: (id, data) => withLoading(() => tasksAPI.updateTask(id, data)),
-    assign: (id, assignedTo) => withLoading(() => tasksAPI.assignTask(id, assignedTo)),
-    start: (id) => withLoading(() => tasksAPI.startTask(id)),
-    complete: (id, data) => withLoading(() => tasksAPI.completeTask(id, data)),
-    cancel: (id, reason) => withLoading(() => tasksAPI.cancelTask(id, reason)),
-    getMy: (status) => withLoading(() => tasksAPI.getMyTasks(status)),
+    getMy: (status) => withLoading(() => tasksAPI.getMyTasks(status), true),
+    create: (data) => withLoading(() => tasksAPI.createTask(data), false, 'Задача создана'),
+    update: (id, data) => withLoading(() => tasksAPI.updateTask(id, data), false, 'Задача обновлена'),
+    assign: (id, assignedTo) => withLoading(() => tasksAPI.assignTask(id, assignedTo), false, 'Задача назначена'),
+    start: (id) => withLoading(() => tasksAPI.startTask(id), false, 'Задача начата'),
+    complete: (id, data) => withLoading(() => tasksAPI.completeTask(id, data), false, 'Задача выполнена'),
+    cancel: (id, reason) => withLoading(() => tasksAPI.cancelTask(id, reason), false, 'Задача отменена'),
     getStatistics: (periodDays, userId) => withLoading(() => tasksAPI.getTaskStatistics(periodDays, userId)),
     getEmployeeWorkload: (role) => withLoading(() => tasksAPI.getEmployeeWorkload(role)),
-    getUrgent: () => withLoading(() => tasksAPI.getUrgentTasks()),
-    autoAssign: (taskIds) => withLoading(() => tasksAPI.autoAssignTasks(taskIds)),
-    createRecurring: () => withLoading(() => tasksAPI.createRecurringTasks())
+    getUrgent: () => withLoading(() => tasksAPI.getUrgentTasks(), true),
+    autoAssign: (taskIds) => withLoading(() => tasksAPI.autoAssignTasks(taskIds), false, 'Задачи назначены автоматически'),
+    createRecurring: () => withLoading(() => tasksAPI.createRecurringTasks(), false, 'Регулярные задачи созданы')
   };
 
   // Orders operations
   const orders = {
-    getAll: (params) => withLoading(() => ordersAPI.getOrders(params)),
+    getAll: (params) => withLoading(() => ordersAPI.getOrders(params), true),
     getById: (id) => withLoading(() => ordersAPI.getOrder(id)),
-    create: (data) => withLoading(() => ordersAPI.createOrder(data)),
-    update: (id, data) => withLoading(() => ordersAPI.updateOrder(id, data)),
-    assign: (id, assignedTo) => withLoading(() => ordersAPI.assignOrder(id, assignedTo)),
-    complete: (id, notes) => withLoading(() => ordersAPI.completeOrder(id, notes)),
+    create: (data) => withLoading(() => ordersAPI.createOrder(data), false, 'Заказ создан'),
+    update: (id, data) => withLoading(() => ordersAPI.updateOrder(id, data), false, 'Заказ обновлен'),
+    assign: (id, assignedTo) => withLoading(() => ordersAPI.assignOrder(id, assignedTo), false, 'Заказ назначен'),
+    complete: (id, notes) => withLoading(() => ordersAPI.completeOrder(id, notes), false, 'Заказ выполнен'),
     getStatistics: (periodDays) => withLoading(() => ordersAPI.getOrderStatistics(periodDays))
   };
 
   // Inventory operations
   const inventory = {
-    getAll: (params) => withLoading(() => inventoryAPI.getItems(params)),
+    getAll: (params) => withLoading(() => inventoryAPI.getItems(params), true),
     getById: (id) => withLoading(() => inventoryAPI.getItem(id)),
-    create: (data) => withLoading(() => inventoryAPI.createItem(data)),
-    update: (id, data) => withLoading(() => inventoryAPI.updateItem(id, data)),
-    delete: (id) => withLoading(() => inventoryAPI.deleteItem(id)),
-    createMovement: (itemId, data) => withLoading(() => inventoryAPI.createMovement(itemId, data)),
+    create: (data) => withLoading(() => inventoryAPI.createItem(data), false, 'Товар добавлен'),
+    update: (id, data) => withLoading(() => inventoryAPI.updateItem(id, data), false, 'Товар обновлен'),
+    delete: (id) => withLoading(() => inventoryAPI.deleteItem(id), false, 'Товар удален'),
+    createMovement: (itemId, data) => withLoading(() => inventoryAPI.createMovement(itemId, data), false, 'Движение создано'),
     getMovements: (itemId, params) => withLoading(() => inventoryAPI.getMovements(itemId, params)),
-    getLowStock: () => withLoading(() => inventoryAPI.getLowStockItems()),
+    getLowStock: () => withLoading(() => inventoryAPI.getLowStockItems(), true),
     getStatistics: () => withLoading(() => inventoryAPI.getStatistics()),
-    bulkUpdateStock: (updates) => withLoading(() => inventoryAPI.bulkUpdateStock(updates)),
+    bulkUpdateStock: (updates) => withLoading(() => inventoryAPI.bulkUpdateStock(updates), false, 'Остатки обновлены'),
     export: (format, category) => withLoading(() => inventoryAPI.exportData(format, category))
   };
 
   // Documents operations
   const documents = {
-    getAll: (params) => withLoading(() => documentsAPI.getDocuments(params)),
+    getAll: (params) => withLoading(() => documentsAPI.getDocuments(params), true),
     getById: (id) => withLoading(() => documentsAPI.getDocument(id)),
-    create: (data) => withLoading(() => documentsAPI.createDocument(data)),
-    update: (id, data) => withLoading(() => documentsAPI.updateDocument(id, data)),
+    create: (data) => withLoading(() => documentsAPI.createDocument(data), false, 'Документ создан'),
+    update: (id, data) => withLoading(() => documentsAPI.updateDocument(id, data), false, 'Документ обновлен'),
     download: (id) => withLoading(() => documentsAPI.downloadDocument(id)),
-    sign: (id, signatureData) => withLoading(() => documentsAPI.signDocument(id, signatureData)),
-    generateContract: (rentalId) => withLoading(() => documentsAPI.generateRentalContract(rentalId)),
-    generateAct: (rentalId) => withLoading(() => documentsAPI.generateWorkAct(rentalId)),
-    sendESF: (id) => withLoading(() => documentsAPI.sendESF(id))
+    sign: (id, signatureData) => withLoading(() => documentsAPI.signDocument(id, signatureData), false, 'Документ подписан'),
+    generateContract: (rentalId) => withLoading(() => documentsAPI.generateRentalContract(rentalId), false, 'Договор сгенерирован'),
+    generateAct: (rentalId) => withLoading(() => documentsAPI.generateWorkAct(rentalId), false, 'Акт сгенерирован'),
+    sendESF: (id) => withLoading(() => documentsAPI.sendESF(id), false, 'ЭСФ отправлен')
   };
 
   // Payroll operations
   const payroll = {
-    getAll: (params) => withLoading(() => payrollAPI.getPayrolls(params)),
+    getAll: (params) => withLoading(() => payrollAPI.getPayrolls(params), true),
     getById: (id) => withLoading(() => payrollAPI.getPayroll(id)),
-    create: (data) => withLoading(() => payrollAPI.createPayroll(data)),
-    update: (id, data) => withLoading(() => payrollAPI.updatePayroll(id, data)),
-    markAsPaid: (id, paymentMethod) => withLoading(() => payrollAPI.markAsPaid(id, paymentMethod)),
-    calculateMonthly: (year, month, userId) => withLoading(() => payrollAPI.calculateMonthly(year, month, userId)),
+    create: (data) => withLoading(() => payrollAPI.createPayroll(data), false, 'Зарплатная ведомость создана'),
+    update: (id, data) => withLoading(() => payrollAPI.updatePayroll(id, data), false, 'Ведомость обновлена'),
+    markAsPaid: (id, paymentMethod) => withLoading(() => payrollAPI.markAsPaid(id, paymentMethod), false, 'Зарплата отмечена как выплаченная'),
+    calculateMonthly: (year, month, userId) => withLoading(() => payrollAPI.calculateMonthly(year, month, userId), false, 'Зарплата рассчитана'),
     getStatistics: (year, month) => withLoading(() => payrollAPI.getStatistics(year, month)),
     export: (format, year, month) => withLoading(() => payrollAPI.exportData(format, year, month))
   };
@@ -166,7 +197,13 @@ export const DataProvider = ({ children }) => {
   // Utility functions
   const utils = {
     clearError: () => setError(null),
-    isLoading: () => loading
+    isLoading: () => loading,
+    showSuccess: handleSuccess,
+    showError: (message) => handleError(new Error(message), 'Manual', true),
+    showWarning: toast.showWarning,
+    showInfo: toast.showInfo,
+    toast: toast.toasts,
+    removeToast: toast.removeToast
   };
 
   const value = {

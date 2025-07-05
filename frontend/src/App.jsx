@@ -1,9 +1,11 @@
+// frontend/src/App.jsx
 import { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { DataProvider } from './contexts/DataContext';
 import { LanguageProvider } from './contexts/LanguageContext'; 
 import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout/Layout';
+import Login from './components/Auth/LoginModal.jsx';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import AdminLogin from './components/Admin/AdminLogin';
 import SystemInitializer from './components/SystemInitializer/SystemInitializer.jsx';
@@ -42,6 +44,63 @@ const AdminRoute = ({ children }) => {
   return <AdminLogin />;
 };
 
+// Protected route wrapper
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner"></div>
+        <p>Загрузка...</p>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Login />;
+  }
+  
+  return children;
+};
+
+// Main app routing component
+const AppRoutes = () => {
+  const { user } = useAuth();
+  
+  return (
+    <Routes>
+      {/* Admin route */}
+      <Route 
+        path="/admin/*" 
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        } 
+      />
+      
+      {/* Public login route */}
+      <Route 
+        path="/login" 
+        element={user ? <Navigate to="/" replace /> : <Login />} 
+      />
+      
+      {/* Protected app routes */}
+      <Route 
+        path="/*" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <RoleBasedRouter />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+    </Routes>
+  );
+};
+
 function App() {
   return (
     <LanguageProvider> 
@@ -49,24 +108,9 @@ function App() {
         <SystemChecker>
           <DataProvider>
             <Router>
-              <Routes>
-                {/* Admin route */}
-                <Route 
-                  path="/admin" 
-                  element={
-                    <AdminRoute>
-                      <AdminDashboard />
-                    </AdminRoute>
-                  } 
-                />
-                
-                {/* Main routes with role-based routing */}
-                <Route path="/*" element={
-                  <Layout>
-                    <RoleBasedRouter />
-                  </Layout>
-                } />
-              </Routes>
+              <div className="app">
+                <AppRoutes />
+              </div>
             </Router>
           </DataProvider>
         </SystemChecker>
