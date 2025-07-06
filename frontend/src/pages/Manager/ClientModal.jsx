@@ -27,7 +27,7 @@ const ClientModal = ({ onClose, onSubmit }) => {
         </div>
         <form className="client-form" onSubmit={handleSubmit}>
           <div className="form-field">
-            <label>Имя *</label>
+            <label> *</label>
             <input
               type="text"
               value={formData.first_name}
