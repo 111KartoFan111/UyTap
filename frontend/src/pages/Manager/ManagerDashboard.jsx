@@ -113,16 +113,6 @@ const ManagerDashboard = () => {
 
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
-      // Use all mock data as fallback
-      const mockData = {
-        properties: generateMockProperties(),
-        clientsList: generateMockClients(),
-        rentalsList: generateMockRentals(),
-        financialSummary: null
-      };
-      setDashboardData(mockData);
-      calculateStats(mockData.properties, mockData.clientsList, mockData.rentalsList, null);
-      generateActivities(mockData.rentalsList);
     }
   };
 
@@ -196,7 +186,7 @@ const ManagerDashboard = () => {
       maintenanceRooms: maintenanceCount,
       totalClients: clientsData.length,
       activeRentals: rentalsData.length,
-      monthlyRevenue: financialData?.total_revenue || Math.floor(Math.random() * 1000000) + 500000,
+      monthlyRevenue: financialData?.total_revenue,
       occupancyRate: Math.round(occupancyRate)
     });
   };
