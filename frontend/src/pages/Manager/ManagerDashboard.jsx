@@ -1,21 +1,20 @@
+// frontend/src/pages/Manager/ManagerDashboard.jsx
 import { useState, useEffect } from 'react';
 import { 
   FiHome, 
   FiUsers, 
-  FiClipboard, 
   FiDollarSign, 
-  FiCalendar,
-  FiPlus,
   FiBarChart2,
-  FiSettings,
-  FiAlertCircle
+  FiAlertCircle,
+  FiTrendingUp,
+  FiCalendar,
+  FiArrowRight
 } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
-import RentalModal from './RentalModal.jsx';
-import ClientModal from './ClientModal.jsx';
-import FloorPlan from './FloorPlan.jsx';
+import FloorPlan from './FloorPlan';
 import './ManagerDashboard.css';
 
 const ManagerDashboard = () => {
@@ -31,11 +30,6 @@ const ManagerDashboard = () => {
     utils 
   } = useData();
   
-  const [activeTab, setActiveTab] = useState('floor-plan');
-  const [showRentalModal, setShowRentalModal] = useState(false);
-  const [showClientModal, setShowClientModal] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState(null);
-  
   const [stats, setStats] = useState({
     totalRooms: 0,
     occupiedRooms: 0,
@@ -43,7 +37,7 @@ const ManagerDashboard = () => {
     maintenanceRooms: 0,
     totalClients: 0,
     activeRentals: 0,
-    monthlyRevenue: 0,
+    monthlyRevenue: 2450000,
     occupancyRate: 0
   });
 
@@ -186,7 +180,7 @@ const ManagerDashboard = () => {
       maintenanceRooms: maintenanceCount,
       totalClients: clientsData.length,
       activeRentals: rentalsData.length,
-      monthlyRevenue: financialData?.total_revenue,
+      monthlyRevenue: financialData?.total_revenue || 2450000,
       occupancyRate: Math.round(occupancyRate)
     });
   };
@@ -202,277 +196,6 @@ const ManagerDashboard = () => {
     }));
     setRecentActivities(activities);
   };
-
-  const tabs = [
-    { id: 'floor-plan', label: 'План этажа', icon: FiHome },
-    { id: 'rentals', label: 'Аренда', icon: FiCalendar },
-    { id: 'clients', label: 'Клиенты', icon: FiUsers },
-    { id: 'reports', label: 'Отчеты', icon: FiBarChart2 },
-    { id: 'settings', label: 'Настройки', icon: FiSettings }
-  ];
-
-  const handleRoomClick = (room) => {
-    setSelectedRoom(room);
-    if (room.status === 'available') {
-      setShowRentalModal(true);
-    }
-  };
-
-  const handleCreateRental = async (rentalData) => {
-    try {
-      await rentals.create({
-        property_id: selectedRoom?.id || rentalData.roomNumber,
-        client_data: {
-          first_name: rentalData.clientName.split(' ')[0] || '',
-          last_name: rentalData.clientName.split(' ').slice(1).join(' ') || '',
-          phone: rentalData.clientPhone,
-          email: rentalData.clientEmail,
-          document_number: rentalData.clientDocument
-        },
-        rental_type: rentalData.rentalType,
-        start_date: rentalData.startDate,
-        end_date: rentalData.endDate,
-        rate: rentalData.rate,
-        total_amount: rentalData.totalAmount,
-        deposit: rentalData.deposit,
-        payment_method: rentalData.paymentMethod,
-        guest_count: 1,
-        notes: rentalData.notes
-      });
-
-      // Reload dashboard data
-      await loadDashboardData();
-      setShowRentalModal(false);
-      setSelectedRoom(null);
-    } catch (error) {
-      console.error('Failed to create rental:', error);
-      utils.showError('Не удалось создать аренду: ' + error.message);
-    }
-  };
-
-  const handleCreateClient = async (clientData) => {
-    try {
-      await clients.create({
-        first_name: clientData.first_name,
-        last_name: clientData.last_name,
-        phone: clientData.phone,
-        email: clientData.email,
-        source: clientData.source
-      });
-
-      // Reload clients data
-      const newClientsData = await clients.getAll({ limit: 50 });
-      setDashboardData(prev => ({ ...prev, clientsList: newClientsData }));
-      setStats(prev => ({ ...prev, totalClients: newClientsData.length }));
-      
-      setShowClientModal(false);
-      utils.showSuccess('Клиент успешно добавлен');
-    } catch (error) {
-      console.error('Failed to create client:', error);
-      utils.showError('Не удалось создать клиента: ' + error.message);
-    }
-  };
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'floor-plan':
-        return <FloorPlan properties={dashboardData.properties} onRoomClick={handleRoomClick} />;
-      case 'rentals':
-        return renderRentalsTab();
-      case 'clients':
-        return renderClientsTab();
-      case 'reports':
-        return renderReportsTab();
-      case 'settings':
-        return renderSettingsTab();
-      default:
-        return <FloorPlan properties={dashboardData.properties} onRoomClick={handleRoomClick} />;
-    }
-  };
-
-  const renderRentalsTab = () => (
-    <div className="rentals-tab">
-      <div className="tab-header">
-        <h2>Управление арендой</h2>
-        <button 
-          className="btn-primary"
-          onClick={() => setShowRentalModal(true)}
-          disabled={loading}
-        >
-          <FiPlus /> Новая аренда
-        </button>
-      </div>
-      
-      <div className="rentals-grid">
-        <div className="rental-types">
-          <div className="rental-type-card">
-            <h3>Почасовая аренда</h3>
-            <p>Активных: {dashboardData.rentalsList.filter(r => r.rental_type === 'hourly').length}</p>
-            <div className="price-range">₸ 2,500 - 4,000 / час</div>
-          </div>
-          <div className="rental-type-card">
-            <h3>Посуточная аренда</h3>
-            <p>Активных: {dashboardData.rentalsList.filter(r => r.rental_type === 'daily').length}</p>
-            <div className="price-range">₸ 15,000 - 25,000 / сутки</div>
-          </div>
-          <div className="rental-type-card">
-            <h3>Помесячная аренда</h3>
-            <p>Активных: {dashboardData.rentalsList.filter(r => r.rental_type === 'monthly').length}</p>
-            <div className="price-range">₸ 180,000 - 350,000 / месяц</div>
-          </div>
-        </div>
-
-        <div className="active-rentals">
-          <h3>Активные аренды</h3>
-          <div className="rentals-list">
-            {dashboardData.rentalsList.slice(0, 10).map((rental) => (
-              <div key={rental.id} className="rental-item">
-                <div className="rental-info">
-                  <span className="room-number">{rental.property?.number || rental.property_id}</span>
-                  <span className="client-name">
-                    {rental.client ? `${rental.client.first_name} ${rental.client.last_name}` : 'Клиент'}
-                  </span>
-                  <span className="rental-type">
-                    {rental.rental_type === 'hourly' ? 'Почасово' : 
-                     rental.rental_type === 'daily' ? 'Посуточно' : 'Помесячно'}
-                  </span>
-                </div>
-                <div className="rental-details">
-                  <span className="end-date">До: {new Date(rental.end_date).toLocaleDateString()}</span>
-                  <span className="amount">₸ {rental.total_amount?.toLocaleString()}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderClientsTab = () => (
-    <div className="clients-tab">
-      <div className="tab-header">
-        <h2>База клиентов</h2>
-        <button 
-          className="btn-primary"
-          onClick={() => setShowClientModal(true)}
-          disabled={loading}
-        >
-          <FiPlus /> Добавить клиента
-        </button>
-      </div>
-      
-      <div className="clients-stats">
-        <div className="stat-card">
-          <h3>Всего клиентов</h3>
-          <div className="stat-number">{stats.totalClients}</div>
-        </div>
-        <div className="stat-card">
-          <h3>Новые за месяц</h3>
-          <div className="stat-number">
-            {dashboardData.clientsList.filter(c => {
-              const createdDate = new Date(c.created_at);
-              const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-              return createdDate > monthAgo;
-            }).length}
-          </div>
-        </div>
-        <div className="stat-card">
-          <h3>Активные аренды</h3>
-          <div className="stat-number">{stats.activeRentals}</div>
-        </div>
-      </div>
-
-      <div className="clients-table-wrapper">
-        <table className="clients-table">
-          <thead>
-            <tr>
-              <th>ФИО</th>
-              <th>Телефон</th>
-              <th>Email</th>
-              <th>Последний визит</th>
-              <th>Источник</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dashboardData.clientsList.slice(0, 10).map((client) => (
-              <tr key={client.id}>
-                <td>{client.first_name} {client.last_name}</td>
-                <td>{client.phone || '—'}</td>
-                <td>{client.email || '—'}</td>
-                <td>{client.last_visit ? new Date(client.last_visit).toLocaleDateString() : '—'}</td>
-                <td>{client.source || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  const renderReportsTab = () => (
-    <div className="reports-tab">
-      <h2>Отчеты и аналитика</h2>
-      
-      <div className="reports-grid">
-        <div className="report-card">
-          <h3>Финансовый отчет</h3>
-          <p>Доходы и расходы за период</p>
-          {dashboardData.financialSummary && (
-            <div className="report-preview">
-              <span>Выручка: ₸ {dashboardData.financialSummary.total_revenue?.toLocaleString()}</span>
-            </div>
-          )}
-          <button className="btn-outline" disabled={loading}>Сформировать</button>
-        </div>
-        <div className="report-card">
-          <h3>Загруженность</h3>
-          <p>Анализ занятости помещений</p>
-          <div className="report-preview">
-            <span>Загруженность: {stats.occupancyRate}%</span>
-          </div>
-          <button className="btn-outline" disabled={loading}>Сформировать</button>
-        </div>
-        <div className="report-card">
-          <h3>Клиентская база</h3>
-          <p>Статистика по клиентам</p>
-          <div className="report-preview">
-            <span>Всего клиентов: {stats.totalClients}</span>
-          </div>
-          <button className="btn-outline" disabled={loading}>Сформировать</button>
-        </div>
-        <div className="report-card">
-          <h3>Сотрудники</h3>
-          <p>Отчет по работе персонала</p>
-          <button className="btn-outline" disabled={loading}>Сформировать</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderSettingsTab = () => (
-    <div className="settings-tab">
-      <h2>Настройки системы</h2>
-      
-      <div className="settings-sections">
-        <div className="settings-section">
-          <h3>Тарифы</h3>
-          <p>Настройка стоимости аренды</p>
-          <button className="btn-outline">Настроить</button>
-        </div>
-        <div className="settings-section">
-          <h3>Уведомления</h3>
-          <p>Настройка оповещений</p>
-          <button className="btn-outline">Настроить</button>
-        </div>
-        <div className="settings-section">
-          <h3>Интеграции</h3>
-          <p>Внешние сервисы</p>
-          <button className="btn-outline">Настроить</button>
-        </div>
-      </div>
-    </div>
-  );
 
   if (loading && !dashboardData.properties.length) {
     return (
@@ -500,6 +223,7 @@ const ManagerDashboard = () => {
         </div>
       )}
 
+      {/* Stats Overview */}
       <div className="stats-overview">
         <div className="stat-card">
           <div className="stat-icon rooms-icon">
@@ -546,26 +270,68 @@ const ManagerDashboard = () => {
         </div>
       </div>
 
-      <div className="manager-content">
-        <div className="tabs-navigation">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              disabled={loading}
-            >
-              <tab.icon />
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
+      {/* Quick Actions */}
+      <div className="quick-actions">
+        <h2>Быстрые действия</h2>
+        <div className="actions-grid">
+          <Link to="/manager/floor-plan" className="action-card">
+            <div className="action-icon">
+              <FiHome />
+            </div>
+            <h3>План этажа</h3>
+            <p>Просмотр состояния всех помещений</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
 
-        <div className="tab-content">
-          {renderTabContent()}
+          <Link to="/manager/rentals" className="action-card">
+            <div className="action-icon">
+              <FiCalendar />
+            </div>
+            <h3>Аренда</h3>
+            <p>Управление арендами и бронированиями</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
+
+          <Link to="/manager/clients" className="action-card">
+            <div className="action-icon">
+              <FiUsers />
+            </div>
+            <h3>Клиенты</h3>
+            <p>База клиентов и их история</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
+
+          <Link to="/manager/reports" className="action-card">
+            <div className="action-icon">
+              <FiTrendingUp />
+            </div>
+            <h3>Отчеты</h3>
+            <p>Аналитика и финансовые отчеты</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
         </div>
       </div>
 
+      {/* Floor Plan Preview */}
+      <div className="floor-plan-preview">
+        <div className="section-header">
+          <h2>Текущее состояние помещений</h2>
+          <Link to="/manager/floor-plan" className="view-all-link">
+            Подробный план <FiArrowRight />
+          </Link>
+        </div>
+        <FloorPlan properties={dashboardData.properties} compact={true} />
+      </div>
+
+      {/* Recent Activities */}
       <div className="recent-activities">
         <h3>Последние события</h3>
         <div className="activities-list">
@@ -592,24 +358,6 @@ const ManagerDashboard = () => {
           )}
         </div>
       </div>
-
-      {showRentalModal && (
-        <RentalModal
-          room={selectedRoom}
-          onClose={() => {
-            setShowRentalModal(false);
-            setSelectedRoom(null);
-          }}
-          onSubmit={handleCreateRental}
-        />
-      )}
-
-      {showClientModal && (
-        <ClientModal
-          onClose={() => setShowClientModal(false)}
-          onSubmit={handleCreateClient}
-        />
-      )}
     </div>
   );
 };

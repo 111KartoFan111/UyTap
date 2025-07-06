@@ -1,16 +1,37 @@
 // frontend/src/App.jsx
-import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { DataProvider } from './contexts/DataContext';
 import { LanguageProvider } from './contexts/LanguageContext'; 
 import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout/Layout';
-import Login from './components/Auth/LoginModal.jsx';
+import LoginPage from './pages/Auth/LoginPage.jsx';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import AdminLogin from './components/Admin/AdminLogin';
 import SystemInitializer from './components/SystemInitializer/SystemInitializer.jsx';
-import RoleBasedRouter from './utils/RoleBasedRouter';
 import { useAuth } from './contexts/AuthContext';
+
+// Import Manager pages
+import ManagerDashboard from './pages/Manager/ManagerDashboard';
+import FloorPlan from './pages/Manager/FloorPlan';
+import Rentals from './pages/Manager/Rentals.jsx';
+import Clients from './pages/Manager/Clients.jsx';
+import Reports from './pages/Manager/Reports.jsx';
+import Settings from './pages/Manager/Settings.jsx';
+
+// Import other role pages
+import CleanerDashboard from './pages/Cleaner/CleanerDashboard.jsx';
+import TechnicalStaffDashboard from './pages/TechnicalStaff/TechnicalStaffDashboard.jsx';
+import AccountantDashboard from './pages/Accountant/AccountantDashboard.jsx';
+import StorekeeperDashboard from './pages/Storekeeper/StorekeeperDashboard.jsx';
+
+// Import shared components
+import Dashboard from './components/Dashboard/Dashboard.jsx';
+import Conversations from './components/Conversations/Conversations.jsx';
+import Guests from './components/Guests/Guests.jsx';
+import Tasks from './components/Tasks/Tasks.jsx';
+import Rooms from './components/Rooms/Rooms.jsx';
+import Employees from './components/Employees/Employees.jsx';
+
 import './App.css';
 
 // Component for system status checking
@@ -45,7 +66,7 @@ const AdminRoute = ({ children }) => {
 };
 
 // Protected route wrapper
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
@@ -58,10 +79,41 @@ const ProtectedRoute = ({ children }) => {
   }
   
   if (!user) {
-    return <Login />;
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />;
   }
   
   return children;
+};
+
+// Role-based home redirect
+const RoleBasedHome = () => {
+  const { user } = useAuth();
+  
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  switch (user.role) {
+    case 'system_owner':
+      return <Navigate to="/admin" replace />;
+    case 'admin':
+    case 'manager':
+      return <Navigate to="/manager" replace />;
+    case 'cleaner':
+      return <Navigate to="/cleaner" replace />;
+    case 'technical_staff':
+      return <Navigate to="/technical" replace />;
+    case 'accountant':
+      return <Navigate to="/accountant" replace />;
+    case 'storekeeper':
+      return <Navigate to="/storekeeper" replace />;
+    default:
+      return <Dashboard />;
+  }
 };
 
 // Main app routing component
@@ -70,33 +122,171 @@ const AppRoutes = () => {
   
   return (
     <Routes>
-      {/* Admin route */}
+      {/* Public routes */}
+      <Route 
+        path="/login" 
+        element={user ? <Navigate to="/" replace /> : <LoginPage />} 
+      />
+      
+      {/* Admin routes */}
       <Route 
         path="/admin/*" 
         element={
           <AdminRoute>
-            <AdminDashboard />
+            <Routes>
+              <Route index element={<AdminDashboard />} />
+            </Routes>
           </AdminRoute>
         } 
       />
       
-      {/* Public login route */}
+      {/* Manager routes */}
       <Route 
-        path="/login" 
-        element={user ? <Navigate to="/" replace /> : <Login />} 
-      />
-      
-      {/* Protected app routes */}
-      <Route 
-        path="/*" 
+        path="/manager/*" 
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'manager']}>
             <Layout>
-              <RoleBasedRouter />
+              <Routes>
+                <Route index element={<ManagerDashboard />} />
+                <Route path="floor-plan" element={<FloorPlan />} />
+                <Route path="rentals" element={<Rentals />} />
+                <Route path="clients" element={<Clients />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="settings" element={<Settings />} />
+              </Routes>
             </Layout>
           </ProtectedRoute>
         } 
       />
+
+      {/* Cleaner routes */}
+      <Route 
+        path="/cleaner/*" 
+        element={
+          <ProtectedRoute allowedRoles={['cleaner']}>
+            <Layout>
+              <Routes>
+                <Route index element={<CleanerDashboard />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+
+      {/* Technical Staff routes */}
+      <Route 
+        path="/technical/*" 
+        element={
+          <ProtectedRoute allowedRoles={['technical_staff']}>
+            <Layout>
+              <Routes>
+                <Route index element={<TechnicalStaffDashboard />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+
+      {/* Accountant routes */}
+      <Route 
+        path="/accountant/*" 
+        element={
+          <ProtectedRoute allowedRoles={['accountant']}>
+            <Layout>
+              <Routes>
+                <Route index element={<AccountantDashboard />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+
+      {/* Storekeeper routes */}
+      <Route 
+        path="/storekeeper/*" 
+        element={
+          <ProtectedRoute allowedRoles={['storekeeper']}>
+            <Layout>
+              <Routes>
+                <Route index element={<StorekeeperDashboard />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Shared protected routes */}
+      <Route 
+        path="/dashboard" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/conversations" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Conversations />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/guests" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Guests />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/tasks" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Tasks />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/rooms" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Rooms />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/employees" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Employees />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Home route with role-based redirect */}
+      <Route path="/" element={<RoleBasedHome />} />
+      
+      {/* Catch all - redirect to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
