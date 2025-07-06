@@ -4,7 +4,7 @@ import { FiEye, FiEyeOff, FiUser, FiLock } from 'react-icons/fi';
 import { FaBuilding } from "react-icons/fa6";
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/LanguageContext';
-import './LoginModal.css';
+import './Login.css';
 
 const Login = () => {
   const { login, loading } = useAuth();

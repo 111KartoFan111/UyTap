@@ -1,320 +1,208 @@
-// frontend/src/components/Layout/Layout.jsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { 
   FiHome, 
+  FiMessageCircle, 
   FiUsers, 
-  FiCalendar, 
-  FiClipboard, 
-  FiPackage, 
-  FiFileText,
-  FiDollarSign,
-  FiBarChart2,
+  FiCheckSquare, 
+  FiGrid,
   FiSettings,
-  FiLogOut,
-  FiUser,
-  FiBell,
+  FiHelpCircle,
   FiGlobe,
   FiMenu,
-  FiX
+  FiUser,
+  FiLogOut,
+  FiLogIn
 } from 'react-icons/fi';
-import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import LoginModal from '../Auth/LoginModal';
 import './Layout.css';
 
 const Layout = ({ children }) => {
-  const { user, logout, sessionTimer } = useAuth();
   const { t, language, setLanguage, languages } = useTranslation();
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState([]);
+  const { user, logout, sessionTimer, isAuthenticated } = useAuth();
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Load notifications
-  useEffect(() => {
-    if (user) {
-      loadNotifications();
-    }
-  }, [user]);
+  const navItems = [
+    { path: '/', icon: FiHome, label: t('dashboard.title') },
+    { path: '/conversations', icon: FiMessageCircle, label: t('conversations.title') },
+    { path: '/guests', icon: FiUsers, label: t('guests.title') },
+    { path: '/tasks', icon: FiCheckSquare, label: t('tasks.title') },
+    { path: '/rooms', icon: FiGrid, label: t('rooms.title') },
+    { path: '/employees', icon: FiUsers, label: t('employees.title') }
+  ];
 
-  const loadNotifications = async () => {
-    try {
-      // Здесь будет загрузка уведомлений через API
-      // const notifications = await notificationsAPI.getNotifications();
-      // setNotifications(notifications);
-      
-      // Временно - пустой массив
-      setNotifications([]);
-    } catch (error) {
-      console.error('Failed to load notifications:', error);
-    }
+  const closeSidebar = () => {
+    setSidebarOpen(false);
   };
 
-  // Navigation items based on role
-  const getNavigationItems = () => {
-    const baseItems = [
-      { 
-        id: 'dashboard', 
-        label: t('navigation.dashboard'), 
-        icon: FiHome, 
-        path: '/' 
-      }
-    ];
-
-    const roleBasedItems = {
-      'system_owner': [
-        { id: 'admin', label: 'Администрирование', icon: FiSettings, path: '/admin' }
-      ],
-      'admin': [
-        { id: 'properties', label: t('navigation.properties'), icon: FiHome, path: '/properties' },
-        { id: 'clients', label: t('navigation.clients'), icon: FiUsers, path: '/clients' },
-        { id: 'rentals', label: t('navigation.rentals'), icon: FiCalendar, path: '/rentals' },
-        { id: 'tasks', label: t('navigation.tasks'), icon: FiClipboard, path: '/tasks' },
-        { id: 'inventory', label: t('navigation.inventory'), icon: FiPackage, path: '/inventory' },
-        { id: 'documents', label: t('navigation.documents'), icon: FiFileText, path: '/documents' },
-        { id: 'payroll', label: t('navigation.payroll'), icon: FiDollarSign, path: '/payroll' },
-        { id: 'reports', label: t('navigation.reports'), icon: FiBarChart2, path: '/reports' },
-        { id: 'settings', label: t('navigation.settings'), icon: FiSettings, path: '/settings' }
-      ],
-      'manager': [
-        { id: 'properties', label: t('navigation.properties'), icon: FiHome, path: '/properties' },
-        { id: 'clients', label: t('navigation.clients'), icon: FiUsers, path: '/clients' },
-        { id: 'rentals', label: t('navigation.rentals'), icon: FiCalendar, path: '/rentals' },
-        { id: 'tasks', label: t('navigation.tasks'), icon: FiClipboard, path: '/tasks' },
-        { id: 'reports', label: t('navigation.reports'), icon: FiBarChart2, path: '/reports' }
-      ],
-      'accountant': [
-        { id: 'financial', label: 'Финансы', icon: FiDollarSign, path: '/financial' },
-        { id: 'documents', label: t('navigation.documents'), icon: FiFileText, path: '/documents' },
-        { id: 'payroll', label: t('navigation.payroll'), icon: FiDollarSign, path: '/payroll' },
-        { id: 'reports', label: t('navigation.reports'), icon: FiBarChart2, path: '/reports' }
-      ],
-      'cleaner': [
-        { id: 'my-tasks', label: 'Мои задачи', icon: FiClipboard, path: '/my-tasks' },
-        { id: 'schedule', label: 'Расписание', icon: FiCalendar, path: '/schedule' }
-      ],
-      'technical_staff': [
-        { id: 'my-tasks', label: 'Мои задачи', icon: FiClipboard, path: '/my-tasks' },
-        { id: 'maintenance', label: 'Обслуживание', icon: FiSettings, path: '/maintenance' },
-        { id: 'inventory', label: t('navigation.inventory'), icon: FiPackage, path: '/inventory' }
-      ],
-      'storekeeper': [
-        { id: 'inventory', label: t('navigation.inventory'), icon: FiPackage, path: '/inventory' },
-        { id: 'supplies', label: 'Поставки', icon: FiPackage, path: '/supplies' }
-      ]
-    };
-
-    return [...baseItems, ...(roleBasedItems[user?.role] || [])];
+  const handleNavClick = () => {
+    // Close sidebar on mobile after navigation
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
   };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
+    await logout();
+    closeSidebar();
   };
 
-  const navigationItems = getNavigationItems();
+  const handleLogin = () => {
+    setShowLoginModal(true);
+    closeSidebar();
+  };
 
-  if (!user) {
-    return children;
+  // Если пользователь не авторизован, показываем экран входа
+  if (!isAuthenticated) {
+    return (
+      <>
+        <div className="login-screen">
+          <div className="login-container">
+            <div className="login-logo">
+              <div className="logo-icon">💎</div>
+              <h1>{t('auth.systemTitle')}</h1>
+              <p>{t('auth.systemSubtitle')}</p>
+            </div>
+            
+            <button className="main-login-btn" onClick={handleLogin}>
+              <FiLogIn size={20} />
+              {t('auth.login')}
+            </button>
+
+            <div className="language-selector-bottom">
+              <button 
+                className="language-btn"
+                onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+              >
+                <FiGlobe size={16} />
+                {languages.find(lang => lang.code === language)?.name}
+              </button>
+              {showLanguageMenu && (
+                <div className="language-menu">
+                  {languages.map(lang => (
+                    <button 
+                      key={lang.code}
+                      onClick={() => {
+                        setLanguage(lang.code);
+                        setShowLanguageMenu(false);
+                      }}
+                      className={language === lang.code ? 'active' : ''}
+                    >
+                      {lang.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <LoginModal 
+          isOpen={showLoginModal} 
+          onClose={() => setShowLoginModal(false)} 
+        />
+      </>
+    );
   }
 
   return (
-    <div className="app-layout">
-      {/* Mobile header */}
-      <div className="mobile-header">
+    <div className="layout">
+      {/* Mobile Navigation Toggle */}
+      {!sidebarOpen && (
         <button 
-          className="menu-toggle"
-          onClick={() => setShowSidebar(!showSidebar)}
+          className="mobile-nav-toggle"
+          onClick={() => setSidebarOpen(true)}
         >
-          {showSidebar ? <FiX /> : <FiMenu />}
+          <FiMenu size={20} />
         </button>
-        <div className="mobile-logo">
-          <h2>PropertyMS</h2>
-        </div>
-        <div className="mobile-user">
-          <button 
-            className="user-avatar"
-            onClick={() => setShowUserMenu(!showUserMenu)}
-          >
-            <FiUser />
-          </button>
-        </div>
-      </div>
+      )}
 
-      {/* Sidebar */}
-      <aside className={`sidebar ${showSidebar ? 'sidebar-open' : ''}`}>
-        <div className="sidebar-header">
-          <div className="logo">
-            <h2>PropertyMS</h2>
-          </div>
-          <button 
-            className="sidebar-close"
-            onClick={() => setShowSidebar(false)}
-          >
-            <FiX />
-          </button>
-        </div>
+      {/* Mobile Overlay */}
+      <div 
+        className={`mobile-overlay ${sidebarOpen ? 'show' : ''}`}
+        onClick={closeSidebar}
+      />
 
-        <nav className="sidebar-nav">
-          {navigationItems.map(item => {
-            const IconComponent = item.icon;
-            return (
-              <button
-                key={item.id}
-                className="nav-item"
-                onClick={() => {
-                  // Здесь будет навигация через React Router
-                  console.log('Navigate to:', item.path);
-                  setShowSidebar(false);
-                }}
-              >
-                <IconComponent />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="logo">
+          <div className="logo-icon">💎</div>
+        </div>
+        
+        <nav className="nav-menu">
+          {navItems.map(item => (
+            <NavLink 
+              key={item.path}
+              to={item.path} 
+              className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}
+              onClick={handleNavClick}
+            >
+              <item.icon size={20} />
+            </NavLink>
+          ))}
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-info">
-            <div className="user-avatar">
-              <FiUser />
+          <button 
+            className="nav-item language-selector"
+            onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+          >
+            <FiGlobe size={20} />
+          </button>
+          {showLanguageMenu && (
+            <div className="language-menu">
+              {languages.map(lang => (
+                <button 
+                  key={lang.code}
+                  onClick={() => {
+                    setLanguage(lang.code);
+                    setShowLanguageMenu(false);
+                  }}
+                  className={language === lang.code ? 'active' : ''}
+                >
+                  {lang.name}
+                </button>
+              ))}
             </div>
-            <div className="user-details">
-              <div className="user-name">{user.first_name} {user.last_name}</div>
-              <div className="user-role">{user.role}</div>
-            </div>
+          )}
+          <button className="nav-item">
+            <FiSettings size={20} />
+          </button>
+          <button className="nav-item">
+            <FiHelpCircle size={20} />
+          </button>
+          <button className="nav-item logout-btn" onClick={handleLogout}>
+            <FiLogOut size={20} />
+          </button>
+          <div className="user-avatar">
+            <img src="https://i.pravatar.cc/150?img=3" alt={user?.first_name || t('common.user')} />
           </div>
         </div>
       </aside>
 
-      {/* Main content */}
-      <div className="main-content">
-        {/* Header */}
-        <header className="app-header">
+      <div className="main-container">
+        <header className="header">
           <div className="header-left">
-            <button 
-              className="sidebar-toggle"
-              onClick={() => setShowSidebar(!showSidebar)}
-            >
-              <FiMenu />
-            </button>
+            <span className="update-status">{t('common.updates')}</span>
           </div>
-
           <div className="header-right">
-            {/* Language switcher */}
-            <div className="language-switcher">
-              <button className="lang-btn">
-                <FiGlobe />
-                <span>{language.toUpperCase()}</span>
-              </button>
-              <div className="lang-dropdown">
-                {languages.map(lang => (
-                  <button
-                    key={lang.code}
-                    onClick={() => setLanguage(lang.code)}
-                    className={language === lang.code ? 'active' : ''}
-                  >
-                    {lang.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Notifications */}
-            <div className="notifications">
-              <button 
-                className="notifications-btn"
-                onClick={() => setShowNotifications(!showNotifications)}
-              >
-                <FiBell />
-                {notifications.length > 0 && (
-                  <span className="notifications-badge">{notifications.length}</span>
-                )}
-              </button>
-              {showNotifications && (
-                <div className="notifications-dropdown">
-                  <div className="notifications-header">
-                    <h4>Уведомления</h4>
-                  </div>
-                  <div className="notifications-list">
-                    {notifications.length === 0 ? (
-                      <div className="no-notifications">
-                        Нет новых уведомлений
-                      </div>
-                    ) : (
-                      notifications.map(notification => (
-                        <div key={notification.id} className="notification-item">
-                          {notification.message}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* User menu */}
-            <div className="user-menu">
-              <button 
-                className="user-menu-btn"
-                onClick={() => setShowUserMenu(!showUserMenu)}
-              >
-                <div className="user-avatar">
-                  <FiUser />
-                </div>
-                <div className="user-info">
-                  <div className="user-name">{user.first_name}</div>
-                  <div className="session-time">{sessionTimer}</div>
-                </div>
-              </button>
-              
-              {showUserMenu && (
-                <div className="user-dropdown">
-                  <div className="user-dropdown-header">
-                    <div className="user-name">{user.first_name} {user.last_name}</div>
-                    <div className="user-email">{user.email}</div>
-                    <div className="user-role">{user.role}</div>
-                  </div>
-                  <div className="user-dropdown-menu">
-                    <button className="dropdown-item">
-                      <FiUser />
-                      <span>Профиль</span>
-                    </button>
-                    <button className="dropdown-item">
-                      <FiSettings />
-                      <span>Настройки</span>
-                    </button>
-                    <hr />
-                    <button 
-                      className="dropdown-item logout"
-                      onClick={handleLogout}
-                    >
-                      <FiLogOut />
-                      <span>Выйти</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <span className="session-time">{t('common.session')}: {sessionTimer}</span>
+            <span className="user-name">
+              {user?.first_name} {user?.last_name}
+            </span>
+            <button className="logout-btn-header" onClick={handleLogout}>
+              <FiLogOut size={16} />
+            </button>
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="page-content">
+        <main className="content">
           {children}
         </main>
       </div>
-
-      {/* Overlay for mobile */}
-      {showSidebar && (
-        <div 
-          className="sidebar-overlay"
-          onClick={() => setShowSidebar(false)}
-        />
-      )}
     </div>
   );
 };

@@ -4,7 +4,8 @@ import { FiX, FiUser, FiPhone } from 'react-icons/fi';
 
 const ClientModal = ({ onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
-    name: '',
+    first_name: '',
+    last_name: '',
     phone: '',
     email: '',
     source: 'walk-in'
@@ -26,11 +27,20 @@ const ClientModal = ({ onClose, onSubmit }) => {
         </div>
         <form className="client-form" onSubmit={handleSubmit}>
           <div className="form-field">
-            <label>ФИО *</label>
+            <label>Имя *</label>
             <input
               type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              value={formData.first_name}
+              onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+              required
+            />
+          </div>
+          <div className="form-field">
+            <label>Фамилия *</label>
+            <input
+              type="text"
+              value={formData.last_name}
+              onChange={(e) => setFormData({...formData, last_name: e.target.value})}
               required
             />
           </div>
