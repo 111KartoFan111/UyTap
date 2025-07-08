@@ -61,7 +61,7 @@ const ManagerDashboard = () => {
       // Load all data in parallel
       const [propertiesData, clientsData, rentalsData] = await Promise.allSettled([
         properties.getAll(),
-        clients.getAll({ limit: 50 }),
+        clients.getAll({ limit: 100 }),
         rentals.getAll({ is_active: true })
       ]);
 

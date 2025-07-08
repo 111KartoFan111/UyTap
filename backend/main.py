@@ -13,9 +13,10 @@ import time
 from models.database import engine, SessionLocal
 from models.models import Base
 # Импортируем все роутеры
+# Импортируем все роутеры
 from routers import (
     auth, admin, properties, rentals, clients, 
-    orders, reports, documents, tasks, payroll, inventory
+    orders, reports, documents, tasks, payroll, inventory,organization
 )
 from services.init_service import DatabaseInitService
 from utils.logging_config import setup_logging
@@ -194,6 +195,7 @@ app.add_exception_handler(Exception, general_exception_handler)
 # Подключение всех роутеров
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(organization.router)
 app.include_router(properties.router)
 app.include_router(rentals.router)
 app.include_router(clients.router)
