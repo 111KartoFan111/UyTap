@@ -1,53 +1,75 @@
 import { useState, useEffect } from 'react';
-import { FiEdit2, FiTool, FiCheck, FiPlus, FiAlertCircle } from 'react-icons/fi';
+import { FiEdit2, FiTool, FiCheck, FiPlus, FiAlertCircle, FiCalendar, FiClock, FiPlay, FiPause, FiX } from 'react-icons/fi';
 import { useData } from '../../contexts/DataContext';
 import PropertyModal from './PropertyModal';
+import RentalModal from './RentalModal';
+import TaskModal from './TaskModal';
+import PropertyDetailsModal from './PropertyDetailsModal';
 import './FloorPlan.css';
 
 const FloorPlan = ({ onRoomClick }) => {
-  const { properties, utils } = useData();
+  const { properties, rentals, tasks, utils } = useData();
   const [selectedFloor, setSelectedFloor] = useState(1);
   const [rooms, setRooms] = useState([]);
+  const [activeRentals, setActiveRentals] = useState([]);
   const [filterStatus, setFilterStatus] = useState('all');
   const [loading, setLoading] = useState(true);
   const [showPropertyModal, setShowPropertyModal] = useState(false);
+  const [showRentalModal, setShowRentalModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showPropertyDetails, setShowPropertyDetails] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [organizationLimits, setOrganizationLimits] = useState(null);
 
-  // Загрузка помещений и лимитов организации
+  // Загрузка данных
   useEffect(() => {
-    loadPropertiesData();
-    loadOrganizationLimits();
+    loadData();
   }, []);
 
-  const loadPropertiesData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const propertiesData = await properties.getAll();
-      setRooms(propertiesData);
+      
+      // Загружаем помещения, аренды и лимиты параллельно
+      const [propertiesData, rentalsData] = await Promise.allSettled([
+        properties.getAll(),
+        rentals.getAll({ is_active: true })
+      ]);
+
+      const propsList = propertiesData.status === 'fulfilled' ? propertiesData.value : [];
+      const rentalsList = rentalsData.status === 'fulfilled' ? rentalsData.value : [];
+
+      // Обогащаем помещения данными об аренде
+      const enrichedProperties = propsList.map(property => {
+        const activeRental = rentalsList.find(rental => 
+          rental.property_id === property.id && rental.is_active
+        );
+
+        return {
+          ...property,
+          activeRental,
+          status: activeRental ? 'occupied' : property.status || 'available',
+          currentGuests: activeRental ? [activeRental.client?.first_name + ' ' + activeRental.client?.last_name] : [],
+          checkIn: activeRental?.start_date ? new Date(activeRental.start_date).toLocaleDateString() : null,
+          checkOut: activeRental?.end_date ? new Date(activeRental.end_date).toLocaleDateString() : null
+        };
+      });
+
+      setRooms(enrichedProperties);
+      setActiveRentals(rentalsList);
+      
+      // Моковые лимиты (в реальном приложении получать из API)
+      setOrganizationLimits({
+        current: enrichedProperties.length,
+        max: 50
+      });
+
     } catch (error) {
-      console.error('Failed to load properties:', error);
-      utils.showError('Не удалось загрузить помещения');
-      // Fallback к моковым данным при ошибке
+      console.error('Failed to load data:', error);
+      utils.showError('Не удалось загрузить данные');
       generateMockRooms();
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadOrganizationLimits = async () => {
-    try {
-      // Получаем информацию об организации из контекста пользователя
-      const user = JSON.parse(localStorage.getItem('user_data') || '{}');
-      if (user?.organization_id) {
-        // Пока используем моковые данные для лимитов
-        setOrganizationLimits({
-          current: rooms.length,
-          max: 50 // Это должно прийти из API
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load organization limits:', error);
     }
   };
 
@@ -72,28 +94,202 @@ const FloorPlan = ({ onRoomClick }) => {
           monthly_rate: Math.floor(Math.random() * 150000) + 180000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          is_active: true
+          is_active: true,
+          currentGuests: randomStatus === 'occupied' ? ['Тестовый Клиент'] : [],
+          checkIn: randomStatus === 'occupied' ? new Date().toLocaleDateString() : null,
+          checkOut: randomStatus === 'occupied' ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString() : null
         });
       }
     }
     setRooms(mockRooms);
+    setOrganizationLimits({ current: mockRooms.length, max: 50 });
   };
 
-  // Обновление лимитов при изменении количества помещений
-  useEffect(() => {
-    if (organizationLimits) {
-      setOrganizationLimits(prev => ({
-        ...prev,
-        current: rooms.length
-      }));
-    }
-  }, [rooms.length]);
-
+  // Фильтрация помещений по этажу и статусу
   const currentFloorRooms = rooms.filter(room => room.floor === selectedFloor);
   const filteredRooms = filterStatus === 'all' 
     ? currentFloorRooms 
     : currentFloorRooms.filter(room => room.status === filterStatus);
 
+  // Статистика по этажу
+  const statusCounts = currentFloorRooms.reduce((acc, room) => {
+    acc[room.status] = (acc[room.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Обработчики событий
+  const handlePropertyCreate = async (propertyData) => {
+    try {
+      const newProperty = await properties.create(propertyData);
+      setRooms(prev => [...prev, newProperty]);
+      setShowPropertyModal(false);
+      utils.showSuccess('Помещение успешно создано');
+      loadData(); // Перезагружаем данные
+    } catch (error) {
+      console.error('Failed to create property:', error);
+      utils.showError(error.message || 'Не удалось создать помещение');
+    }
+  };
+
+  const handlePropertyEdit = async (propertyData) => {
+    try {
+      const updatedProperty = await properties.update(selectedProperty.id, propertyData);
+      setRooms(prev => prev.map(room => 
+        room.id === selectedProperty.id ? { ...updatedProperty, ...room } : room
+      ));
+      setShowPropertyModal(false);
+      setSelectedProperty(null);
+      utils.showSuccess('Помещение успешно обновлено');
+    } catch (error) {
+      console.error('Failed to update property:', error);
+      utils.showError('Не удалось обновить помещение');
+    }
+  };
+
+  const handleRentalCreate = async (rentalData) => {
+    try {
+      const newRental = await rentals.create({
+        ...rentalData,
+        property_id: selectedProperty.id
+      });
+      
+      // Обновляем статус помещения
+      setRooms(prev => prev.map(room => 
+        room.id === selectedProperty.id 
+          ? { 
+              ...room, 
+              status: 'occupied', 
+              activeRental: newRental,
+              currentGuests: [rentalData.clientName],
+              checkIn: new Date(rentalData.startDate).toLocaleDateString(),
+              checkOut: new Date(rentalData.endDate).toLocaleDateString()
+            }
+          : room
+      ));
+      
+      setShowRentalModal(false);
+      setSelectedProperty(null);
+      utils.showSuccess('Аренда успешно создана');
+    } catch (error) {
+      console.error('Failed to create rental:', error);
+      utils.showError('Не удалось создать аренду');
+    }
+  };
+
+  const handleTaskCreate = async (taskData) => {
+    try {
+      const newTask = await tasks.create({
+        ...taskData,
+        property_id: selectedProperty.id
+      });
+      
+      // Обновляем статус помещения если нужно
+      if (taskData.task_type === 'cleaning') {
+        setRooms(prev => prev.map(room => 
+          room.id === selectedProperty.id 
+            ? { ...room, status: 'cleaning' }
+            : room
+        ));
+      } else if (taskData.task_type === 'maintenance') {
+        setRooms(prev => prev.map(room => 
+          room.id === selectedProperty.id 
+            ? { ...room, status: 'maintenance' }
+            : room
+        ));
+      }
+      
+      setShowTaskModal(false);
+      setSelectedProperty(null);
+      utils.showSuccess('Задача успешно создана');
+    } catch (error) {
+      console.error('Failed to create task:', error);
+      utils.showError('Не удалось создать задачу');
+    }
+  };
+
+  const handleExtendRental = async (property, days) => {
+    try {
+      if (!property.activeRental) return;
+      
+      const currentEndDate = new Date(property.activeRental.end_date);
+      const newEndDate = new Date(currentEndDate.getTime() + days * 24 * 60 * 60 * 1000);
+      
+      await rentals.update(property.activeRental.id, {
+        end_date: newEndDate.toISOString()
+      });
+      
+      // Обновляем локальное состояние
+      setRooms(prev => prev.map(room => 
+        room.id === property.id 
+          ? { 
+              ...room, 
+              checkOut: newEndDate.toLocaleDateString(),
+              activeRental: {
+                ...room.activeRental,
+                end_date: newEndDate.toISOString()
+              }
+            }
+          : room
+      ));
+      
+      utils.showSuccess(`Аренда продлена на ${days} дн.`);
+    } catch (error) {
+      console.error('Failed to extend rental:', error);
+      utils.showError('Не удалось продлить аренду');
+    }
+  };
+
+  const handleTerminateRental = async (property) => {
+    try {
+      if (!property.activeRental) return;
+      
+      if (!confirm('Вы уверены, что хотите завершить аренду?')) return;
+      
+      await rentals.checkOut(property.activeRental.id);
+      
+      // Обновляем статус помещения
+      setRooms(prev => prev.map(room => 
+        room.id === property.id 
+          ? { 
+              ...room, 
+              status: 'available',
+              activeRental: null,
+              currentGuests: [],
+              checkIn: null,
+              checkOut: null
+            }
+          : room
+      ));
+      
+      utils.showSuccess('Аренда завершена');
+    } catch (error) {
+      console.error('Failed to terminate rental:', error);
+      utils.showError('Не удалось завершить аренду');
+    }
+  };
+
+  // Обработка клика по помещению
+  const handleRoomClick = (room) => {
+    setSelectedProperty(room);
+    setShowPropertyDetails(true);
+    
+    if (onRoomClick) {
+      onRoomClick(room);
+    }
+  };
+
+  const handleRoomEdit = (e, room) => {
+    e.stopPropagation();
+    setSelectedProperty(room);
+    setShowPropertyModal(true);
+  };
+
+  const canCreateProperty = () => {
+    if (!organizationLimits) return true;
+    return organizationLimits.current < organizationLimits.max;
+  };
+
+  // Утилиты для стилизации
   const getStatusColor = (status) => {
     switch (status) {
       case 'available': return '#27ae60';
@@ -125,60 +321,6 @@ const FloorPlan = ({ onRoomClick }) => {
     }
   };
 
-  const statusCounts = currentFloorRooms.reduce((acc, room) => {
-    acc[room.status] = (acc[room.status] || 0) + 1;
-    return acc;
-  }, {});
-
-  // Обработка создания нового помещения
-  const handleCreateProperty = async (propertyData) => {
-    try {
-      const newProperty = await properties.create(propertyData);
-      setRooms(prev => [...prev, newProperty]);
-      setShowPropertyModal(false);
-      utils.showSuccess('Помещение успешно создано');
-    } catch (error) {
-      console.error('Failed to create property:', error);
-      utils.showError(error.message || 'Не удалось создать помещение');
-    }
-  };
-
-  // Обработка редактирования помещения
-  const handleEditProperty = async (propertyData) => {
-    try {
-      const updatedProperty = await properties.update(selectedProperty.id, propertyData);
-      setRooms(prev => prev.map(room => 
-        room.id === selectedProperty.id ? updatedProperty : room
-      ));
-      setShowPropertyModal(false);
-      setSelectedProperty(null);
-      utils.showSuccess('Помещение успешно обновлено');
-    } catch (error) {
-      console.error('Failed to update property:', error);
-      utils.showError('Не удалось обновить помещение');
-    }
-  };
-
-  // Обработка клика по помещению
-  const handleRoomClick = (room) => {
-    if (onRoomClick) {
-      onRoomClick(room);
-    }
-  };
-
-  // Обработка редактирования помещения
-  const handleRoomEdit = (e, room) => {
-    e.stopPropagation();
-    setSelectedProperty(room);
-    setShowPropertyModal(true);
-  };
-
-  // Проверка возможности создания нового помещения
-  const canCreateProperty = () => {
-    if (!organizationLimits) return true;
-    return organizationLimits.current < organizationLimits.max;
-  };
-
   if (loading) {
     return (
       <div className="floor-plan-loading">
@@ -193,7 +335,7 @@ const FloorPlan = ({ onRoomClick }) => {
       <div className="floor-plan-header">
         <div className="floor-selector">
           <label>Этаж:</label>
-          {[1, 2, 3,4].map(floor => (
+          {[1, 2, 3, 4].map(floor => (
             <button
               key={floor}
               className={`floor-btn ${selectedFloor === floor ? 'active' : ''}`}
@@ -302,11 +444,55 @@ const FloorPlan = ({ onRoomClick }) => {
             
             <div className="room-status">{getStatusText(room.status)}</div>
 
-            {room.status === 'occupied' && room.currentGuests && (
+            {room.status === 'occupied' && room.currentGuests && room.currentGuests.length > 0 && (
               <div className="room-client">
                 <div className="client-name">{room.currentGuests[0]}</div>
                 <div className="client-dates">
                   {room.checkIn} — {room.checkOut}
+                </div>
+                
+                {/* Быстрые действия для аренды */}
+                <div className="rental-quick-actions">
+                  <button
+                    className="quick-action-btn extend"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExtendRental(room, 1);
+                    }}
+                    title="Продлить на 1 день"
+                  >
+                    +1д
+                  </button>
+                  <button
+                    className="quick-action-btn extend"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExtendRental(room, 7);
+                    }}
+                    title="Продлить на неделю"
+                  >
+                    +1н
+                  </button>
+                  <button
+                    className="quick-action-btn extend"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExtendRental(room, 30);
+                    }}
+                    title="Продлить на месяц"
+                  >
+                    +1м
+                  </button>
+                  <button
+                    className="quick-action-btn terminate"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTerminateRental(room);
+                    }}
+                    title="Завершить аренду"
+                  >
+                    <FiX size={12} />
+                  </button>
                 </div>
               </div>
             )}
@@ -351,7 +537,7 @@ const FloorPlan = ({ onRoomClick }) => {
         </div>
       )}
 
-      {/* Модальное окно создания/редактирования помещения */}
+      {/* Модальные окна */}
       {showPropertyModal && (
         <PropertyModal
           property={selectedProperty}
@@ -360,7 +546,53 @@ const FloorPlan = ({ onRoomClick }) => {
             setShowPropertyModal(false);
             setSelectedProperty(null);
           }}
-          onSubmit={selectedProperty ? handleEditProperty : handleCreateProperty}
+          onSubmit={selectedProperty ? handlePropertyEdit : handlePropertyCreate}
+        />
+      )}
+
+      {showRentalModal && selectedProperty && (
+        <RentalModal
+          room={selectedProperty}
+          onClose={() => {
+            setShowRentalModal(false);
+            setSelectedProperty(null);
+          }}
+          onSubmit={handleRentalCreate}
+        />
+      )}
+
+      {showTaskModal && selectedProperty && (
+        <TaskModal
+          property={selectedProperty}
+          onClose={() => {
+            setShowTaskModal(false);
+            setSelectedProperty(null);
+          }}
+          onSubmit={handleTaskCreate}
+        />
+      )}
+
+      {showPropertyDetails && selectedProperty && (
+        <PropertyDetailsModal
+          property={selectedProperty}
+          onClose={() => {
+            setShowPropertyDetails(false);
+            setSelectedProperty(null);
+          }}
+          onCreateRental={() => {
+            setShowPropertyDetails(false);
+            setShowRentalModal(true);
+          }}
+          onCreateTask={() => {
+            setShowPropertyDetails(false);
+            setShowTaskModal(true);
+          }}
+          onEdit={() => {
+            setShowPropertyDetails(false);
+            setShowPropertyModal(true);
+          }}
+          onExtendRental={handleExtendRental}
+          onTerminateRental={handleTerminateRental}
         />
       )}
     </div>
