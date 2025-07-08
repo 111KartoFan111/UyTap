@@ -435,6 +435,266 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals:
+    get:
+      tags:
+        - Rentals
+      summary: Get Rentals
+      description: Получить список аренд
+      operationId: get_rentals_api_rentals_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: boolean
+              - type: 'null'
+            title: Is Active
+        - name: rental_type
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/RentalType'
+              - type: 'null'
+            title: Rental Type
+        - name: property_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Property Id
+        - name: client_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RentalResponse'
+                title: Response Get Rentals Api Rentals Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+        - Rentals
+      summary: Create Rental
+      description: Создать новую аренду
+      operationId: create_rental_api_rentals_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RentalCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RentalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}:
+    get:
+      tags:
+        - Rentals
+      summary: Get Rental
+      description: Получить информацию об аренде
+      operationId: get_rental_api_rentals__rental_id__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Rental Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RentalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Rentals
+      summary: Update Rental
+      description: Обновить аренду
+      operationId: update_rental_api_rentals__rental_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Rental Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RentalUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RentalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Rentals
+      summary: Cancel Rental
+      description: Отменить аренду
+      operationId: cancel_rental_api_rentals__rental_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Rental Id
+        - name: reason
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            title: Reason
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/check-in:
+    post:
+      tags:
+        - Rentals
+      summary: Check In Rental
+      description: Заселить клиента
+      operationId: check_in_rental_api_rentals__rental_id__check_in_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Rental Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/check-out:
+    post:
+      tags:
+        - Rentals
+      summary: Check Out Rental
+      description: Выселить клиента
+      operationId: check_out_rental_api_rentals__rental_id__check_out_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Rental Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/clients:
     get:
       tags:
@@ -702,45 +962,767 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
         - HTTPBearer: []
-  /:
+  /api/orders:
     get:
       tags:
-        - Root
-      summary: Root
-      description: Корневой endpoint API
-      operationId: root__get
+        - Room Orders
+      summary: Get Orders
+      description: Получить список заказов в номер
+      operationId: get_orders_api_orders_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: status
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/OrderStatus'
+              - type: 'null'
+            title: Status
+        - name: order_type
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Order Type
+        - name: property_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Property Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoomOrderResponse'
+                title: Response Get Orders Api Orders Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+        - Room Orders
+      summary: Create Order
+      description: Создать заказ в номер
+      operationId: create_order_api_orders_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomOrderCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomOrderResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/orders/{order_id}:
+    get:
+      tags:
+        - Room Orders
+      summary: Get Order
+      description: Получить информацию о заказе
+      operationId: get_order_api_orders__order_id__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Order Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomOrderResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Room Orders
+      summary: Update Order
+      description: Обновить заказ
+      operationId: update_order_api_orders__order_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Order Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomOrderUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomOrderResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/orders/{order_id}/assign:
+    post:
+      tags:
+        - Room Orders
+      summary: Assign Order
+      description: Назначить заказ исполнителю
+      operationId: assign_order_api_orders__order_id__assign_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Order Id
+        - name: assigned_to
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Assigned To
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
-  /api/health:
-    get:
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/orders/{order_id}/complete:
+    post:
       tags:
-        - Health
-      summary: Health Check
-      description: Проверка состояния API
-      operationId: health_check_api_health_get
+        - Room Orders
+      summary: Complete Order
+      description: Завершить заказ
+      operationId: complete_order_api_orders__order_id__complete_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Order Id
+        - name: completion_notes
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Completion Notes
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
-  /api/info:
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/orders/statistics/overview:
     get:
       tags:
-        - System
-      summary: System Info
-      description: Подробная информация о системе
-      operationId: system_info_api_info_get
+        - Room Orders
+      summary: Get Orders Statistics
+      description: Получить статистику по заказам
+      operationId: get_orders_statistics_api_orders_statistics_overview_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: period_days
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 365
+            minimum: 1
+            default: 30
+            title: Period Days
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks:
+    get:
+      tags:
+        - Tasks
+      summary: Get Tasks
+      description: Получить список задач
+      operationId: get_tasks_api_tasks_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: status
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/TaskStatus'
+              - type: 'null'
+            title: Status
+        - name: task_type
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/TaskType'
+              - type: 'null'
+            title: Task Type
+        - name: priority
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/TaskPriority'
+              - type: 'null'
+            title: Priority
+        - name: property_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Property Id
+        - name: assigned_to
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Assigned To
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+                title: Response Get Tasks Api Tasks Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+        - Tasks
+      summary: Create Task
+      description: Создать новую задачу
+      operationId: create_task_api_tasks_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks/{task_id}:
+    get:
+      tags:
+        - Tasks
+      summary: Get Task
+      description: Получить информацию о задаче
+      operationId: get_task_api_tasks__task_id__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Tasks
+      summary: Update Task
+      description: Обновить задачу
+      operationId: update_task_api_tasks__task_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Task Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Tasks
+      summary: Cancel Task
+      description: Отменить задачу
+      operationId: cancel_task_api_tasks__task_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Task Id
+        - name: reason
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            title: Reason
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks/{task_id}/assign:
+    post:
+      tags:
+        - Tasks
+      summary: Assign Task
+      description: Назначить задачу исполнителю
+      operationId: assign_task_api_tasks__task_id__assign_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Task Id
+        - name: assigned_to
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Assigned To
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks/{task_id}/start:
+    post:
+      tags:
+        - Tasks
+      summary: Start Task
+      description: Начать выполнение задачи
+      operationId: start_task_api_tasks__task_id__start_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks/{task_id}/complete:
+    post:
+      tags:
+        - Tasks
+      summary: Complete Task
+      description: Завершить задачу
+      operationId: complete_task_api_tasks__task_id__complete_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Task Id
+        - name: completion_notes
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Completion Notes
+        - name: quality_rating
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: integer
+                maximum: 5
+                minimum: 1
+              - type: 'null'
+            title: Quality Rating
+        - name: actual_duration
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: integer
+                minimum: 1
+              - type: 'null'
+            title: Actual Duration
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks/my/assigned:
+    get:
+      tags:
+        - Tasks
+      summary: Get My Assigned Tasks
+      description: Получить свои назначенные задачи
+      operationId: get_my_assigned_tasks_api_tasks_my_assigned_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/TaskStatus'
+              - type: 'null'
+            title: Status
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+                title: Response Get My Assigned Tasks Api Tasks My Assigned Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks/statistics/overview:
+    get:
+      tags:
+        - Tasks
+      summary: Get Tasks Statistics
+      description: Получить статистику по задачам
+      operationId: get_tasks_statistics_api_tasks_statistics_overview_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: period_days
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 365
+            minimum: 1
+            default: 30
+            title: Period Days
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks/workload/employees:
+    get:
+      tags:
+        - Tasks
+      summary: Get Employees Workload
+      description: Получить загрузку сотрудников
+      operationId: get_employees_workload_api_tasks_workload_employees_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/UserRole'
+              - type: 'null'
+            title: Role
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tasks/urgent:
+    get:
+      tags:
+        - Tasks
+      summary: Get Urgent Tasks
+      description: Получить срочные задачи
+      operationId: get_urgent_tasks_api_tasks_urgent_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+                type: array
+                title: Response Get Urgent Tasks Api Tasks Urgent Get
+      security:
+        - HTTPBearer: []
+  /api/tasks/auto-assign:
+    post:
+      tags:
+        - Tasks
+      summary: Auto Assign Tasks
+      description: Автоматически назначить задачи исполнителям
+      operationId: auto_assign_tasks_api_tasks_auto_assign_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              items:
+                type: string
+              type: array
+              title: Task Ids
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - HTTPBearer: []
+  /api/tasks/maintenance/create-recurring:
+    post:
+      tags:
+        - Tasks
+      summary: Create Recurring Maintenance Tasks
+      description: Создать регулярные задачи технического обслуживания
+      operationId: >-
+        create_recurring_maintenance_tasks_api_tasks_maintenance_create_recurring_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+      security:
+        - HTTPBearer: []
+
   /api/system/stats:
     get:
       tags:
