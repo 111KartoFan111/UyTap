@@ -1,68 +1,83 @@
+// frontend/src/pages/Manager/FloorPlan.jsx
 import { useState, useEffect } from 'react';
-import { FiEdit2, FiTool, FiCheck } from 'react-icons/fi';
+import { FiEdit2, FiTool, FiCheck, FiRefreshCw, FiPlus } from 'react-icons/fi';
+import { useData } from '../../contexts/DataContext';
+import { useAuth } from '../../contexts/AuthContext';
 import './FloorPlan.css';
 
-const FloorPlan = ({ onRoomClick }) => {
+const FloorPlan = ({ onRoomClick, compact = false }) => {
+  const { properties, rentals } = useData();
+  const { user } = useAuth();
   const [selectedFloor, setSelectedFloor] = useState(1);
   const [rooms, setRooms] = useState([]);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [activeRentals, setActiveRentals] = useState([]);
 
-  // Генерируем комнаты для примера
+  // Load data on mount
   useEffect(() => {
-    const generateRooms = () => {
-      const roomsData = [];
-      
-      // 3 этажа по 20 комнат
-      for (let floor = 1; floor <= 3; floor++) {
-        for (let room = 1; room <= 20; room++) {
-          const roomNumber = `${floor}-${room.toString().padStart(2, '0')}`;
-          const statuses = ['available', 'occupied', 'maintenance', 'cleaning'];
-          const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-          
-          roomsData.push({
-            id: `${floor}-${room}`,
-            number: roomNumber,
-            floor: floor,
-            status: randomStatus,
-            type: room <= 10 ? 'hourly' : room <= 15 ? 'daily' : 'monthly',
-            client: randomStatus === 'occupied' ? getRandomClient() : null,
-            rate: getRandomRate(randomStatus === 'occupied' ? 'hourly' : 'daily'),
-            checkIn: randomStatus === 'occupied' ? getRandomDate() : null,
-            checkOut: randomStatus === 'occupied' ? getRandomDate(true) : null
-          });
-        }
-      }
-      
-      setRooms(roomsData);
-    };
-
-    generateRooms();
+    loadFloorData();
   }, []);
 
-  const getRandomClient = () => {
-    const clients = [
-      'Анна Петрова', 'Марат Саметов', 'Дмитрий Ким', 'Света Жанова',
-      'Алексей Иванов', 'Мария Казакова', 'Даулет Мурат', 'Нина Сергеева'
-    ];
-    return clients[Math.floor(Math.random() * clients.length)];
-  };
+  const loadFloorData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load properties and active rentals
+      const [propertiesData, rentalsData] = await Promise.allSettled([
+        properties.getAll(),
+        rentals.getAll({ is_active: true })
+      ]);
 
-  const getRandomRate = (type) => {
-    switch (type) {
-      case 'hourly': return Math.floor(Math.random() * 2000) + 2500;
-      case 'daily': return Math.floor(Math.random() * 10000) + 15000;
-      case 'monthly': return Math.floor(Math.random() * 150000) + 180000;
-      default: return 0;
+      const propsList = propertiesData.status === 'fulfilled' ? propertiesData.value : [];
+      const rentalsList = rentalsData.status === 'fulfilled' ? rentalsData.value : [];
+
+      console.log('Floor plan data loaded:', { propsList, rentalsList });
+
+      // Process properties data
+      const processedRooms = propsList.map(property => {
+        // Find active rental for this property
+        const activeRental = rentalsList.find(rental => 
+          rental.property_id === property.id || 
+          rental.property?.id === property.id
+        );
+
+        return {
+          id: property.id,
+          number: property.number,
+          floor: property.floor || 1,
+          status: property.status,
+          type: property.property_type,
+          name: property.name,
+          area: property.area,
+          max_occupancy: property.max_occupancy,
+          daily_rate: property.daily_rate,
+          hourly_rate: property.hourly_rate,
+          monthly_rate: property.monthly_rate,
+          client: activeRental ? {
+            name: `${activeRental.client?.first_name || ''} ${activeRental.client?.last_name || ''}`.trim(),
+            checkIn: activeRental.start_date,
+            checkOut: activeRental.end_date,
+            phone: activeRental.client?.phone
+          } : null,
+          rental: activeRental
+        };
+      });
+
+      setRooms(processedRooms);
+      setActiveRentals(rentalsList);
+
+    } catch (error) {
+      console.error('Failed to load floor data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getRandomDate = (future = false) => {
-    const now = new Date();
-    const days = future ? Math.floor(Math.random() * 30) + 1 : -Math.floor(Math.random() * 5);
-    const date = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-    return date.toISOString().split('T')[0];
-  };
-
+  // Get available floors
+  const availableFloors = [...new Set(rooms.map(room => room.floor))].sort();
+  
+  // Filter rooms by floor and status
   const currentFloorRooms = rooms.filter(room => room.floor === selectedFloor);
   const filteredRooms = filterStatus === 'all' 
     ? currentFloorRooms 
@@ -74,6 +89,8 @@ const FloorPlan = ({ onRoomClick }) => {
       case 'occupied': return '#e74c3c';
       case 'maintenance': return '#f39c12';
       case 'cleaning': return '#3498db';
+      case 'suspended': return '#95a5a6';
+      case 'out_of_order': return '#8b0000';
       default: return '#95a5a6';
     }
   };
@@ -84,54 +101,115 @@ const FloorPlan = ({ onRoomClick }) => {
       case 'occupied': return 'Занято';
       case 'maintenance': return 'Ремонт';
       case 'cleaning': return 'Уборка';
+      case 'suspended': return 'Приостановлено';
+      case 'out_of_order': return 'Не работает';
       default: return 'Неизвестно';
     }
   };
 
   const getTypeText = (type) => {
     switch (type) {
-      case 'hourly': return 'Почасово';
-      case 'daily': return 'Посуточно';
-      case 'monthly': return 'Помесячно';
-      default: return '';
+      case 'apartment': return 'Квартира';
+      case 'room': return 'Комната';
+      case 'studio': return 'Студия';
+      case 'villa': return 'Вилла';
+      case 'office': return 'Офис';
+      default: return type || 'Помещение';
     }
   };
 
+  const getRateDisplay = (room) => {
+    if (room.hourly_rate) {
+      return `₸ ${room.hourly_rate.toLocaleString()}/час`;
+    } else if (room.daily_rate) {
+      return `₸ ${room.daily_rate.toLocaleString()}/сутки`;
+    } else if (room.monthly_rate) {
+      return `₸ ${room.monthly_rate.toLocaleString()}/мес`;
+    }
+    return '';
+  };
+
+  // Calculate status counts for current floor
   const statusCounts = currentFloorRooms.reduce((acc, room) => {
     acc[room.status] = (acc[room.status] || 0) + 1;
     return acc;
   }, {});
 
+  const handleRoomClick = (room) => {
+    if (onRoomClick) {
+      onRoomClick(room);
+    }
+  };
+
+  const handleStatusChange = async (roomId, newStatus) => {
+    try {
+      await properties.updateStatus(roomId, newStatus);
+      await loadFloorData(); // Refresh data
+    } catch (error) {
+      console.error('Failed to update room status:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="floor-plan loading">
+        <div className="loading-spinner"></div>
+        <p>Загрузка плана этажа...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="floor-plan">
-      <div className="floor-plan-header">
-        <div className="floor-selector">
-          <label>Этаж:</label>
-          {[1, 2, 3].map(floor => (
-            <button
-              key={floor}
-              className={`floor-btn ${selectedFloor === floor ? 'active' : ''}`}
-              onClick={() => setSelectedFloor(floor)}
+    <div className={`floor-plan ${compact ? 'compact' : ''}`}>
+      {!compact && (
+        <div className="floor-plan-header">
+          <div className="floor-selector">
+            <label>Этаж:</label>
+            {availableFloors.length > 0 ? (
+              availableFloors.map(floor => (
+                <button
+                  key={floor}
+                  className={`floor-btn ${selectedFloor === floor ? 'active' : ''}`}
+                  onClick={() => setSelectedFloor(floor)}
+                >
+                  {floor}
+                </button>
+              ))
+            ) : (
+              <span className="no-floors">Нет этажей</span>
+            )}
+          </div>
+
+          <div className="status-filter">
+            <label>Фильтр:</label>
+            <select 
+              value={filterStatus} 
+              onChange={(e) => setFilterStatus(e.target.value)}
             >
-              {floor}
+              <option value="all">Все статусы</option>
+              <option value="available">Свободно</option>
+              <option value="occupied">Занято</option>
+              <option value="maintenance">Ремонт</option>
+              <option value="cleaning">Уборка</option>
+              <option value="suspended">Приостановлено</option>
+              <option value="out_of_order">Не работает</option>
+            </select>
+          </div>
+
+          <div className="floor-controls">
+            <button 
+              className="refresh-btn"
+              onClick={loadFloorData}
+              disabled={loading}
+              title="Обновить данные"
+            >
+              <FiRefreshCw />
             </button>
-          ))}
+          </div>
         </div>
+      )}
 
-        <div className="status-filter">
-          <label>Фильтр:</label>
-          <select 
-            value={filterStatus} 
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="all">Все статусы</option>
-            <option value="available">Свободно</option>
-            <option value="occupied">Занято</option>
-            <option value="maintenance">Ремонт</option>
-            <option value="cleaning">Уборка</option>
-          </select>
-        </div>
-
+      {!compact && (
         <div className="floor-stats">
           <div className="stat-item">
             <span className="stat-dot available"></span>
@@ -150,57 +228,102 @@ const FloorPlan = ({ onRoomClick }) => {
             <span>Уборка: {statusCounts.cleaning || 0}</span>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="floor-plan-grid">
-        {filteredRooms.map(room => (
-          <div
-            key={room.id}
-            className={`room-card ${room.status}`}
-            onClick={() => onRoomClick && onRoomClick(room)}
-            style={{
-              borderColor: getStatusColor(room.status),
-              cursor: 'pointer'
-            }}
-          >
-            <div className="room-header">
-              <span className="room-number">{room.number}</span>
-              <div className="room-status-indicator">
-                {room.status === 'available' && <FiCheck />}
-                {room.status === 'occupied' && <span className="occupied-dot"></span>}
-                {room.status === 'maintenance' && <FiTool />}
-                {room.status === 'cleaning' && <FiEdit2 />}
-              </div>
-            </div>
-
-            <div className="room-type">{getTypeText(room.type)}</div>
-            
-            <div className="room-status">{getStatusText(room.status)}</div>
-
-            {room.client && (
-              <div className="room-client">
-                <div className="client-name">{room.client}</div>
-                <div className="client-dates">
-                  {room.checkIn} — {room.checkOut}
+      <div className={`floor-plan-grid ${compact ? 'compact-grid' : ''}`}>
+        {filteredRooms.length > 0 ? (
+          filteredRooms.map(room => (
+            <div
+              key={room.id}
+              className={`room-card ${room.status}`}
+              onClick={() => handleRoomClick(room)}
+              style={{
+                borderColor: getStatusColor(room.status),
+                cursor: 'pointer'
+              }}
+            >
+              <div className="room-header">
+                <span className="room-number">{room.number}</span>
+                <div className="room-status-indicator">
+                  {room.status === 'available' && <FiCheck />}
+                  {room.status === 'occupied' && <span className="occupied-dot"></span>}
+                  {room.status === 'maintenance' && <FiTool />}
+                  {room.status === 'cleaning' && <FiEdit2 />}
                 </div>
               </div>
-            )}
 
-            {room.rate && (
-              <div className="room-rate">
-                ₸ {room.rate.toLocaleString()}
-                {room.type === 'hourly' && '/час'}
-                {room.type === 'daily' && '/сутки'}
-                {room.type === 'monthly' && '/мес'}
+              <div className="room-type">{getTypeText(room.type)}</div>
+              
+              <div className="room-status">{getStatusText(room.status)}</div>
+
+              {room.client && (
+                <div className="room-client">
+                  <div className="client-name">{room.client.name || 'Клиент'}</div>
+                  <div className="client-dates">
+                    {room.client.checkIn && new Date(room.client.checkIn).toLocaleDateString('ru-RU')} — 
+                    {room.client.checkOut && new Date(room.client.checkOut).toLocaleDateString('ru-RU')}
+                  </div>
+                  {room.client.phone && (
+                    <div className="client-phone">{room.client.phone}</div>
+                  )}
+                </div>
+              )}
+
+              {!compact && getRateDisplay(room) && (
+                <div className="room-rate">
+                  {getRateDisplay(room)}
+                </div>
+              )}
+
+              {!compact && room.area && (
+                <div className="room-details">
+                  <span>{room.area} м²</span>
+                  {room.max_occupancy && <span>до {room.max_occupancy} чел.</span>}
+                </div>
+              )}
+
+              {!compact && user.role === 'admin' && (
+                <div className="room-actions">
+                  <select
+                    value={room.status}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      handleStatusChange(room.id, e.target.value);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <option value="available">Свободно</option>
+                    <option value="occupied">Занято</option>
+                    <option value="maintenance">Ремонт</option>
+                    <option value="cleaning">Уборка</option>
+                    <option value="suspended">Приостановлено</option>
+                    <option value="out_of_order">Не работает</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="no-rooms">
+            {rooms.length === 0 ? (
+              <div className="empty-state">
+                <FiPlus size={48} />
+                <h3>Нет помещений</h3>
+                <p>Добавьте первое помещение для начала работы</p>
+                <button className="btn-primary">
+                  Добавить помещение
+                </button>
               </div>
+            ) : (
+              <p>Нет помещений с выбранным статусом на этаже {selectedFloor}</p>
             )}
           </div>
-        ))}
+        )}
       </div>
 
-      {filteredRooms.length === 0 && (
-        <div className="no-rooms">
-          <p>Нет комнат с выбранным статусом</p>
+      {compact && filteredRooms.length > 6 && (
+        <div className="compact-more">
+          <span>И еще {filteredRooms.length - 6} помещений...</span>
         </div>
       )}
     </div>

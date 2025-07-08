@@ -1,0 +1,4085 @@
+openapi: 3.1.0
+info:
+  title: Enhanced Rental System API
+  description: |2-
+
+        🏠 **Комплексная система управления арендой недвижимости**
+        
+        Полнофункциональная API для управления арендой квартир с расширенными возможностями.
+        
+        ## Основные модули
+        
+        * 🏢 **Управление помещениями** - добавление, редактирование, статусы
+        * 👥 **Управление клиентами** - база клиентов, история, аналитика
+        * 📋 **Система аренды** - создание, продление, заселение/выселение
+        * ✅ **Управление задачами** - уборка, обслуживание, автоназначение
+        * 🛒 **Заказы в номер** - еда, услуги, доставка
+        * 💰 **Финансы и отчеты** - доходы, расходы, зарплата
+        * 📄 **Документооборот** - договоры, акты, ЭСФ
+        * 📊 **Аналитика** - загруженность, производительность
+        * 📦 **Склад** - учет материалов, списание
+        
+        ## Роли и права доступа
+        
+        * **System Owner** - владелец системы (полный доступ)
+        * **Admin** - администратор организации 
+        * **Manager** - менеджер (аренда, клиенты)
+        * **Technical Staff** - технический персонал
+        * **Accountant** - бухгалтер (финансы, отчеты)
+        * **Cleaner** - уборщик (задачи уборки)
+        * **Storekeeper** - кладовщик (склад, материалы)
+        
+        ## Ключевые особенности
+        
+        * 🔐 **Мультитенантность** - изоляция данных между организациями
+        * 🔄 **Автоматизация** - автоназначение задач, расчет зарплаты
+        * 📱 **Мобильная поддержка** - адаптивный интерфейс
+        * 🛡️ **Безопасность** - JWT токены, аудит действий
+        * 📈 **Масштабируемость** - поддержка больших объемов данных
+        * 🌍 **Локализация** - поддержка казахского и русского языков
+        
+        ## Интеграции
+        
+        * **ЭСФ/ЭАВР** - интеграция с ИС ЭСФ Казахстана
+        * **Платежи** - поддержка различных способов оплаты
+        * **Отчетность** - экспорт в Excel, PDF
+        * **Уведомления** - SMS, email, push-уведомления
+        
+        ## Авторизация
+        
+        Используйте Bearer токен в заголовке Authorization:
+        ```
+        Authorization: Bearer <your_token>
+        ```
+        
+  version: 2.0.0
+paths:
+  /api/properties:
+    get:
+      tags:
+        - Properties
+      summary: Get Properties
+      description: Получить список помещений организации
+      operationId: get_properties_api_properties_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: status
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/PropertyStatus'
+              - type: 'null'
+            title: Status
+        - name: property_type
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/PropertyType'
+              - type: 'null'
+            title: Property Type
+        - name: search
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Search
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PropertyResponse'
+                title: Response Get Properties Api Properties Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+        - Properties
+      summary: Create Property
+      description: Создать новое помещение
+      operationId: create_property_api_properties_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/{property_id}:
+    get:
+      tags:
+        - Properties
+      summary: Get Property
+      description: Получить информацию о помещении
+      operationId: get_property_api_properties__property_id__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Properties
+      summary: Update Property
+      description: Обновить помещение
+      operationId: update_property_api_properties__property_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Properties
+      summary: Delete Property
+      description: Удалить помещение
+      operationId: delete_property_api_properties__property_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/{property_id}/status:
+    patch:
+      tags:
+        - Properties
+      summary: Update Property Status
+      description: Изменить статус помещения
+      operationId: update_property_status_api_properties__property_id__status_patch
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+        - name: new_status
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/PropertyStatus'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/{property_id}/tasks:
+    get:
+      tags:
+        - Properties
+      summary: Get Property Tasks
+      description: Получить задачи для помещения
+      operationId: get_property_tasks_api_properties__property_id__tasks_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+        - name: status
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/TaskStatus'
+              - type: 'null'
+            title: Status
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+                title: >-
+                  Response Get Property Tasks Api Properties  Property Id  Tasks
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+        - Properties
+      summary: Create Property Task
+      description: Создать задачу для помещения
+      operationId: create_property_task_api_properties__property_id__tasks_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/{property_id}/availability:
+    get:
+      tags:
+        - Properties
+      summary: Check Property Availability
+      description: Проверить доступность помещения на период
+      operationId: >-
+        check_property_availability_api_properties__property_id__availability_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+            title: Start Date
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+            title: End Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/{property_id}/statistics:
+    get:
+      tags:
+        - Properties
+      summary: Get Property Statistics
+      description: Получить статистику по помещению
+      operationId: get_property_statistics_api_properties__property_id__statistics_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+        - name: period_days
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 365
+            minimum: 1
+            default: 30
+            title: Period Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients:
+    get:
+      tags:
+        - Clients
+      summary: Get Clients
+      description: Получить список клиентов
+      operationId: get_clients_api_clients_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: search
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Search
+        - name: source
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Source
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClientResponse'
+                title: Response Get Clients Api Clients Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+        - Clients
+      summary: Create Client
+      description: Создать нового клиента
+      operationId: create_client_api_clients_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients/{client_id}:
+    get:
+      tags:
+        - Clients
+      summary: Get Client
+      description: Получить информацию о клиенте
+      operationId: get_client_api_clients__client_id__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Clients
+      summary: Update Client
+      description: Обновить клиента
+      operationId: update_client_api_clients__client_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Clients
+      summary: Delete Client
+      description: Удалить клиента
+      operationId: delete_client_api_clients__client_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients/{client_id}/history:
+    get:
+      tags:
+        - Clients
+      summary: Get Client History
+      description: Получить историю клиента
+      operationId: get_client_history_api_clients__client_id__history_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients/{client_id}/statistics:
+    get:
+      tags:
+        - Clients
+      summary: Get Client Statistics
+      description: Получить статистику по клиенту
+      operationId: get_client_statistics_api_clients__client_id__statistics_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients/bulk-import:
+    post:
+      tags:
+        - Clients
+      summary: Bulk Import Clients
+      description: Массовый импорт клиентов
+      operationId: bulk_import_clients_api_clients_bulk_import_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              items:
+                $ref: '#/components/schemas/ClientCreate'
+              type: array
+              title: Clients Data
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - HTTPBearer: []
+  /:
+    get:
+      tags:
+        - Root
+      summary: Root
+      description: Корневой endpoint API
+      operationId: root__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Проверка состояния API
+      operationId: health_check_api_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/info:
+    get:
+      tags:
+        - System
+      summary: System Info
+      description: Подробная информация о системе
+      operationId: system_info_api_info_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/system/stats:
+    get:
+      tags:
+        - System
+      summary: Get System Stats
+      description: Получить статистику системы
+      operationId: get_system_stats_api_system_stats_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    ClientAnalyticsReport:
+      properties:
+        total_clients:
+          type: integer
+          title: Total Clients
+        new_clients:
+          type: integer
+          title: New Clients
+        returning_clients:
+          type: integer
+          title: Returning Clients
+        average_stay_duration:
+          type: number
+          title: Average Stay Duration
+        average_spending:
+          type: number
+          title: Average Spending
+        top_clients:
+          items:
+            type: object
+          type: array
+          title: Top Clients
+        client_sources:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Client Sources
+      type: object
+      required:
+        - total_clients
+        - new_clients
+        - returning_clients
+        - average_stay_duration
+        - average_spending
+        - top_clients
+        - client_sources
+      title: ClientAnalyticsReport
+    ClientCreate:
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Last Name
+        middle_name:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Middle Name
+        phone:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Phone
+        email:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Email
+        document_type:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Type
+        document_number:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Number
+        document_issued_by:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Issued By
+        document_issued_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Document Issued Date
+        country:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Country
+        city:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: City
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        postal_code:
+          anyOf:
+            - type: string
+              maxLength: 20
+            - type: 'null'
+          title: Postal Code
+        source:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Source
+        preferences:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Preferences
+          default: {}
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        date_of_birth:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Date Of Birth
+      type: object
+      required:
+        - first_name
+        - last_name
+      title: ClientCreate
+    ClientResponse:
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Last Name
+        middle_name:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Middle Name
+        phone:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Phone
+        email:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Email
+        document_type:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Type
+        document_number:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Number
+        document_issued_by:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Issued By
+        document_issued_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Document Issued Date
+        country:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Country
+        city:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: City
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        postal_code:
+          anyOf:
+            - type: string
+              maxLength: 20
+            - type: 'null'
+          title: Postal Code
+        source:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Source
+        preferences:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Preferences
+          default: {}
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        date_of_birth:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Date Of Birth
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        last_visit:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Last Visit
+        total_rentals:
+          type: integer
+          title: Total Rentals
+        total_spent:
+          type: number
+          title: Total Spent
+      type: object
+      required:
+        - first_name
+        - last_name
+        - id
+        - organization_id
+        - created_at
+        - updated_at
+        - last_visit
+        - total_rentals
+        - total_spent
+      title: ClientResponse
+    ClientUpdate:
+      properties:
+        first_name:
+          anyOf:
+            - type: string
+              maxLength: 100
+              minLength: 1
+            - type: 'null'
+          title: First Name
+        last_name:
+          anyOf:
+            - type: string
+              maxLength: 100
+              minLength: 1
+            - type: 'null'
+          title: Last Name
+        middle_name:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Middle Name
+        phone:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Phone
+        email:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Email
+        document_type:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Type
+        document_number:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Number
+        document_issued_by:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Issued By
+        document_issued_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Document Issued Date
+        country:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Country
+        city:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: City
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        postal_code:
+          anyOf:
+            - type: string
+              maxLength: 20
+            - type: 'null'
+          title: Postal Code
+        source:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Source
+        preferences:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Preferences
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        date_of_birth:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Date Of Birth
+      type: object
+      title: ClientUpdate
+    DocumentCreate:
+      properties:
+        document_type:
+          $ref: '#/components/schemas/DocumentType'
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Title
+        content:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Content
+          default: {}
+        template_used:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Template Used
+        rental_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Rental Id
+        client_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Client Id
+      type: object
+      required:
+        - document_type
+        - title
+      title: DocumentCreate
+    DocumentResponse:
+      properties:
+        document_type:
+          $ref: '#/components/schemas/DocumentType'
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Title
+        content:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Content
+          default: {}
+        template_used:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Template Used
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        rental_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Rental Id
+        client_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Client Id
+        created_by:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Created By
+        document_number:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Document Number
+        file_path:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: File Path
+        is_signed:
+          type: boolean
+          title: Is Signed
+        signed_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Signed At
+        signature_data:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Signature Data
+        esf_status:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Esf Status
+        esf_sent_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Esf Sent At
+        esf_response:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Esf Response
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+        - document_type
+        - title
+        - id
+        - organization_id
+        - rental_id
+        - client_id
+        - created_by
+        - document_number
+        - file_path
+        - is_signed
+        - signed_at
+        - signature_data
+        - esf_status
+        - esf_sent_at
+        - esf_response
+        - created_at
+        - updated_at
+      title: DocumentResponse
+    DocumentType:
+      type: string
+      enum:
+        - contract
+        - invoice
+        - act_of_work
+        - receipt
+        - esf
+      title: DocumentType
+    DocumentUpdate:
+      properties:
+        title:
+          anyOf:
+            - type: string
+              maxLength: 255
+              minLength: 1
+            - type: 'null'
+          title: Title
+        content:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Content
+        is_signed:
+          anyOf:
+            - type: boolean
+            - type: 'null'
+          title: Is Signed
+        signature_data:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Signature Data
+      type: object
+      title: DocumentUpdate
+    EmployeePerformanceReport:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        user_name:
+          type: string
+          title: User Name
+        role:
+          type: string
+          title: Role
+        tasks_completed:
+          type: integer
+          title: Tasks Completed
+        average_completion_time:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: Average Completion Time
+        quality_rating:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: Quality Rating
+        earnings:
+          type: number
+          title: Earnings
+      type: object
+      required:
+        - user_id
+        - user_name
+        - role
+        - tasks_completed
+        - average_completion_time
+        - quality_rating
+        - earnings
+      title: EmployeePerformanceReport
+    FinancialSummaryReport:
+      properties:
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        total_revenue:
+          type: number
+          title: Total Revenue
+        rental_revenue:
+          type: number
+          title: Rental Revenue
+        orders_revenue:
+          type: number
+          title: Orders Revenue
+        total_expenses:
+          type: number
+          title: Total Expenses
+        staff_expenses:
+          type: number
+          title: Staff Expenses
+        material_expenses:
+          type: number
+          title: Material Expenses
+        net_profit:
+          type: number
+          title: Net Profit
+        occupancy_rate:
+          type: number
+          title: Occupancy Rate
+        properties_count:
+          type: integer
+          title: Properties Count
+        active_rentals:
+          type: integer
+          title: Active Rentals
+      type: object
+      required:
+        - period_start
+        - period_end
+        - total_revenue
+        - rental_revenue
+        - orders_revenue
+        - total_expenses
+        - staff_expenses
+        - material_expenses
+        - net_profit
+        - occupancy_rate
+        - properties_count
+        - active_rentals
+      title: FinancialSummaryReport
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    InventoryCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        category:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Category
+        sku:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Sku
+        unit:
+          type: string
+          maxLength: 50
+          title: Unit
+        min_stock:
+          type: number
+          minimum: 0
+          title: Min Stock
+          default: 0
+        max_stock:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Max Stock
+        cost_per_unit:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Cost Per Unit
+        supplier:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Supplier
+        supplier_contact:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Supplier Contact
+        current_stock:
+          type: number
+          minimum: 0
+          title: Current Stock
+          default: 0
+      type: object
+      required:
+        - name
+        - unit
+      title: InventoryCreate
+    InventoryMovementCreate:
+      properties:
+        inventory_id:
+          type: string
+          title: Inventory Id
+        movement_type:
+          type: string
+          pattern: ^(in|out|adjustment|writeoff)$
+          title: Movement Type
+        quantity:
+          type: number
+          title: Quantity
+          ne: 0
+        unit_cost:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Unit Cost
+        reason:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Reason
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        task_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Task Id
+      type: object
+      required:
+        - inventory_id
+        - movement_type
+        - quantity
+      title: InventoryMovementCreate
+    InventoryMovementResponse:
+      properties:
+        inventory_id:
+          type: string
+          title: Inventory Id
+        movement_type:
+          type: string
+          pattern: ^(in|out|adjustment|writeoff)$
+          title: Movement Type
+        quantity:
+          type: number
+          title: Quantity
+          ne: 0
+        unit_cost:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Unit Cost
+        reason:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Reason
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        user_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: User Id
+        task_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Task Id
+        total_cost:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: Total Cost
+        stock_after:
+          type: number
+          title: Stock After
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+        - inventory_id
+        - movement_type
+        - quantity
+        - id
+        - organization_id
+        - user_id
+        - task_id
+        - total_cost
+        - stock_after
+        - created_at
+      title: InventoryMovementResponse
+    InventoryResponse:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        category:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Category
+        sku:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Sku
+        unit:
+          type: string
+          maxLength: 50
+          title: Unit
+        min_stock:
+          type: number
+          minimum: 0
+          title: Min Stock
+          default: 0
+        max_stock:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Max Stock
+        cost_per_unit:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Cost Per Unit
+        supplier:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Supplier
+        supplier_contact:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Supplier Contact
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        current_stock:
+          type: number
+          title: Current Stock
+        total_value:
+          type: number
+          title: Total Value
+        is_active:
+          type: boolean
+          title: Is Active
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        last_restock_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Last Restock Date
+      type: object
+      required:
+        - name
+        - unit
+        - id
+        - organization_id
+        - current_stock
+        - total_value
+        - is_active
+        - created_at
+        - updated_at
+        - last_restock_date
+      title: InventoryResponse
+    InventoryUpdate:
+      properties:
+        name:
+          anyOf:
+            - type: string
+              maxLength: 255
+              minLength: 1
+            - type: 'null'
+          title: Name
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        category:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Category
+        sku:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Sku
+        unit:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Unit
+        min_stock:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Min Stock
+        max_stock:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Max Stock
+        cost_per_unit:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Cost Per Unit
+        supplier:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Supplier
+        supplier_contact:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Supplier Contact
+        is_active:
+          anyOf:
+            - type: boolean
+            - type: 'null'
+          title: Is Active
+      type: object
+      title: InventoryUpdate
+    LoginRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+        password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: Password
+        organization_slug:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Organization Slug
+        device_info:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Device Info
+      type: object
+      required:
+        - email
+        - password
+      title: LoginRequest
+    LoginResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        refresh_token:
+          type: string
+          title: Refresh Token
+        token_type:
+          type: string
+          title: Token Type
+          default: bearer
+        expires_in:
+          type: integer
+          title: Expires In
+        user:
+          $ref: '#/components/schemas/UserResponse'
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - expires_in
+        - user
+      title: LoginResponse
+    LogoutRequest:
+      properties:
+        refresh_token:
+          type: string
+          title: Refresh Token
+        logout_all_devices:
+          type: boolean
+          title: Logout All Devices
+          default: false
+      type: object
+      required:
+        - refresh_token
+      title: LogoutRequest
+    MessageResponse:
+      properties:
+        message:
+          type: string
+          title: Message
+        success:
+          type: boolean
+          title: Success
+          default: true
+      type: object
+      required:
+        - message
+      title: MessageResponse
+    OrderItemBase:
+      properties:
+        name:
+          type: string
+          title: Name
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+          title: Quantity
+        unit_price:
+          type: number
+          minimum: 0
+          title: Unit Price
+        total_price:
+          type: number
+          minimum: 0
+          title: Total Price
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+      type: object
+      required:
+        - name
+        - quantity
+        - unit_price
+        - total_price
+      title: OrderItemBase
+    OrderStatus:
+      type: string
+      enum:
+        - pending
+        - confirmed
+        - in_progress
+        - delivered
+        - cancelled
+      title: OrderStatus
+    OrganizationResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        slug:
+          type: string
+          title: Slug
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        email:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Email
+        phone:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Phone
+        website:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Website
+        country:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Country
+        city:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: City
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        postal_code:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Postal Code
+        status:
+          type: string
+          title: Status
+        subscription_plan:
+          type: string
+          title: Subscription Plan
+        max_users:
+          type: integer
+          title: Max Users
+        max_properties:
+          type: integer
+          title: Max Properties
+        trial_ends_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Trial Ends At
+        subscription_ends_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Subscription Ends At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        settings:
+          type: object
+          title: Settings
+        user_count:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          title: User Count
+          default: 0
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - description
+        - email
+        - phone
+        - website
+        - country
+        - city
+        - address
+        - postal_code
+        - status
+        - subscription_plan
+        - max_users
+        - max_properties
+        - trial_ends_at
+        - subscription_ends_at
+        - created_at
+        - updated_at
+        - settings
+      title: OrganizationResponse
+    OrganizationUpdate:
+      properties:
+        name:
+          anyOf:
+            - type: string
+              maxLength: 255
+              minLength: 2
+            - type: 'null'
+          title: Name
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        email:
+          anyOf:
+            - type: string
+              format: email
+            - type: 'null'
+          title: Email
+        phone:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Phone
+        website:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Website
+        country:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Country
+        city:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: City
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        postal_code:
+          anyOf:
+            - type: string
+              maxLength: 20
+            - type: 'null'
+          title: Postal Code
+        subscription_plan:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Subscription Plan
+        max_users:
+          anyOf:
+            - type: integer
+              maximum: 1000
+              minimum: 1
+            - type: 'null'
+          title: Max Users
+        max_properties:
+          anyOf:
+            - type: integer
+              maximum: 10000
+              minimum: 1
+            - type: 'null'
+          title: Max Properties
+        status:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Status
+        settings:
+          anyOf:
+            - type: object
+            - type: 'null'
+          title: Settings
+      type: object
+      title: OrganizationUpdate
+    PaymentMethod:
+      type: string
+      enum:
+        - cash
+        - card
+        - transfer
+        - qr_code
+      title: PaymentMethod
+    PayrollCreate:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        payroll_type:
+          $ref: '#/components/schemas/PayrollType'
+        base_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Base Rate
+        hours_worked:
+          type: number
+          minimum: 0
+          title: Hours Worked
+          default: 0
+        tasks_completed:
+          type: integer
+          minimum: 0
+          title: Tasks Completed
+          default: 0
+        tasks_payment:
+          type: number
+          minimum: 0
+          title: Tasks Payment
+          default: 0
+        bonus:
+          type: number
+          minimum: 0
+          title: Bonus
+          default: 0
+        tips:
+          type: number
+          minimum: 0
+          title: Tips
+          default: 0
+        other_income:
+          type: number
+          minimum: 0
+          title: Other Income
+          default: 0
+        deductions:
+          type: number
+          minimum: 0
+          title: Deductions
+          default: 0
+        taxes:
+          type: number
+          minimum: 0
+          title: Taxes
+          default: 0
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+      type: object
+      required:
+        - user_id
+        - period_start
+        - period_end
+        - payroll_type
+      title: PayrollCreate
+    PayrollResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        payroll_type:
+          $ref: '#/components/schemas/PayrollType'
+        base_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Base Rate
+        hours_worked:
+          type: number
+          minimum: 0
+          title: Hours Worked
+          default: 0
+        tasks_completed:
+          type: integer
+          minimum: 0
+          title: Tasks Completed
+          default: 0
+        tasks_payment:
+          type: number
+          minimum: 0
+          title: Tasks Payment
+          default: 0
+        bonus:
+          type: number
+          minimum: 0
+          title: Bonus
+          default: 0
+        tips:
+          type: number
+          minimum: 0
+          title: Tips
+          default: 0
+        other_income:
+          type: number
+          minimum: 0
+          title: Other Income
+          default: 0
+        deductions:
+          type: number
+          minimum: 0
+          title: Deductions
+          default: 0
+        taxes:
+          type: number
+          minimum: 0
+          title: Taxes
+          default: 0
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        gross_amount:
+          type: number
+          title: Gross Amount
+        net_amount:
+          type: number
+          title: Net Amount
+        is_paid:
+          type: boolean
+          title: Is Paid
+        paid_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Paid At
+        payment_method:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Payment Method
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        user:
+          anyOf:
+            - additionalProperties:
+                type: string
+              type: object
+            - type: 'null'
+          title: User
+      type: object
+      required:
+        - user_id
+        - period_start
+        - period_end
+        - payroll_type
+        - id
+        - organization_id
+        - gross_amount
+        - net_amount
+        - is_paid
+        - paid_at
+        - payment_method
+        - created_at
+        - updated_at
+      title: PayrollResponse
+    PayrollType:
+      type: string
+      enum:
+        - monthly_salary
+        - hourly
+        - piece_work
+      title: PayrollType
+    PayrollUpdate:
+      properties:
+        base_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Base Rate
+        hours_worked:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Hours Worked
+        tasks_completed:
+          anyOf:
+            - type: integer
+              minimum: 0
+            - type: 'null'
+          title: Tasks Completed
+        tasks_payment:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Tasks Payment
+        bonus:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Bonus
+        tips:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Tips
+        other_income:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Other Income
+        deductions:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Deductions
+        taxes:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Taxes
+        is_paid:
+          anyOf:
+            - type: boolean
+            - type: 'null'
+          title: Is Paid
+        payment_method:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Payment Method
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+      type: object
+      title: PayrollUpdate
+    PropertyCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        number:
+          type: string
+          maxLength: 50
+          minLength: 1
+          title: Number
+        floor:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Floor
+        building:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Building
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        property_type:
+          $ref: '#/components/schemas/PropertyType'
+        area:
+          anyOf:
+            - type: number
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Area
+        rooms_count:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Rooms Count
+        max_occupancy:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Max Occupancy
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        amenities:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Amenities
+          default: []
+        photos:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Photos
+          default: []
+        hourly_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Hourly Rate
+        daily_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Daily Rate
+        weekly_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Weekly Rate
+        monthly_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Monthly Rate
+        yearly_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Yearly Rate
+      type: object
+      required:
+        - name
+        - number
+        - property_type
+      title: PropertyCreate
+    PropertyOccupancyReport:
+      properties:
+        property_id:
+          type: string
+          title: Property Id
+        property_name:
+          type: string
+          title: Property Name
+        property_number:
+          type: string
+          title: Property Number
+        total_days:
+          type: integer
+          title: Total Days
+        occupied_days:
+          type: integer
+          title: Occupied Days
+        occupancy_rate:
+          type: number
+          title: Occupancy Rate
+        revenue:
+          type: number
+          title: Revenue
+      type: object
+      required:
+        - property_id
+        - property_name
+        - property_number
+        - total_days
+        - occupied_days
+        - occupancy_rate
+        - revenue
+      title: PropertyOccupancyReport
+    PropertyResponse:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        number:
+          type: string
+          maxLength: 50
+          minLength: 1
+          title: Number
+        floor:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Floor
+        building:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Building
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        property_type:
+          $ref: '#/components/schemas/PropertyType'
+        area:
+          anyOf:
+            - type: number
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Area
+        rooms_count:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Rooms Count
+        max_occupancy:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Max Occupancy
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        amenities:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Amenities
+          default: []
+        photos:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Photos
+          default: []
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        status:
+          $ref: '#/components/schemas/PropertyStatus'
+        is_active:
+          type: boolean
+          title: Is Active
+        hourly_rate:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: Hourly Rate
+        daily_rate:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: Daily Rate
+        weekly_rate:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: Weekly Rate
+        monthly_rate:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: Monthly Rate
+        yearly_rate:
+          anyOf:
+            - type: number
+            - type: 'null'
+          title: Yearly Rate
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+        - name
+        - number
+        - property_type
+        - id
+        - organization_id
+        - status
+        - is_active
+        - hourly_rate
+        - daily_rate
+        - weekly_rate
+        - monthly_rate
+        - yearly_rate
+        - created_at
+        - updated_at
+      title: PropertyResponse
+    PropertyStatus:
+      type: string
+      enum:
+        - available
+        - occupied
+        - maintenance
+        - cleaning
+        - suspended
+        - out_of_order
+      title: PropertyStatus
+    PropertyType:
+      type: string
+      enum:
+        - apartment
+        - room
+        - studio
+        - villa
+        - office
+      title: PropertyType
+    PropertyUpdate:
+      properties:
+        name:
+          anyOf:
+            - type: string
+              maxLength: 255
+              minLength: 1
+            - type: 'null'
+          title: Name
+        number:
+          anyOf:
+            - type: string
+              maxLength: 50
+              minLength: 1
+            - type: 'null'
+          title: Number
+        floor:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Floor
+        building:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Building
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        property_type:
+          anyOf:
+            - $ref: '#/components/schemas/PropertyType'
+            - type: 'null'
+        area:
+          anyOf:
+            - type: number
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Area
+        rooms_count:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Rooms Count
+        max_occupancy:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Max Occupancy
+        status:
+          anyOf:
+            - $ref: '#/components/schemas/PropertyStatus'
+            - type: 'null'
+        is_active:
+          anyOf:
+            - type: boolean
+            - type: 'null'
+          title: Is Active
+        hourly_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Hourly Rate
+        daily_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Daily Rate
+        weekly_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Weekly Rate
+        monthly_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Monthly Rate
+        yearly_rate:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Yearly Rate
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        amenities:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Amenities
+        photos:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Photos
+      type: object
+      title: PropertyUpdate
+    RefreshTokenRequest:
+      properties:
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+        - refresh_token
+      title: RefreshTokenRequest
+    RefreshTokenResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        refresh_token:
+          type: string
+          title: Refresh Token
+        token_type:
+          type: string
+          title: Token Type
+          default: bearer
+        expires_in:
+          type: integer
+          title: Expires In
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - expires_in
+      title: RefreshTokenResponse
+    RentalCreate:
+      properties:
+        property_id:
+          type: string
+          title: Property Id
+        client_id:
+          type: string
+          title: Client Id
+        rental_type:
+          $ref: '#/components/schemas/RentalType'
+        start_date:
+          type: string
+          format: date-time
+          title: Start Date
+        end_date:
+          type: string
+          format: date-time
+          title: End Date
+        rate:
+          type: number
+          exclusiveMinimum: 0
+          title: Rate
+        total_amount:
+          type: number
+          exclusiveMinimum: 0
+          title: Total Amount
+        deposit:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Deposit
+          default: 0
+        payment_method:
+          anyOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+            - type: 'null'
+        guest_count:
+          type: integer
+          minimum: 1
+          title: Guest Count
+          default: 1
+        additional_guests:
+          anyOf:
+            - items:
+                additionalProperties:
+                  type: string
+                type: object
+              type: array
+            - type: 'null'
+          title: Additional Guests
+          default: []
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        special_requests:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Special Requests
+      type: object
+      required:
+        - property_id
+        - client_id
+        - rental_type
+        - start_date
+        - end_date
+        - rate
+        - total_amount
+      title: RentalCreate
+    RentalResponse:
+      properties:
+        property_id:
+          type: string
+          title: Property Id
+        client_id:
+          type: string
+          title: Client Id
+        rental_type:
+          $ref: '#/components/schemas/RentalType'
+        start_date:
+          type: string
+          format: date-time
+          title: Start Date
+        end_date:
+          type: string
+          format: date-time
+          title: End Date
+        rate:
+          type: number
+          exclusiveMinimum: 0
+          title: Rate
+        total_amount:
+          type: number
+          exclusiveMinimum: 0
+          title: Total Amount
+        deposit:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Deposit
+          default: 0
+        payment_method:
+          anyOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+            - type: 'null'
+        guest_count:
+          type: integer
+          minimum: 1
+          title: Guest Count
+          default: 1
+        additional_guests:
+          anyOf:
+            - items:
+                additionalProperties:
+                  type: string
+                type: object
+              type: array
+            - type: 'null'
+          title: Additional Guests
+          default: []
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        special_requests:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Special Requests
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        is_active:
+          type: boolean
+          title: Is Active
+        checked_in:
+          type: boolean
+          title: Checked In
+        checked_out:
+          type: boolean
+          title: Checked Out
+        check_in_time:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Check In Time
+        check_out_time:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Check Out Time
+        paid_amount:
+          type: number
+          title: Paid Amount
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        property:
+          anyOf:
+            - $ref: '#/components/schemas/PropertyResponse'
+            - type: 'null'
+        client:
+          anyOf:
+            - $ref: '#/components/schemas/ClientResponse'
+            - type: 'null'
+      type: object
+      required:
+        - property_id
+        - client_id
+        - rental_type
+        - start_date
+        - end_date
+        - rate
+        - total_amount
+        - id
+        - organization_id
+        - is_active
+        - checked_in
+        - checked_out
+        - check_in_time
+        - check_out_time
+        - paid_amount
+        - created_at
+        - updated_at
+      title: RentalResponse
+    RentalType:
+      type: string
+      enum:
+        - hourly
+        - daily
+        - weekly
+        - monthly
+        - yearly
+      title: RentalType
+    RentalUpdate:
+      properties:
+        start_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Start Date
+        end_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: End Date
+        rate:
+          anyOf:
+            - type: number
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Rate
+        total_amount:
+          anyOf:
+            - type: number
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Total Amount
+        deposit:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Deposit
+        paid_amount:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Paid Amount
+        payment_method:
+          anyOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+            - type: 'null'
+        guest_count:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: 'null'
+          title: Guest Count
+        additional_guests:
+          anyOf:
+            - items:
+                additionalProperties:
+                  type: string
+                type: object
+              type: array
+            - type: 'null'
+          title: Additional Guests
+        notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Notes
+        special_requests:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Special Requests
+        checked_in:
+          anyOf:
+            - type: boolean
+            - type: 'null'
+          title: Checked In
+        checked_out:
+          anyOf:
+            - type: boolean
+            - type: 'null'
+          title: Checked Out
+      type: object
+      title: RentalUpdate
+    RoomOrderCreate:
+      properties:
+        property_id:
+          type: string
+          title: Property Id
+        order_type:
+          type: string
+          maxLength: 50
+          title: Order Type
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Title
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        items:
+          items:
+            $ref: '#/components/schemas/OrderItemBase'
+          type: array
+          title: Items
+          default: []
+        total_amount:
+          type: number
+          minimum: 0
+          title: Total Amount
+        payment_method:
+          anyOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+            - type: 'null'
+        scheduled_for:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Scheduled For
+        special_instructions:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Special Instructions
+        executor_type:
+          type: string
+          title: Executor Type
+          default: employee
+        payment_to_executor:
+          type: number
+          minimum: 0
+          title: Payment To Executor
+          default: 0
+        payment_type:
+          type: string
+          title: Payment Type
+          default: none
+        client_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Client Id
+        rental_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Rental Id
+        assigned_to:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Assigned To
+      type: object
+      required:
+        - property_id
+        - order_type
+        - title
+        - total_amount
+      title: RoomOrderCreate
+    RoomOrderResponse:
+      properties:
+        property_id:
+          type: string
+          title: Property Id
+        order_type:
+          type: string
+          maxLength: 50
+          title: Order Type
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Title
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        items:
+          items:
+            $ref: '#/components/schemas/OrderItemBase'
+          type: array
+          title: Items
+          default: []
+        total_amount:
+          type: number
+          minimum: 0
+          title: Total Amount
+        payment_method:
+          anyOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+            - type: 'null'
+        scheduled_for:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Scheduled For
+        special_instructions:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Special Instructions
+        executor_type:
+          type: string
+          title: Executor Type
+          default: employee
+        payment_to_executor:
+          type: number
+          minimum: 0
+          title: Payment To Executor
+          default: 0
+        payment_type:
+          type: string
+          title: Payment Type
+          default: none
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        order_number:
+          type: string
+          title: Order Number
+        client_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Client Id
+        rental_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Rental Id
+        assigned_to:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Assigned To
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        is_paid:
+          type: boolean
+          title: Is Paid
+        requested_at:
+          type: string
+          format: date-time
+          title: Requested At
+        completed_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Completed At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        property:
+          anyOf:
+            - $ref: '#/components/schemas/PropertyResponse'
+            - type: 'null'
+        client:
+          anyOf:
+            - $ref: '#/components/schemas/ClientResponse'
+            - type: 'null'
+      type: object
+      required:
+        - property_id
+        - order_type
+        - title
+        - total_amount
+        - id
+        - organization_id
+        - order_number
+        - client_id
+        - rental_id
+        - assigned_to
+        - status
+        - is_paid
+        - requested_at
+        - completed_at
+        - created_at
+        - updated_at
+      title: RoomOrderResponse
+    RoomOrderUpdate:
+      properties:
+        title:
+          anyOf:
+            - type: string
+              maxLength: 255
+              minLength: 1
+            - type: 'null'
+          title: Title
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        status:
+          anyOf:
+            - $ref: '#/components/schemas/OrderStatus'
+            - type: 'null'
+        assigned_to:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Assigned To
+        items:
+          anyOf:
+            - items:
+                $ref: '#/components/schemas/OrderItemBase'
+              type: array
+            - type: 'null'
+          title: Items
+        total_amount:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Total Amount
+        payment_method:
+          anyOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+            - type: 'null'
+        is_paid:
+          anyOf:
+            - type: boolean
+            - type: 'null'
+          title: Is Paid
+        scheduled_for:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Scheduled For
+        completed_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Completed At
+        special_instructions:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Special Instructions
+        payment_to_executor:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Payment To Executor
+        payment_type:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Payment Type
+      type: object
+      title: RoomOrderUpdate
+    SystemInitRequest:
+      properties:
+        organization:
+          $ref: '#/components/schemas/schemas__auth__OrganizationCreate'
+        admin_user:
+          $ref: '#/components/schemas/schemas__auth__UserCreate'
+      type: object
+      required:
+        - organization
+        - admin_user
+      title: SystemInitRequest
+    SystemStatsResponse:
+      properties:
+        organizations:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Organizations
+        users:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Users
+        roles:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Roles
+      type: object
+      required:
+        - organizations
+        - users
+        - roles
+      title: SystemStatsResponse
+    TaskCreate:
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Title
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        task_type:
+          $ref: '#/components/schemas/TaskType'
+        priority:
+          allOf:
+            - $ref: '#/components/schemas/TaskPriority'
+          default: medium
+        property_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Property Id
+        estimated_duration:
+          anyOf:
+            - type: integer
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Estimated Duration
+        due_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Due Date
+        payment_amount:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Payment Amount
+          default: 0
+        payment_type:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Payment Type
+          default: none
+        assigned_to:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Assigned To
+      type: object
+      required:
+        - title
+        - task_type
+      title: TaskCreate
+    TaskPriority:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+        - urgent
+      title: TaskPriority
+    TaskResponse:
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Title
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        task_type:
+          $ref: '#/components/schemas/TaskType'
+        priority:
+          allOf:
+            - $ref: '#/components/schemas/TaskPriority'
+          default: medium
+        property_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Property Id
+        estimated_duration:
+          anyOf:
+            - type: integer
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Estimated Duration
+        due_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Due Date
+        payment_amount:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Payment Amount
+          default: 0
+        payment_type:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Payment Type
+          default: none
+        id:
+          type: string
+          title: Id
+        organization_id:
+          type: string
+          title: Organization Id
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        assigned_to:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Assigned To
+        created_by:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Created By
+        actual_duration:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          title: Actual Duration
+        started_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Started At
+        completed_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Completed At
+        is_paid:
+          type: boolean
+          title: Is Paid
+        completion_notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Completion Notes
+        quality_rating:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          title: Quality Rating
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        property:
+          anyOf:
+            - $ref: '#/components/schemas/PropertyResponse'
+            - type: 'null'
+        assignee:
+          anyOf:
+            - additionalProperties:
+                type: string
+              type: object
+            - type: 'null'
+          title: Assignee
+      type: object
+      required:
+        - title
+        - task_type
+        - id
+        - organization_id
+        - status
+        - assigned_to
+        - created_by
+        - actual_duration
+        - started_at
+        - completed_at
+        - is_paid
+        - completion_notes
+        - quality_rating
+        - created_at
+        - updated_at
+      title: TaskResponse
+    TaskStatus:
+      type: string
+      enum:
+        - pending
+        - assigned
+        - in_progress
+        - completed
+        - cancelled
+        - failed
+      title: TaskStatus
+    TaskType:
+      type: string
+      enum:
+        - cleaning
+        - maintenance
+        - check_in
+        - check_out
+        - delivery
+        - laundry
+      title: TaskType
+    TaskUpdate:
+      properties:
+        title:
+          anyOf:
+            - type: string
+              maxLength: 255
+              minLength: 1
+            - type: 'null'
+          title: Title
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        task_type:
+          anyOf:
+            - $ref: '#/components/schemas/TaskType'
+            - type: 'null'
+        priority:
+          anyOf:
+            - $ref: '#/components/schemas/TaskPriority'
+            - type: 'null'
+        status:
+          anyOf:
+            - $ref: '#/components/schemas/TaskStatus'
+            - type: 'null'
+        assigned_to:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Assigned To
+        property_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Property Id
+        estimated_duration:
+          anyOf:
+            - type: integer
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Estimated Duration
+        actual_duration:
+          anyOf:
+            - type: integer
+              exclusiveMinimum: 0
+            - type: 'null'
+          title: Actual Duration
+        due_date:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Due Date
+        payment_amount:
+          anyOf:
+            - type: number
+              minimum: 0
+            - type: 'null'
+          title: Payment Amount
+        payment_type:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Payment Type
+        completion_notes:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Completion Notes
+        quality_rating:
+          anyOf:
+            - type: integer
+              maximum: 5
+              minimum: 1
+            - type: 'null'
+          title: Quality Rating
+      type: object
+      title: TaskUpdate
+    UserResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        organization_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Organization Id
+        email:
+          type: string
+          title: Email
+        first_name:
+          type: string
+          title: First Name
+        last_name:
+          type: string
+          title: Last Name
+        middle_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Middle Name
+        phone:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Phone
+        role:
+          type: string
+          title: Role
+        status:
+          type: string
+          title: Status
+        email_verified:
+          type: boolean
+          title: Email Verified
+        phone_verified:
+          type: boolean
+          title: Phone Verified
+        two_factor_enabled:
+          type: boolean
+          title: Two Factor Enabled
+        last_login_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Last Login At
+        last_activity_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Last Activity At
+        password_changed_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+          title: Password Changed At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        preferences:
+          type: object
+          title: Preferences
+      type: object
+      required:
+        - id
+        - organization_id
+        - email
+        - first_name
+        - last_name
+        - middle_name
+        - phone
+        - role
+        - status
+        - email_verified
+        - phone_verified
+        - two_factor_enabled
+        - last_login_at
+        - last_activity_at
+        - password_changed_at
+        - created_at
+        - updated_at
+        - preferences
+      title: UserResponse
+    UserRole:
+      type: string
+      enum:
+        - system_owner
+        - admin
+        - manager
+        - technical_staff
+        - accountant
+        - cleaner
+        - storekeeper
+      title: UserRole
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
+    schemas__admin__OrganizationCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 2
+          title: Name
+        slug:
+          type: string
+          maxLength: 100
+          minLength: 2
+          pattern: ^[a-z0-9_-]+
+          title: Slug
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        email:
+          anyOf:
+            - type: string
+              format: email
+            - type: 'null'
+          title: Email
+        phone:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Phone
+        website:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Website
+        country:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Country
+        city:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: City
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        postal_code:
+          anyOf:
+            - type: string
+              maxLength: 20
+            - type: 'null'
+          title: Postal Code
+        subscription_plan:
+          type: string
+          maxLength: 50
+          title: Subscription Plan
+          default: basic
+        max_users:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          title: Max Users
+          default: 10
+        max_properties:
+          type: integer
+          maximum: 10000
+          minimum: 1
+          title: Max Properties
+          default: 50
+        status:
+          type: string
+          title: Status
+          default: trial
+      type: object
+      required:
+        - name
+        - slug
+      title: OrganizationCreate
+    schemas__admin__UserCreate:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+        password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: Password
+        first_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Last Name
+        middle_name:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Middle Name
+        phone:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Phone
+        role:
+          type: string
+          title: Role
+          default: admin
+        status:
+          type: string
+          title: Status
+          default: active
+      type: object
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+      title: UserCreate
+    schemas__auth__OrganizationCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 2
+          title: Name
+        slug:
+          type: string
+          maxLength: 100
+          minLength: 2
+          pattern: ^[a-z0-9_-]+
+          title: Slug
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Description
+        email:
+          anyOf:
+            - type: string
+              format: email
+            - type: 'null'
+          title: Email
+        phone:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Phone
+        website:
+          anyOf:
+            - type: string
+              maxLength: 255
+            - type: 'null'
+          title: Website
+        country:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Country
+        city:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: City
+        address:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Address
+        postal_code:
+          anyOf:
+            - type: string
+              maxLength: 20
+            - type: 'null'
+          title: Postal Code
+        subscription_plan:
+          type: string
+          maxLength: 50
+          title: Subscription Plan
+          default: basic
+        max_users:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          title: Max Users
+          default: 10
+        max_properties:
+          type: integer
+          maximum: 10000
+          minimum: 1
+          title: Max Properties
+          default: 50
+      type: object
+      required:
+        - name
+        - slug
+      title: OrganizationCreate
+    schemas__auth__UserCreate:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+        password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: Password
+        first_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Last Name
+        middle_name:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: 'null'
+          title: Middle Name
+        phone:
+          anyOf:
+            - type: string
+              maxLength: 50
+            - type: 'null'
+          title: Phone
+        role:
+          type: string
+          title: Role
+          default: admin
+      type: object
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+      title: UserCreate
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer

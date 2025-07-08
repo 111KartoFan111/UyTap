@@ -131,17 +131,14 @@
 }
 
 .room-card.occupied {
-  background: #fff;
   border-color: #e74c3c;
 }
 
 .room-card.available {
-  background: #fff;
   border-color: #27ae60;
 }
 
 .room-card.maintenance {
-  background: #f39c12;
   border-color: #f39c12;
 }
 

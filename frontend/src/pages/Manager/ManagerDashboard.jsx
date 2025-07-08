@@ -37,7 +37,7 @@ const ManagerDashboard = () => {
     maintenanceRooms: 0,
     totalClients: 0,
     activeRentals: 0,
-    monthlyRevenue: 2450000,
+    monthlyRevenue: 0,
     occupancyRate: 0
   });
 
@@ -49,152 +49,107 @@ const ManagerDashboard = () => {
     financialSummary: null
   });
 
-  // Load dashboard data with error handling
+  // Load dashboard data
   useEffect(() => {
     loadDashboardData();
   }, []);
 
   const loadDashboardData = async () => {
     try {
-      // Load properties first (required)
-      let propertiesData = [];
-      let clientsData = [];
-      let rentalsData = [];
+      console.log('Loading dashboard data...');
+      
+      // Load all data in parallel
+      const [propertiesData, clientsData, rentalsData] = await Promise.allSettled([
+        properties.getAll(),
+        clients.getAll({ limit: 50 }),
+        rentals.getAll({ is_active: true })
+      ]);
+
+      console.log('Data loaded:', { propertiesData, clientsData, rentalsData });
+
+      // Extract successful results or fallback to empty arrays
+      const propsList = propertiesData.status === 'fulfilled' ? propertiesData.value : [];
+      const clientsList = clientsData.status === 'fulfilled' ? clientsData.value : [];
+      const rentalsList = rentalsData.status === 'fulfilled' ? rentalsData.value : [];
+
+      // Try to load financial data (optional)
       let financialData = null;
-
-      try {
-        propertiesData = await properties.getAll();
-      } catch (error) {
-        console.error('Failed to load properties:', error);
-        // Use mock data if API fails
-        propertiesData = generateMockProperties();
-      }
-
-      try {
-        clientsData = await clients.getAll({ limit: 50 });
-      } catch (error) {
-        console.error('Failed to load clients:', error);
-        clientsData = generateMockClients();
-      }
-
-      try {
-        rentalsData = await rentals.getAll({ is_active: true });
-      } catch (error) {
-        console.error('Failed to load rentals:', error);
-        rentalsData = generateMockRentals();
-      }
-
-      // Financial data is optional
       try {
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         financialData = await reports.getFinancialSummary(startDate, endDate);
       } catch (error) {
-        console.error('Failed to load financial data:', error);
-        // Continue without financial data
+        console.warn('Failed to load financial data:', error.message);
       }
 
       setDashboardData({
-        properties: propertiesData,
-        clientsList: clientsData,
-        rentalsList: rentalsData,
+        properties: propsList,
+        clientsList: clientsList,
+        rentalsList: rentalsList,
         financialSummary: financialData
       });
 
       // Calculate stats from loaded data
-      calculateStats(propertiesData, clientsData, rentalsData, financialData);
-      generateActivities(rentalsData);
+      calculateStats(propsList, clientsList, rentalsList, financialData);
+      generateActivities(rentalsList);
+
+      console.log('Dashboard data updated successfully');
 
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
+      utils.showError('Ошибка загрузки данных дашборда');
     }
-  };
-
-  const generateMockProperties = () => {
-    const properties = [];
-    for (let floor = 1; floor <= 3; floor++) {
-      for (let room = 1; room <= 10; room++) {
-        const roomNumber = `${floor}-${room.toString().padStart(2, '0')}`;
-        const statuses = ['available', 'occupied', 'maintenance', 'cleaning'];
-        const status = statuses[Math.floor(Math.random() * statuses.length)];
-        
-        properties.push({
-          id: `${floor}-${room}`,
-          number: roomNumber,
-          floor: floor,
-          status: status,
-          property_type: room <= 5 ? 'standard' : 'premium',
-          created_at: new Date().toISOString()
-        });
-      }
-    }
-    return properties;
-  };
-
-  const generateMockClients = () => {
-    const clients = [];
-    const names = ['Анна Петрова', 'Иван Сидоров', 'Мария Козлова', 'Алексей Иванов'];
-    for (let i = 1; i <= 20; i++) {
-      clients.push({
-        id: i,
-        first_name: names[i % names.length].split(' ')[0],
-        last_name: names[i % names.length].split(' ')[1],
-        phone: `+7 777 ${String(i).padStart(3, '0')} ${String(i * 2).padStart(2, '0')} ${String(i * 3).padStart(2, '0')}`,
-        email: `client${i}@example.com`,
-        created_at: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-        source: 'walk-in'
-      });
-    }
-    return clients;
-  };
-
-  const generateMockRentals = () => {
-    const rentals = [];
-    for (let i = 1; i <= 8; i++) {
-      rentals.push({
-        id: i,
-        property_id: `1-${String(i).padStart(2, '0')}`,
-        property: { number: `1-${String(i).padStart(2, '0')}` },
-        client: { first_name: 'Клиент', last_name: String(i) },
-        rental_type: ['hourly', 'daily', 'monthly'][Math.floor(Math.random() * 3)],
-        total_amount: Math.floor(Math.random() * 50000) + 10000,
-        start_date: new Date().toISOString().split('T')[0],
-        end_date: new Date(Date.now() + Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        created_at: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-        checked_in: Math.random() > 0.5
-      });
-    }
-    return rentals;
   };
 
   const calculateStats = (propertiesData, clientsData, rentalsData, financialData) => {
-    const occupiedCount = propertiesData.filter(p => p.status === 'occupied').length;
-    const availableCount = propertiesData.filter(p => p.status === 'available').length;
-    const maintenanceCount = propertiesData.filter(p => p.status === 'maintenance').length;
-    const occupancyRate = propertiesData.length > 0 ? (occupiedCount / propertiesData.length) * 100 : 0;
+    // Count properties by status
+    const statusCounts = propertiesData.reduce((acc, prop) => {
+      acc[prop.status] = (acc[prop.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const occupancyRate = propertiesData.length > 0 
+      ? Math.round((statusCounts.occupied || 0) / propertiesData.length * 100) 
+      : 0;
 
     setStats({
       totalRooms: propertiesData.length,
-      occupiedRooms: occupiedCount,
-      availableRooms: availableCount,
-      maintenanceRooms: maintenanceCount,
+      occupiedRooms: statusCounts.occupied || 0,
+      availableRooms: statusCounts.available || 0,
+      maintenanceRooms: statusCounts.maintenance || 0,
       totalClients: clientsData.length,
       activeRentals: rentalsData.length,
-      monthlyRevenue: financialData?.total_revenue || 2450000,
-      occupancyRate: Math.round(occupancyRate)
+      monthlyRevenue: financialData?.total_revenue || 0,
+      occupancyRate: occupancyRate
     });
   };
 
   const generateActivities = (rentalsData) => {
-    const activities = rentalsData.slice(0, 5).map((rental, index) => ({
-      id: rental.id,
-      type: rental.checked_in ? 'rental_active' : 'rental_started',
-      client: `${rental.client?.first_name || ''} ${rental.client?.last_name || ''}`.trim() || 'Клиент',
-      room: rental.property?.number || rental.property_id,
-      time: new Date(rental.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-      amount: rental.total_amount
-    }));
+    const activities = rentalsData
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 5)
+      .map((rental) => ({
+        id: rental.id,
+        type: rental.checked_in ? 'rental_active' : 'rental_started',
+        client: rental.client 
+          ? `${rental.client.first_name} ${rental.client.last_name}`.trim() 
+          : 'Клиент',
+        room: rental.property?.number || rental.property_id,
+        time: new Date(rental.created_at).toLocaleTimeString('ru-RU', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        amount: rental.total_amount,
+        date: new Date(rental.created_at).toLocaleDateString('ru-RU')
+      }));
+    
     setRecentActivities(activities);
+  };
+
+  // Handle room click from floor plan
+  const handleRoomClick = (room) => {
+    console.log('Room clicked:', room);
+    // You can navigate to room details or open a modal
   };
 
   if (loading && !dashboardData.properties.length) {
@@ -211,7 +166,15 @@ const ManagerDashboard = () => {
       <div className="manager-header">
         <h1>Управление арендой</h1>
         <div className="user-info">
-          <span>Привет, {user.first_name}!</span>
+          <span>Привет, {user?.first_name || 'Менеджер'}!</span>
+          <button 
+            className="refresh-btn"
+            onClick={loadDashboardData}
+            disabled={loading}
+            title="Обновить данные"
+          >
+            🔄
+          </button>
         </div>
       </div>
 
@@ -328,32 +291,53 @@ const ManagerDashboard = () => {
             Подробный план <FiArrowRight />
           </Link>
         </div>
-        <FloorPlan properties={dashboardData.properties} compact={true} />
+        <FloorPlan 
+          properties={dashboardData.properties} 
+          onRoomClick={handleRoomClick}
+          compact={true} 
+        />
       </div>
 
       {/* Recent Activities */}
       <div className="recent-activities">
-        <h3>Последние события</h3>
+        <div className="section-header">
+          <h3>Последние события</h3>
+          <Link to="/manager/rentals" className="view-all-link">
+            Все аренды <FiArrowRight />
+          </Link>
+        </div>
+        
         <div className="activities-list">
-          {recentActivities.map(activity => (
-            <div key={activity.id} className="activity-item">
-              <div className="activity-time">{activity.time}</div>
-              <div className="activity-content">
-                {activity.type === 'rental_started' && (
-                  <span>Начата аренда: <strong>{activity.client}</strong> в комнате <strong>{activity.room}</strong></span>
-                )}
-                {activity.type === 'rental_active' && (
-                  <span>Активная аренда: <strong>{activity.client}</strong> в комнате <strong>{activity.room}</strong></span>
+          {recentActivities.length > 0 ? (
+            recentActivities.map(activity => (
+              <div key={activity.id} className="activity-item">
+                <div className="activity-time">
+                  <span className="time">{activity.time}</span>
+                  <span className="date">{activity.date}</span>
+                </div>
+                <div className="activity-content">
+                  {activity.type === 'rental_started' && (
+                    <span>
+                      Начата аренда: <strong>{activity.client}</strong> в комнате <strong>{activity.room}</strong>
+                    </span>
+                  )}
+                  {activity.type === 'rental_active' && (
+                    <span>
+                      Активная аренда: <strong>{activity.client}</strong> в комнате <strong>{activity.room}</strong>
+                    </span>
+                  )}
+                </div>
+                {activity.amount && (
+                  <div className="activity-amount">₸ {activity.amount.toLocaleString()}</div>
                 )}
               </div>
-              {activity.amount && (
-                <div className="activity-amount">₸ {activity.amount.toLocaleString()}</div>
-              )}
-            </div>
-          ))}
-          {recentActivities.length === 0 && (
+            ))
+          ) : (
             <div className="no-activities">
               <p>Нет последних событий</p>
+              <Link to="/manager/rentals" className="btn-outline">
+                Создать аренду
+              </Link>
             </div>
           )}
         </div>
