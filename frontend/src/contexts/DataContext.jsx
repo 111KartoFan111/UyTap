@@ -10,7 +10,8 @@ import {
   inventoryAPI,
   documentsAPI,
   payrollAPI,
-  reportsAPI
+  reportsAPI,
+  organizationAPI
 } from '../services/api';
 
 const DataContext = createContext();
@@ -93,6 +94,7 @@ export const DataProvider = ({ children }) => {
   // Properties operations
   const properties = {
     getAll: (params) => withLoading(() => propertiesAPI.getProperties(params), true),
+    getAllWithLimits: (params) => withLoading(() => propertiesAPI.getPropertiesWithLimits(params), true),
     getById: (id) => withLoading(() => propertiesAPI.getProperty(id)),
     create: (data) => withLoading(() => propertiesAPI.createProperty(data), false, 'Помещение создано'),
     update: (id, data) => withLoading(() => propertiesAPI.updateProperty(id, data), false, 'Помещение обновлено'),
@@ -194,6 +196,14 @@ export const DataProvider = ({ children }) => {
     exportFinancialSummary: (startDate, endDate, format) => withLoading(() => reportsAPI.exportFinancialSummary(startDate, endDate, format))
   };
 
+  // Organization operations
+  const organization = {
+    getCurrent: () => withLoading(() => organizationAPI.getCurrentOrganization(), true),
+    getLimits: () => withLoading(() => organizationAPI.getOrganizationLimits(), true),
+    getUsage: () => withLoading(() => organizationAPI.getUsageStatistics(), true),
+    updateSettings: (settings) => withLoading(() => organizationAPI.updateSettings(settings), false, 'Настройки организации обновлены')
+  };
+
   // Utility functions
   const utils = {
     clearError: () => setError(null),
@@ -221,6 +231,7 @@ export const DataProvider = ({ children }) => {
     documents,
     payroll,
     reports,
+    organization,
     utils
   };
 

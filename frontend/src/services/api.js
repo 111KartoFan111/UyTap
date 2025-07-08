@@ -117,6 +117,28 @@ export const authAPI = {
   }
 };
 
+// Organization API
+export const organizationAPI = {
+  async getCurrentOrganization() {
+    return apiRequest('/api/organizations/current');
+  },
+
+  async getOrganizationLimits() {
+    return apiRequest('/api/organizations/current/limits');
+  },
+
+  async getUsageStatistics() {
+    return apiRequest('/api/organizations/current/usage');
+  },
+
+  async updateSettings(settings) {
+    return apiRequest('/api/organizations/current/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(settings)
+    });
+  }
+};
+
 // Clients API
 export const clientsAPI = {
   async getClients(params = {}) {
@@ -164,7 +186,7 @@ export const clientsAPI = {
   }
 };
 
-// Properties API
+// Properties API с проверкой лимитов
 export const propertiesAPI = {
   async getProperties(params = {}) {
     const searchParams = new URLSearchParams(params);
@@ -176,10 +198,29 @@ export const propertiesAPI = {
   },
 
   async createProperty(propertyData) {
-    return apiRequest('/api/properties', {
-      method: 'POST',
-      body: JSON.stringify(propertyData)
-    });
+    try {
+      // Сначала получаем информацию об организации для проверки лимитов
+      const organization = await organizationAPI.getCurrentOrganization();
+      const currentProperties = await this.getProperties();
+      
+      if (currentProperties.length >= organization.max_properties) {
+        throw new Error(`Достигнут лимит помещений (${organization.max_properties}). Обратитесь к администратору для увеличения лимита.`);
+      }
+      
+      return apiRequest('/api/properties', {
+        method: 'POST',
+        body: JSON.stringify(propertyData)
+      });
+    } catch (error) {
+      if (error.message.includes('лимит')) {
+        throw error;
+      }
+      // Если ошибка получения лимитов, пробуем создать напрямую
+      return apiRequest('/api/properties', {
+        method: 'POST',
+        body: JSON.stringify(propertyData)
+      });
+    }
   },
 
   async updateProperty(id, propertyData) {
@@ -220,6 +261,29 @@ export const propertiesAPI = {
 
   async getPropertyStatistics(id, periodDays = 30) {
     return apiRequest(`/api/properties/${id}/statistics?period_days=${periodDays}`);
+  },
+
+  // Получить помещения с информацией о лимитах
+  async getPropertiesWithLimits(params = {}) {
+    try {
+      const [properties, organization] = await Promise.all([
+        this.getProperties(params),
+        organizationAPI.getCurrentOrganization().catch(() => null)
+      ]);
+
+      return {
+        properties,
+        limits: organization ? {
+          current: properties.length,
+          max: organization.max_properties,
+          canCreate: properties.length < organization.max_properties
+        } : null
+      };
+    } catch (error) {
+      // Если не удалось получить организацию, возвращаем только помещения
+      const properties = await this.getProperties(params);
+      return { properties, limits: null };
+    }
   }
 };
 
@@ -688,6 +752,7 @@ export const adminAPI = {
 
 export default {
   authAPI,
+  organizationAPI,
   clientsAPI,
   propertiesAPI,
   rentalsAPI,
