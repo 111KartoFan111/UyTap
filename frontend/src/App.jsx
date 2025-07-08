@@ -12,7 +12,7 @@ import { useAuth } from './contexts/AuthContext';
 
 // Import Manager pages
 import ManagerDashboard from './pages/Manager/ManagerDashboard';
-import FloorPlan from './pages/Manager/FloorPlan';
+import FloorPlan from './pages/Manager/Floor/FloorPlan.jsx';
 import Rentals from './pages/Manager/Rentals.jsx';
 import Clients from './pages/Manager/Clients.jsx';
 import Reports from './pages/Manager/Reports.jsx';

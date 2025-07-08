@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FiPlus, FiCalendar, FiUsers } from 'react-icons/fi';
 import { useData } from '../../contexts/DataContext';
-import RentalModal from './RentalModal';
+import RentalModal from './Floor/RentalModal';
 import './Pages.css';
 
 const Rentals = () => {

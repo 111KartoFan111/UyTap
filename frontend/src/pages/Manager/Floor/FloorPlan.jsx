@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { FiEdit2, FiTool, FiCheck, FiPlus, FiAlertCircle, FiCalendar, FiClock, FiPlay, FiPause, FiX } from 'react-icons/fi';
-import { useData } from '../../contexts/DataContext';
+import { useData } from '../../../contexts/DataContext';
 import PropertyModal from './PropertyModal';
 import RentalModal from './RentalModal';
 import TaskModal from './TaskModal';
-import PropertyDetailsModal from './PropertyDetailsModal';
+import PropertyDetailsModal from './PropertyDetailsModal.jsx';
 import './FloorPlan.css';
 
 const FloorPlan = ({ onRoomClick }) => {

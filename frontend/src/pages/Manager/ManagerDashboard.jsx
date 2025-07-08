@@ -14,7 +14,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
-import FloorPlan from './FloorPlan';
+import FloorPlan from './Floor/FloorPlan';
 import './ManagerDashboard.css';
 
 const ManagerDashboard = () => {
