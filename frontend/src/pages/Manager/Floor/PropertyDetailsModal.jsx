@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   FiX, 
   FiHome, 
@@ -14,6 +14,7 @@ import {
   FiUsers,
   FiMaximize
 } from 'react-icons/fi';
+import { useData } from '../../../contexts/DataContext';
 import './PropertyDetailsModal.css';
 
 const PropertyDetailsModal = ({ 
@@ -25,8 +26,54 @@ const PropertyDetailsModal = ({
   onExtendRental,
   onTerminateRental 
 }) => {
+  const { tasks, utils } = useData();
   const [activeTab, setActiveTab] = useState('overview');
-  const [extendDays, setExtendDays] = useState(1);
+  const [propertyTasks, setPropertyTasks] = useState([]);
+  const [propertyHistory, setPropertyHistory] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Загрузка задач для свойства
+  useEffect(() => {
+    if (property && activeTab === 'tasks') {
+      loadPropertyTasks();
+    }
+  }, [property, activeTab]);
+
+  // Загрузка истории для свойства
+  useEffect(() => {
+    if (property && activeTab === 'history') {
+      loadPropertyHistory();
+    }
+  }, [property, activeTab]);
+
+  const loadPropertyTasks = async () => {
+    try {
+      setLoadingTasks(true);
+      const tasksData = await tasks.getAll({ property_id: property.id });
+      setPropertyTasks(tasksData);
+    } catch (error) {
+      console.error('Failed to load property tasks:', error);
+      utils.showError('Не удалось загрузить задачи');
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
+  const loadPropertyHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      // Здесь будет API для получения истории помещения
+      // const historyData = await properties.getHistory(property.id);
+      // setPropertyHistory(historyData);
+      setPropertyHistory([]);
+    } catch (error) {
+      console.error('Failed to load property history:', error);
+      utils.showError('Не удалось загрузить историю');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   if (!property) return null;
 
@@ -68,6 +115,38 @@ const PropertyDetailsModal = ({
   const formatDate = (dateString) => {
     if (!dateString) return 'Не указано';
     return new Date(dateString).toLocaleDateString('ru-RU');
+  };
+
+  const getTaskStatusText = (status) => {
+    switch (status) {
+      case 'pending': return 'В ожидании';
+      case 'in_progress': return 'В работе';
+      case 'completed': return 'Завершена';
+      case 'cancelled': return 'Отменена';
+      default: return status;
+    }
+  };
+
+  const getTaskTypeText = (type) => {
+    switch (type) {
+      case 'cleaning': return 'Уборка';
+      case 'maintenance': return 'Техобслуживание';
+      case 'repair': return 'Ремонт';
+      case 'inspection': return 'Инспекция';
+      case 'decoration': return 'Декор';
+      default: return type;
+    }
+  };
+
+  const getTaskTypeIcon = (type) => {
+    switch (type) {
+      case 'cleaning': return '🧹';
+      case 'maintenance': return '🔧';
+      case 'repair': return '🛠️';
+      case 'inspection': return '🔍';
+      case 'decoration': return '🎨';
+      default: return '📋';
+    }
   };
 
   const QuickExtendButtons = () => (
@@ -320,87 +399,79 @@ const PropertyDetailsModal = ({
                   </button>
                 </div>
                 
-                <div className="tasks-list">
-                  {/* Mock tasks - в реальном приложении загружать из API */}
-                  <div className="task-item">
-                    <div className="task-info">
-                      <span className="task-title">Генеральная уборка</span>
-                      <span className="task-type cleaning">🧹 Уборка</span>
-                    </div>
-                    <div className="task-meta">
-                      <span className="task-assignee">Мария И.</span>
-                      <span className="task-due">До 15:00</span>
-                    </div>
-                    <div className="task-status pending">В ожидании</div>
+                {loadingTasks ? (
+                  <div className="loading-spinner"></div>
+                ) : (
+                  <div className="tasks-list">
+                    {propertyTasks.length > 0 ? (
+                      propertyTasks.map(task => (
+                        <div key={task.id} className="task-item">
+                          <div className="task-info">
+                            <span className="task-title">{task.title}</span>
+                            <span className={`task-type ${task.task_type}`}>
+                              {getTaskTypeIcon(task.task_type)} {getTaskTypeText(task.task_type)}
+                            </span>
+                          </div>
+                          <div className="task-meta">
+                            <span className="task-assignee">
+                              {task.assigned_to_name || 'Не назначен'}
+                            </span>
+                            <span className="task-due">
+                              {task.due_date ? formatDate(task.due_date) : 'Без срока'}
+                            </span>
+                          </div>
+                          <div className={`task-status ${task.status}`}>
+                            {getTaskStatusText(task.status)}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-state small">
+                        <FiTool size={32} />
+                        <p>Нет задач для этого помещения</p>
+                        <button className="action-btn secondary" onClick={onCreateTask}>
+                          <FiPlus /> Создать первую задачу
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="task-item">
-                    <div className="task-info">
-                      <span className="task-title">Проверка сантехники</span>
-                      <span className="task-type maintenance">🔧 Техобслуживание</span>
-                    </div>
-                    <div className="task-meta">
-                      <span className="task-assignee">Алексей П.</span>
-                      <span className="task-due">Завтра</span>
-                    </div>
-                    <div className="task-status in-progress">В работе</div>
-                  </div>
-                  
-                  <div className="empty-state small">
-                    <FiTool size={32} />
-                    <p>Нет активных задач для этого помещения</p>
-                    <button className="action-btn secondary" onClick={onCreateTask}>
-                      <FiPlus /> Создать первую задачу
-                    </button>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
             {/* History Tab */}
             {activeTab === 'history' && (
               <div className="tab-content">
-                <div className="history-list">
-                  {/* Mock history - в реальном приложении загружать из API */}
-                  <div className="history-item">
-                    <div className="history-icon rental">
-                      <FiCalendar />
-                    </div>
-                    <div className="history-info">
-                      <span className="history-title">Аренда завершена</span>
-                      <span className="history-details">Клиент: Иван Петров • 7 дней</span>
-                      <span className="history-date">3 дня назад</span>
-                    </div>
-                    <div className="history-amount">₸ 126,000</div>
+                {loadingHistory ? (
+                  <div className="loading-spinner"></div>
+                ) : (
+                  <div className="history-list">
+                    {propertyHistory.length > 0 ? (
+                      propertyHistory.map((historyItem, index) => (
+                        <div key={index} className="history-item">
+                          <div className={`history-icon ${historyItem.type}`}>
+                            {historyItem.type === 'rental' ? <FiCalendar /> : <FiTool />}
+                          </div>
+                          <div className="history-info">
+                            <span className="history-title">{historyItem.title}</span>
+                            <span className="history-details">{historyItem.details}</span>
+                            <span className="history-date">{formatDate(historyItem.date)}</span>
+                          </div>
+                          {historyItem.amount && (
+                            <div className="history-amount">
+                              {formatCurrency(historyItem.amount)}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-state small">
+                        <FiClock size={32} />
+                        <p>История операций пуста</p>
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="history-item">
-                    <div className="history-icon task">
-                      <FiTool />
-                    </div>
-                    <div className="history-info">
-                      <span className="history-title">Задача выполнена</span>
-                      <span className="history-details">Уборка после выселения • Мария И.</span>
-                      <span className="history-date">3 дня назад</span>
-                    </div>
-                  </div>
-                  
-                  <div className="history-item">
-                    <div className="history-icon rental">
-                      <FiUser />
-                    </div>
-                    <div className="history-info">
-                      <span className="history-title">Заселение</span>
-                      <span className="history-details">Клиент: Иван Петров</span>
-                      <span className="history-date">10 дней назад</span>
-                    </div>
-                  </div>
-                  
-                  <div className="empty-state small">
-                    <FiClock size={32} />
-                    <p>История операций пуста</p>
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FiX, FiCalendar, FiUser, FiCreditCard, FiClock } from 'react-icons/fi';
 import './RentalModal.css';
 
@@ -23,23 +23,46 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
 
   const [errors, setErrors] = useState({});
 
-  // Базовые тарифы
-  const baseRates = {
-    hourly: 3000,
-    daily: 18000,
-    monthly: 220000
-  };
+  // Получаем тарифы из данных комнаты
+  useEffect(() => {
+    if (room) {
+      const rates = {
+        hourly: room.hourly_rate || 0,
+        daily: room.daily_rate || 0,
+        monthly: room.monthly_rate || 0
+      };
+      
+      // Устанавливаем тариф по умолчанию
+      const defaultRate = rates[formData.rentalType] || 0;
+      setFormData(prev => ({
+        ...prev,
+        rate: defaultRate
+      }));
+      
+      updateAmount(formData.rentalType, formData.duration, defaultRate);
+    }
+  }, [room]);
 
   // Обновление суммы при изменении типа аренды или продолжительности
-  const updateAmount = (type, duration) => {
-    const rate = baseRates[type];
-    const total = rate * duration;
+  const updateAmount = (type, duration, rate = null) => {
+    const currentRate = rate || getRateForType(type);
+    const total = currentRate * duration;
     setFormData(prev => ({
       ...prev,
-      rate,
+      rate: currentRate,
       totalAmount: total,
       deposit: Math.round(total * 0.2) // 20% депозит
     }));
+  };
+
+  const getRateForType = (type) => {
+    if (!room) return 0;
+    switch (type) {
+      case 'hourly': return room.hourly_rate || 0;
+      case 'daily': return room.daily_rate || 0;
+      case 'monthly': return room.monthly_rate || 0;
+      default: return 0;
+    }
   };
 
   const handleRentalTypeChange = (type) => {
@@ -94,6 +117,9 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
     }
     if (formData.duration < 1) {
       newErrors.duration = 'Укажите продолжительность';
+    }
+    if (formData.rate <= 0) {
+      newErrors.rate = 'Тариф должен быть больше 0';
     }
 
     setErrors(newErrors);
@@ -186,30 +212,36 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
             <div className="rental-type-selector">
               <label>Тип аренды:</label>
               <div className="rental-types">
-                <button
-                  type="button"
-                  className={`rental-type-btn ${formData.rentalType === 'hourly' ? 'active' : ''}`}
-                  onClick={() => handleRentalTypeChange('hourly')}
-                >
-                  <FiClock />
-                  Почасово
-                </button>
-                <button
-                  type="button"
-                  className={`rental-type-btn ${formData.rentalType === 'daily' ? 'active' : ''}`}
-                  onClick={() => handleRentalTypeChange('daily')}
-                >
-                  <FiCalendar />
-                  Посуточно
-                </button>
-                <button
-                  type="button"
-                  className={`rental-type-btn ${formData.rentalType === 'monthly' ? 'active' : ''}`}
-                  onClick={() => handleRentalTypeChange('monthly')}
-                >
-                  <FiCalendar />
-                  Помесячно
-                </button>
+                {room?.hourly_rate && (
+                  <button
+                    type="button"
+                    className={`rental-type-btn ${formData.rentalType === 'hourly' ? 'active' : ''}`}
+                    onClick={() => handleRentalTypeChange('hourly')}
+                  >
+                    <FiClock />
+                    Почасово
+                  </button>
+                )}
+                {room?.daily_rate && (
+                  <button
+                    type="button"
+                    className={`rental-type-btn ${formData.rentalType === 'daily' ? 'active' : ''}`}
+                    onClick={() => handleRentalTypeChange('daily')}
+                  >
+                    <FiCalendar />
+                    Посуточно
+                  </button>
+                )}
+                {room?.monthly_rate && (
+                  <button
+                    type="button"
+                    className={`rental-type-btn ${formData.rentalType === 'monthly' ? 'active' : ''}`}
+                    onClick={() => handleRentalTypeChange('monthly')}
+                  >
+                    <FiCalendar />
+                    Помесячно
+                  </button>
+                )}
               </div>
             </div>
 
@@ -302,6 +334,16 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
             <div className="form-field">
               <label>Способ оплаты:</label>
               <div className="payment-methods">
+                <label className="payment-method">
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="cash"
+                    checked={formData.paymentMethod === 'cash'}
+                    onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                  />
+                  Наличные
+                </label>
                 <label className="payment-method">
                   <input
                     type="radio"

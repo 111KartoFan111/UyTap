@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FiX, FiTool, FiUser, FiCalendar, FiAlertCircle } from 'react-icons/fi';
+import { useData } from '../../../contexts/DataContext';
 import './TaskModal.css';
 
 const TaskModal = ({ property, onClose, onSubmit }) => {
+  const { organization, utils } = useData();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -15,6 +17,30 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
   });
 
   const [errors, setErrors] = useState({});
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+
+  // Загрузка сотрудников при открытии модального окна
+  useEffect(() => {
+    loadEmployees();
+  }, []);
+
+  const loadEmployees = async () => {
+    try {
+      setLoadingEmployees(true);
+      // Здесь будет API для получения сотрудников организации
+      // const employeesData = await organization.getEmployees();
+      // setEmployees(employeesData);
+      
+      // Временно пустой массив до реализации API
+      setEmployees([]);
+    } catch (error) {
+      console.error('Failed to load employees:', error);
+      utils.showError('Не удалось загрузить список сотрудников');
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
 
   const taskTypes = [
     { value: 'cleaning', label: 'Уборка', icon: '🧹' },
@@ -30,13 +56,6 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
     { value: 'medium', label: 'Средний', color: '#f39c12' },
     { value: 'high', label: 'Высокий', color: '#e74c3c' },
     { value: 'urgent', label: 'Срочно', color: '#8e44ad' }
-  ];
-
-  const employees = [
-    { id: 'emp1', name: 'Алексей Петров', role: 'Уборщик' },
-    { id: 'emp2', name: 'Мария Иванова', role: 'Техник' },
-    { id: 'emp3', name: 'Дмитрий Сидоров', role: 'Слесарь' },
-    { id: 'emp4', name: 'Елена Козлова', role: 'Менеджер' }
   ];
 
   const validateForm = () => {
@@ -154,6 +173,7 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
                 <select
                   value={formData.assigned_to}
                   onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
+                  disabled={loadingEmployees}
                 >
                   <option value="">Не назначен</option>
                   {employees.map(emp => (
@@ -162,6 +182,7 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
                     </option>
                   ))}
                 </select>
+                {loadingEmployees && <small>Загрузка сотрудников...</small>}
               </div>
             </div>
 

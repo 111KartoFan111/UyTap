@@ -8,7 +8,7 @@ import PropertyDetailsModal from './PropertyDetailsModal.jsx';
 import './FloorPlan.css';
 
 const FloorPlan = ({ onRoomClick }) => {
-  const { properties, rentals, tasks, utils } = useData();
+  const { properties, rentals, tasks, organization, utils } = useData();
   const [selectedFloor, setSelectedFloor] = useState(1);
   const [rooms, setRooms] = useState([]);
   const [activeRentals, setActiveRentals] = useState([]);
@@ -31,13 +31,15 @@ const FloorPlan = ({ onRoomClick }) => {
       setLoading(true);
       
       // Загружаем помещения, аренды и лимиты параллельно
-      const [propertiesData, rentalsData] = await Promise.allSettled([
+      const [propertiesData, rentalsData, limitsData] = await Promise.allSettled([
         properties.getAll(),
-        rentals.getAll({ is_active: true })
+        rentals.getAll({ is_active: true }),
+        organization.getLimits()
       ]);
 
       const propsList = propertiesData.status === 'fulfilled' ? propertiesData.value : [];
       const rentalsList = rentalsData.status === 'fulfilled' ? rentalsData.value : [];
+      const limits = limitsData.status === 'fulfilled' ? limitsData.value : null;
 
       // Обогащаем помещения данными об аренде
       const enrichedProperties = propsList.map(property => {
@@ -58,51 +60,20 @@ const FloorPlan = ({ onRoomClick }) => {
       setRooms(enrichedProperties);
       setActiveRentals(rentalsList);
       
-      // Моковые лимиты (в реальном приложении получать из API)
-      setOrganizationLimits({
-        current: enrichedProperties.length,
-        max: 50
-      });
+      // Устанавливаем лимиты организации
+      if (limits) {
+        setOrganizationLimits({
+          current: enrichedProperties.length,
+          max: limits.max_properties || 50
+        });
+      }
 
     } catch (error) {
       console.error('Failed to load data:', error);
       utils.showError('Не удалось загрузить данные');
-      generateMockRooms();
     } finally {
       setLoading(false);
     }
-  };
-
-  // Генерация моковых данных в случае ошибки API
-  const generateMockRooms = () => {
-    const mockRooms = [];
-    for (let floor = 1; floor <= 3; floor++) {
-      for (let room = 1; room <= 20; room++) {
-        const roomNumber = `${floor}-${room.toString().padStart(2, '0')}`;
-        const statuses = ['available', 'occupied', 'maintenance', 'cleaning'];
-        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-        
-        mockRooms.push({
-          id: `${floor}-${room}`,
-          number: roomNumber,
-          name: `Комната ${roomNumber}`,
-          floor: floor,
-          status: randomStatus,
-          property_type: room <= 10 ? 'room' : room <= 15 ? 'studio' : 'apartment',
-          hourly_rate: Math.floor(Math.random() * 2000) + 2500,
-          daily_rate: Math.floor(Math.random() * 10000) + 15000,
-          monthly_rate: Math.floor(Math.random() * 150000) + 180000,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          is_active: true,
-          currentGuests: randomStatus === 'occupied' ? ['Тестовый Клиент'] : [],
-          checkIn: randomStatus === 'occupied' ? new Date().toLocaleDateString() : null,
-          checkOut: randomStatus === 'occupied' ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString() : null
-        });
-      }
-    }
-    setRooms(mockRooms);
-    setOrganizationLimits({ current: mockRooms.length, max: 50 });
   };
 
   // Фильтрация помещений по этажу и статусу
