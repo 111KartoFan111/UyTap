@@ -10,6 +10,7 @@ import {
   FiCalendar,
   FiArrowRight
 } from 'react-icons/fi';
+import { FaUsersGear } from "react-icons/fa6";
 import { Link } from 'react-router-dom';
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -275,6 +276,16 @@ const ManagerDashboard = () => {
               <FiTrendingUp />
             </div>
             <h3>Отчеты</h3>
+            <p>Аналитика и финансовые отчеты</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
+          <Link to="/manager/staff" className="action-card">
+            <div className="action-icon">
+              <FaUsersGear />
+            </div>
+            <h3>Сотрудники</h3>
             <p>Аналитика и финансовые отчеты</p>
             <div className="action-arrow">
               <FiArrowRight />

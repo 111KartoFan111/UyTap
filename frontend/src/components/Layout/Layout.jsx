@@ -18,6 +18,7 @@ import {
   FiTool,
   FiDollarSign
 } from 'react-icons/fi';
+import { FaUsersGear } from "react-icons/fa6";
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import './Layout.css';
@@ -42,6 +43,7 @@ const Layout = ({ children }) => {
           { path: '/manager/rentals', icon: FiCalendar, label: 'Аренда' },
           { path: '/manager/clients', icon: FiUsers, label: 'Клиенты' },
           { path: '/manager/reports', icon: FiBarChart2, label: 'Отчеты' },
+          { path: '/manager/staff', icon: FaUsersGear, label: 'Сотрудники' },
           { path: '/manager/settings', icon: FiSettings, label: 'Настройки' },
         ];
       

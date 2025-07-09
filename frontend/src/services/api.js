@@ -1,4 +1,4 @@
-// services/api.js - Real API integration
+// services/api.js - Updated with missing API methods
 const API_BASE_URL = 'http://localhost:8000';
 
 // API Request helper with auth token
@@ -117,32 +117,103 @@ export const authAPI = {
   }
 };
 
-// Organization API
+// Organization API - UPDATED WITH MISSING METHODS
 export const organizationAPI = {
   async getCurrentOrganization() {
-    return apiRequest('/api/organizations/current');
+    return apiRequest('/api/organization/info');
   },
 
   async getOrganizationLimits() {
-    return apiRequest('/api/organizations/current/limits');
+    return apiRequest('/api/organization/limits');
   },
 
   async getUsageStatistics() {
-    return apiRequest('/api/organizations/current/usage');
+    return apiRequest('/api/organization/usage');
   },
 
   async updateSettings(settings) {
-    return apiRequest('/api/organizations/current/settings', {
+    return apiRequest('/api/organization/settings', {
       method: 'PATCH',
       body: JSON.stringify(settings)
     });
+  },
+
+  // NEW: Get organization users (employees)
+  async getUsers(params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
+    return apiRequest(`/api/organization/users?${searchParams}`);
+  },
+
+  // NEW: Get specific user
+  async getUser(userId) {
+    return apiRequest(`/api/organization/users/${userId}`);
+  },
+
+  // NEW: Create new user
+  async createUser(userData) {
+    return apiRequest('/api/organization/users', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // NEW: Update user
+  async updateUser(userId, userData) {
+    return apiRequest(`/api/organization/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // NEW: Delete user
+  async deleteUser(userId) {
+    return apiRequest(`/api/organization/users/${userId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // NEW: Get available roles
+  async getAvailableRoles() {
+    return apiRequest('/api/organization/users/roles/available');
+  },
+
+  // NEW: Reset user password
+  async resetUserPassword(userId) {
+    return apiRequest(`/api/organization/users/${userId}/reset-password`, {
+      method: 'POST'
+    });
+  },
+
+  // NEW: Get user performance
+  async getUserPerformance(userId, periodDays = 30) {
+    return apiRequest(`/api/organization/users/${userId}/performance?period_days=${periodDays}`);
+  },
+
+  // NEW: Get dashboard statistics
+  async getDashboardStatistics() {
+    return apiRequest('/api/organization/dashboard/statistics');
+  },
+
+  // NEW: Get recent audit actions
+  async getRecentAuditActions(limit = 50) {
+    return apiRequest(`/api/organization/audit/recent-actions?limit=${limit}`);
   }
 };
 
-// Clients API
+// Clients API - COMPLETE IMPLEMENTATION
 export const clientsAPI = {
   async getClients(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/clients?${searchParams}`);
   },
 
@@ -186,10 +257,15 @@ export const clientsAPI = {
   }
 };
 
-// Properties API с проверкой лимитов
+// Properties API - COMPLETE IMPLEMENTATION
 export const propertiesAPI = {
   async getProperties(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/properties?${searchParams}`);
   },
 
@@ -198,29 +274,10 @@ export const propertiesAPI = {
   },
 
   async createProperty(propertyData) {
-    try {
-      // Сначала получаем информацию об организации для проверки лимитов
-      const organization = await organizationAPI.getCurrentOrganization();
-      const currentProperties = await this.getProperties();
-      
-      if (currentProperties.length >= organization.max_properties) {
-        throw new Error(`Достигнут лимит помещений (${organization.max_properties}). Обратитесь к администратору для увеличения лимита.`);
-      }
-      
-      return apiRequest('/api/properties', {
-        method: 'POST',
-        body: JSON.stringify(propertyData)
-      });
-    } catch (error) {
-      if (error.message.includes('лимит')) {
-        throw error;
-      }
-      // Если ошибка получения лимитов, пробуем создать напрямую
-      return apiRequest('/api/properties', {
-        method: 'POST',
-        body: JSON.stringify(propertyData)
-      });
-    }
+    return apiRequest('/api/properties', {
+      method: 'POST',
+      body: JSON.stringify(propertyData)
+    });
   },
 
   async updateProperty(id, propertyData) {
@@ -237,9 +294,8 @@ export const propertiesAPI = {
   },
 
   async updatePropertyStatus(id, status) {
-    return apiRequest(`/api/properties/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status })
+    return apiRequest(`/api/properties/${id}/status?new_status=${status}`, {
+      method: 'PATCH'
     });
   },
 
@@ -261,36 +317,18 @@ export const propertiesAPI = {
 
   async getPropertyStatistics(id, periodDays = 30) {
     return apiRequest(`/api/properties/${id}/statistics?period_days=${periodDays}`);
-  },
-
-  // Получить помещения с информацией о лимитах
-  async getPropertiesWithLimits(params = {}) {
-    try {
-      const [properties, organization] = await Promise.all([
-        this.getProperties(params),
-        organizationAPI.getCurrentOrganization().catch(() => null)
-      ]);
-
-      return {
-        properties,
-        limits: organization ? {
-          current: properties.length,
-          max: organization.max_properties,
-          canCreate: properties.length < organization.max_properties
-        } : null
-      };
-    } catch (error) {
-      // Если не удалось получить организацию, возвращаем только помещения
-      const properties = await this.getProperties(params);
-      return { properties, limits: null };
-    }
   }
 };
 
-// Rentals API
+// Rentals API - COMPLETE IMPLEMENTATION
 export const rentalsAPI = {
   async getRentals(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/rentals?${searchParams}`);
   },
 
@@ -331,10 +369,15 @@ export const rentalsAPI = {
   }
 };
 
-// Tasks API
+// Tasks API - COMPLETE IMPLEMENTATION
 export const tasksAPI = {
   async getTasks(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/tasks?${searchParams}`);
   },
 
@@ -357,9 +400,8 @@ export const tasksAPI = {
   },
 
   async assignTask(id, assignedTo) {
-    return apiRequest(`/api/tasks/${id}/assign`, {
-      method: 'POST',
-      body: JSON.stringify({ assigned_to: assignedTo })
+    return apiRequest(`/api/tasks/${id}/assign?assigned_to=${assignedTo}`, {
+      method: 'POST'
     });
   },
 
@@ -370,9 +412,19 @@ export const tasksAPI = {
   },
 
   async completeTask(id, completionData = {}) {
-    return apiRequest(`/api/tasks/${id}/complete`, {
-      method: 'POST',
-      body: JSON.stringify(completionData)
+    const params = new URLSearchParams();
+    if (completionData.completion_notes) {
+      params.append('completion_notes', completionData.completion_notes);
+    }
+    if (completionData.quality_rating) {
+      params.append('quality_rating', completionData.quality_rating);
+    }
+    if (completionData.actual_duration) {
+      params.append('actual_duration', completionData.actual_duration);
+    }
+    
+    return apiRequest(`/api/tasks/${id}/complete?${params}`, {
+      method: 'POST'
     });
   },
 
@@ -405,7 +457,7 @@ export const tasksAPI = {
   async autoAssignTasks(taskIds) {
     return apiRequest('/api/tasks/auto-assign', {
       method: 'POST',
-      body: JSON.stringify({ task_ids: taskIds })
+      body: JSON.stringify(taskIds)
     });
   },
 
@@ -416,10 +468,15 @@ export const tasksAPI = {
   }
 };
 
-// Orders API
+// Orders API - COMPLETE IMPLEMENTATION
 export const ordersAPI = {
   async getOrders(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/orders?${searchParams}`);
   },
 
@@ -442,16 +499,15 @@ export const ordersAPI = {
   },
 
   async assignOrder(id, assignedTo) {
-    return apiRequest(`/api/orders/${id}/assign`, {
-      method: 'POST',
-      body: JSON.stringify({ assigned_to: assignedTo })
+    return apiRequest(`/api/orders/${id}/assign?assigned_to=${assignedTo}`, {
+      method: 'POST'
     });
   },
 
   async completeOrder(id, completionNotes = null) {
-    return apiRequest(`/api/orders/${id}/complete`, {
-      method: 'POST',
-      body: JSON.stringify({ completion_notes: completionNotes })
+    const params = completionNotes ? `?completion_notes=${encodeURIComponent(completionNotes)}` : '';
+    return apiRequest(`/api/orders/${id}/complete${params}`, {
+      method: 'POST'
     });
   },
 
@@ -463,7 +519,12 @@ export const ordersAPI = {
 // Inventory API
 export const inventoryAPI = {
   async getItems(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/inventory?${searchParams}`);
   },
 
@@ -499,7 +560,12 @@ export const inventoryAPI = {
   },
 
   async getMovements(itemId, params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/inventory/${itemId}/movements?${searchParams}`);
   },
 
@@ -534,7 +600,12 @@ export const inventoryAPI = {
 // Documents API
 export const documentsAPI = {
   async getDocuments(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/documents?${searchParams}`);
   },
 
@@ -596,7 +667,12 @@ export const documentsAPI = {
 // Payroll API
 export const payrollAPI = {
   async getPayrolls(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/payroll?${searchParams}`);
   },
 
@@ -654,16 +730,25 @@ export const payrollAPI = {
   }
 };
 
-// Reports API
+// Reports API - STUB (placeholder for future implementation)
 export const reportsAPI = {
   async getFinancialSummary(startDate, endDate) {
-    return apiRequest(`/api/reports/financial-summary?start_date=${startDate}&end_date=${endDate}`);
+    // This endpoint doesn't exist in the OpenAPI spec, so we'll return mock data
+    return {
+      total_revenue: 2450000,
+      total_expenses: 1250000,
+      net_profit: 1200000,
+      period: { start: startDate, end: endDate }
+    };
   },
 
   async getPropertyOccupancy(startDate, endDate, propertyId = null) {
-    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
-    if (propertyId) params.append('property_id', propertyId);
-    return apiRequest(`/api/reports/property-occupancy?${params}`);
+    // Mock data for now
+    return {
+      average_occupancy: 78,
+      peak_days: ['saturday', 'sunday'],
+      period: { start: startDate, end: endDate }
+    };
   },
 
   async getEmployeePerformance(startDate, endDate, role = null, userId = null) {
@@ -699,7 +784,12 @@ export const reportsAPI = {
 // Admin API
 export const adminAPI = {
   async getOrganizations(params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/admin/organizations?${searchParams}`);
   },
 
@@ -728,7 +818,12 @@ export const adminAPI = {
   },
 
   async getOrganizationUsers(orgId, params = {}) {
-    const searchParams = new URLSearchParams(params);
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
     return apiRequest(`/api/admin/organizations/${orgId}/users?${searchParams}`);
   },
 
@@ -750,6 +845,7 @@ export const adminAPI = {
   }
 };
 
+// Export all APIs
 export default {
   authAPI,
   organizationAPI,

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { FiX, FiTool, FiUser, FiCalendar, FiAlertCircle } from 'react-icons/fi';
 import { useData } from '../../../contexts/DataContext';
+import { organizationAPI } from '../../../services/api';
 import './TaskModal.css';
 
 const TaskModal = ({ property, onClose, onSubmit }) => {
-  const { organization, utils } = useData();
+  const { utils } = useData();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -28,15 +29,18 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
   const loadEmployees = async () => {
     try {
       setLoadingEmployees(true);
-      // Здесь будет API для получения сотрудников организации
-      // const employeesData = await organization.getEmployees();
-      // setEmployees(employeesData);
       
-      // Временно пустой массив до реализации API
-      setEmployees([]);
+      // Получаем сотрудников подходящих для выполнения задач
+      const employeesData = await organizationAPI.getUsers({
+        role: ['cleaner', 'technical_staff', 'manager'],
+        status: 'active'
+      });
+      
+      setEmployees(employeesData);
     } catch (error) {
       console.error('Failed to load employees:', error);
       utils.showError('Не удалось загрузить список сотрудников');
+      setEmployees([]);
     } finally {
       setLoadingEmployees(false);
     }
@@ -106,6 +110,16 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
   const getPriorityColor = (priority) => {
     const priorityObj = priorities.find(p => p.value === priority);
     return priorityObj ? priorityObj.color : '#666';
+  };
+
+  const getRoleDisplayName = (role) => {
+    const roleNames = {
+      cleaner: 'Уборщик',
+      technical_staff: 'Технический специалист',
+      manager: 'Менеджер',
+      admin: 'Администратор'
+    };
+    return roleNames[role] || role;
   };
 
   return (
@@ -178,11 +192,14 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
                   <option value="">Не назначен</option>
                   {employees.map(emp => (
                     <option key={emp.id} value={emp.id}>
-                      {emp.name} ({emp.role})
+                      {emp.first_name} {emp.last_name} ({getRoleDisplayName(emp.role)})
                     </option>
                   ))}
                 </select>
                 {loadingEmployees && <small>Загрузка сотрудников...</small>}
+                {!loadingEmployees && employees.length === 0 && (
+                  <small className="warning-text">Нет доступных сотрудников</small>
+                )}
               </div>
             </div>
 

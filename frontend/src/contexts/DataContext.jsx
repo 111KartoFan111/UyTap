@@ -196,12 +196,26 @@ export const DataProvider = ({ children }) => {
     exportFinancialSummary: (startDate, endDate, format) => withLoading(() => reportsAPI.exportFinancialSummary(startDate, endDate, format))
   };
 
-  // Organization operations
+  // Organization operations - UPDATED WITH NEW METHODS
   const organization = {
     getCurrent: () => withLoading(() => organizationAPI.getCurrentOrganization(), true),
     getLimits: () => withLoading(() => organizationAPI.getOrganizationLimits(), true),
     getUsage: () => withLoading(() => organizationAPI.getUsageStatistics(), true),
-    updateSettings: (settings) => withLoading(() => organizationAPI.updateSettings(settings), false, 'Настройки организации обновлены')
+    updateSettings: (settings) => withLoading(() => organizationAPI.updateSettings(settings), false, 'Настройки организации обновлены'),
+    
+    // NEW: User management methods
+    getUsers: (params) => withLoading(() => organizationAPI.getUsers(params), true),
+    getUser: (userId) => withLoading(() => organizationAPI.getUser(userId)),
+    createUser: (userData) => withLoading(() => organizationAPI.createUser(userData), false, 'Пользователь создан'),
+    updateUser: (userId, userData) => withLoading(() => organizationAPI.updateUser(userId, userData), false, 'Пользователь обновлен'),
+    deleteUser: (userId) => withLoading(() => organizationAPI.deleteUser(userId), false, 'Пользователь удален'),
+    
+    // NEW: Additional methods
+    getAvailableRoles: () => withLoading(() => organizationAPI.getAvailableRoles(), true),
+    resetUserPassword: (userId) => withLoading(() => organizationAPI.resetUserPassword(userId), false, 'Пароль сброшен'),
+    getUserPerformance: (userId, periodDays) => withLoading(() => organizationAPI.getUserPerformance(userId, periodDays)),
+    getDashboardStatistics: () => withLoading(() => organizationAPI.getDashboardStatistics(), true),
+    getRecentAuditActions: (limit) => withLoading(() => organizationAPI.getRecentAuditActions(limit), true)
   };
 
   // Utility functions
