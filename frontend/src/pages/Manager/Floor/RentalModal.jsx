@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { FiX, FiCalendar, FiUser, FiCreditCard, FiClock } from 'react-icons/fi';
+import { useData } from '../../../contexts/DataContext';
 import './RentalModal.css';
 
 const RentalModal = ({ room, onClose, onSubmit }) => {
+  const { clients, utils } = useData();
   const [formData, setFormData] = useState({
     clientName: '',
     clientPhone: '',
@@ -22,6 +24,28 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
   });
 
   const [errors, setErrors] = useState({});
+  const [existingClients, setExistingClients] = useState([]);
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [isNewClient, setIsNewClient] = useState(true);
+  const [loadingClients, setLoadingClients] = useState(false);
+
+  // Загрузка существующих клиентов
+  useEffect(() => {
+    loadExistingClients();
+  }, []);
+
+  const loadExistingClients = async () => {
+    try {
+      setLoadingClients(true);
+      const clientsData = await clients.getAll({ limit: 100 });
+      setExistingClients(clientsData);
+    } catch (error) {
+      console.error('Failed to load clients:', error);
+      utils.showError('Не удалось загрузить список клиентов');
+    } finally {
+      setLoadingClients(false);
+    }
+  };
 
   // Получаем тарифы из данных комнаты
   useEffect(() => {
@@ -79,7 +103,7 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
   const calculateEndDate = () => {
     if (!formData.startDate || !formData.duration) return '';
     
-    const start = new Date(formData.startDate);
+    const start = new Date(formData.startDate + (formData.startTime ? `T${formData.startTime}` : 'T00:00'));
     let end = new Date(start);
     
     switch (formData.rentalType) {
@@ -94,7 +118,33 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
         break;
     }
     
-    return end.toISOString().split('T')[0];
+    return end.toISOString();
+  };
+
+  const handleClientSelect = (clientId) => {
+    setSelectedClientId(clientId);
+    if (clientId) {
+      const client = existingClients.find(c => c.id === clientId);
+      if (client) {
+        setFormData(prev => ({
+          ...prev,
+          clientName: `${client.first_name} ${client.last_name}`,
+          clientPhone: client.phone || '',
+          clientEmail: client.email || '',
+          clientDocument: client.document_number || ''
+        }));
+        setIsNewClient(false);
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        clientName: '',
+        clientPhone: '',
+        clientEmail: '',
+        clientDocument: ''
+      }));
+      setIsNewClient(true);
+    }
   };
 
   const validateForm = () => {
@@ -126,16 +176,51 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      const rentalData = {
-        ...formData,
-        roomNumber: room?.number || 'Новая аренда',
-        endDate: calculateEndDate(),
-        createdAt: new Date().toISOString()
-      };
-      onSubmit(rentalData);
+      try {
+        let clientId = selectedClientId;
+
+        // Если выбран новый клиент, создаем его
+        if (isNewClient || !clientId) {
+          const nameParts = formData.clientName.trim().split(' ');
+          const newClientData = {
+            first_name: nameParts[0] || '',
+            last_name: nameParts.slice(1).join(' ') || '',
+            phone: formData.clientPhone,
+            email: formData.clientEmail || null,
+            document_number: formData.clientDocument,
+            document_type: 'passport'
+          };
+
+          const newClient = await clients.create(newClientData);
+          clientId = newClient.id;
+        }
+
+        // Формируем данные для создания аренды в правильном формате API
+        const startDateTime = formData.startDate + (formData.startTime ? `T${formData.startTime}:00` : 'T00:00:00');
+        const endDateTime = calculateEndDate();
+
+        const rentalData = {
+          property_id: room.id,
+          client_id: clientId,
+          rental_type: formData.rentalType,
+          start_date: startDateTime,
+          end_date: endDateTime,
+          rate: formData.rate,
+          total_amount: formData.totalAmount,
+          deposit: formData.deposit,
+          payment_method: formData.paymentMethod,
+          guest_count: 1,
+          notes: formData.notes || null
+        };
+
+        await onSubmit(rentalData);
+      } catch (error) {
+        console.error('Failed to create rental:', error);
+        utils.showError('Не удалось создать аренду: ' + (error.message || 'Неизвестная ошибка'));
+      }
     }
   };
 
@@ -157,6 +242,25 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
             <h3>
               <FiUser /> Информация о клиенте
             </h3>
+            
+            {/* Выбор существующего клиента */}
+            <div className="form-field">
+              <label>Существующий клиент</label>
+              <select
+                value={selectedClientId}
+                onChange={(e) => handleClientSelect(e.target.value)}
+                disabled={loadingClients}
+              >
+                <option value="">Новый клиент</option>
+                {existingClients.map(client => (
+                  <option key={client.id} value={client.id}>
+                    {client.first_name} {client.last_name} - {client.phone}
+                  </option>
+                ))}
+              </select>
+              {loadingClients && <small>Загрузка клиентов...</small>}
+            </div>
+
             <div className="form-grid">
               <div className="form-field">
                 <label>ФИО клиента *</label>
@@ -166,6 +270,7 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
                   onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
                   placeholder="Иванов Иван Иванович"
                   className={errors.clientName ? 'error' : ''}
+                  disabled={!isNewClient && selectedClientId}
                 />
                 {errors.clientName && <span className="error-text">{errors.clientName}</span>}
               </div>
@@ -177,6 +282,7 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
                   onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
                   placeholder="+7 (777) 123-45-67"
                   className={errors.clientPhone ? 'error' : ''}
+                  disabled={!isNewClient && selectedClientId}
                 />
                 {errors.clientPhone && <span className="error-text">{errors.clientPhone}</span>}
               </div>
@@ -187,6 +293,7 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
                   value={formData.clientEmail}
                   onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
                   placeholder="client@example.com"
+                  disabled={!isNewClient && selectedClientId}
                 />
               </div>
               <div className="form-field">
@@ -197,6 +304,7 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
                   onChange={(e) => setFormData({ ...formData, clientDocument: e.target.value })}
                   placeholder="123456789012"
                   className={errors.clientDocument ? 'error' : ''}
+                  disabled={!isNewClient && selectedClientId}
                 />
                 {errors.clientDocument && <span className="error-text">{errors.clientDocument}</span>}
               </div>
@@ -290,8 +398,8 @@ const RentalModal = ({ room, onClose, onSubmit }) => {
               <div className="form-field">
                 <label>Дата окончания</label>
                 <input
-                  type="date"
-                  value={calculateEndDate()}
+                  type="datetime-local"
+                  value={calculateEndDate().slice(0, 16)}
                   disabled
                 />
               </div>

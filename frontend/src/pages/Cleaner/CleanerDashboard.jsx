@@ -21,10 +21,10 @@ const CleanerDashboard = () => {
   const [isWorking, setIsWorking] = useState(false);
   
   const [todayStats, setTodayStats] = useState({
-    completedTasks: 12,
-    workingHours: 6.5,
-    earnings: 19500,
-    pendingTasks: 8
+    completedTasks: 0,
+    workingHours: 0,
+    earnings: 0,
+    pendingTasks: 0
   });
 
   useEffect(() => {

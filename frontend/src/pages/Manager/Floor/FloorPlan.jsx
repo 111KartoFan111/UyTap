@@ -53,7 +53,9 @@ const FloorPlan = ({ onRoomClick }) => {
           status: activeRental ? 'occupied' : property.status || 'available',
           currentGuests: activeRental ? [activeRental.client?.first_name + ' ' + activeRental.client?.last_name] : [],
           checkIn: activeRental?.start_date ? new Date(activeRental.start_date).toLocaleDateString() : null,
-          checkOut: activeRental?.end_date ? new Date(activeRental.end_date).toLocaleDateString() : null
+          checkOut: activeRental?.end_date ? new Date(activeRental.end_date).toLocaleDateString() : null,
+          isCheckedIn: activeRental?.checked_in || false,
+          isCheckedOut: activeRental?.checked_out || false
         };
       });
 
@@ -119,21 +121,20 @@ const FloorPlan = ({ onRoomClick }) => {
 
   const handleRentalCreate = async (rentalData) => {
     try {
-      const newRental = await rentals.create({
-        ...rentalData,
-        property_id: selectedProperty.id
-      });
+      const newRental = await rentals.create(rentalData);
       
       // Обновляем статус помещения
       setRooms(prev => prev.map(room => 
-        room.id === selectedProperty.id 
+        room.id === rentalData.property_id 
           ? { 
               ...room, 
               status: 'occupied', 
               activeRental: newRental,
-              currentGuests: [rentalData.clientName],
-              checkIn: new Date(rentalData.startDate).toLocaleDateString(),
-              checkOut: new Date(rentalData.endDate).toLocaleDateString()
+              currentGuests: [rentalData.clientName || 'Клиент'],
+              checkIn: new Date(rentalData.start_date).toLocaleDateString(),
+              checkOut: new Date(rentalData.end_date).toLocaleDateString(),
+              isCheckedIn: false,
+              isCheckedOut: false
             }
           : room
       ));
@@ -178,6 +179,81 @@ const FloorPlan = ({ onRoomClick }) => {
     }
   };
 
+  const handleCheckIn = async (property) => {
+    try {
+      if (!property.activeRental) {
+        utils.showError('Нет активной аренды для заселения');
+        return;
+      }
+
+      await rentals.checkIn(property.activeRental.id);
+      
+      // Обновляем локальное состояние
+      setRooms(prev => prev.map(room => 
+        room.id === property.id 
+          ? { 
+              ...room, 
+              isCheckedIn: true,
+              activeRental: {
+                ...room.activeRental,
+                checked_in: true,
+                check_in_time: new Date().toISOString()
+              }
+            }
+          : room
+      ));
+      
+      utils.showSuccess('Клиент заселен');
+    } catch (error) {
+      console.error('Failed to check in:', error);
+      utils.showError('Не удалось заселить клиента');
+    }
+  };
+
+  const handleCheckOut = async (property) => {
+    try {
+      if (!property.activeRental) {
+        utils.showError('Нет активной аренды для выселения');
+        return;
+      }
+
+      if (!property.isCheckedIn) {
+        utils.showError('Клиент не заселен, сначала выполните заселение');
+        return;
+      }
+
+      if (property.isCheckedOut) {
+        utils.showError('Клиент уже выселен');
+        return;
+      }
+
+      if (!confirm('Вы уверены, что хотите выселить клиента?')) return;
+      
+      await rentals.checkOut(property.activeRental.id);
+      
+      // Обновляем статус помещения
+      setRooms(prev => prev.map(room => 
+        room.id === property.id 
+          ? { 
+              ...room, 
+              status: 'available',
+              activeRental: null,
+              currentGuests: [],
+              checkIn: null,
+              checkOut: null,
+              isCheckedIn: false,
+              isCheckedOut: false
+            }
+          : room
+      ));
+      
+      utils.showSuccess('Клиент выселен');
+    } catch (error) {
+      console.error('Failed to check out:', error);
+      utils.showError('Не удалось выселить клиента: ' + (error.message || 'Неизвестная ошибка'));
+    }
+  };
+
   const handleExtendRental = async (property, days) => {
     try {
       if (!property.activeRental) return;
@@ -210,13 +286,13 @@ const FloorPlan = ({ onRoomClick }) => {
     }
   };
 
-  const handleTerminateRental = async (property) => {
+  const handleCancelRental = async (property) => {
     try {
       if (!property.activeRental) return;
       
-      if (!confirm('Вы уверены, что хотите завершить аренду?')) return;
+      if (!confirm('Вы уверены, что хотите отменить аренду?')) return;
       
-      await rentals.checkOut(property.activeRental.id);
+      await rentals.cancel(property.activeRental.id, 'Отменено администратором');
       
       // Обновляем статус помещения
       setRooms(prev => prev.map(room => 
@@ -227,15 +303,17 @@ const FloorPlan = ({ onRoomClick }) => {
               activeRental: null,
               currentGuests: [],
               checkIn: null,
-              checkOut: null
+              checkOut: null,
+              isCheckedIn: false,
+              isCheckedOut: false
             }
           : room
       ));
       
-      utils.showSuccess('Аренда завершена');
+      utils.showSuccess('Аренда отменена');
     } catch (error) {
-      console.error('Failed to terminate rental:', error);
-      utils.showError('Не удалось завершить аренду');
+      console.error('Failed to cancel rental:', error);
+      utils.showError('Не удалось отменить аренду');
     }
   };
 
@@ -422,45 +500,76 @@ const FloorPlan = ({ onRoomClick }) => {
                   {room.checkIn} — {room.checkOut}
                 </div>
                 
+                {/* Статус заселения */}
+                <div className="checkin-status">
+                  {!room.isCheckedIn && (
+                    <span className="status-badge pending">Ожидает заселения</span>
+                  )}
+                  {room.isCheckedIn && !room.isCheckedOut && (
+                    <span className="status-badge active">Заселен</span>
+                  )}
+                  {room.isCheckedOut && (
+                    <span className="status-badge completed">Выселен</span>
+                  )}
+                </div>
+                
                 {/* Быстрые действия для аренды */}
                 <div className="rental-quick-actions">
-                  <button
-                    className="quick-action-btn extend"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleExtendRental(room, 1);
-                    }}
-                    title="Продлить на 1 день"
-                  >
-                    +1д
-                  </button>
-                  <button
-                    className="quick-action-btn extend"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleExtendRental(room, 7);
-                    }}
-                    title="Продлить на неделю"
-                  >
-                    +1н
-                  </button>
-                  <button
-                    className="quick-action-btn extend"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleExtendRental(room, 30);
-                    }}
-                    title="Продлить на месяц"
-                  >
-                    +1м
-                  </button>
+                  {!room.isCheckedIn && (
+                    <button
+                      className="quick-action-btn checkin"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCheckIn(room);
+                      }}
+                      title="Заселить"
+                    >
+                      <FiPlay size={12} />
+                    </button>
+                  )}
+                  
+                  {room.isCheckedIn && !room.isCheckedOut && (
+                    <>
+                      <button
+                        className="quick-action-btn extend"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExtendRental(room, 1);
+                        }}
+                        title="Продлить на 1 день"
+                      >
+                        +1д
+                      </button>
+                      <button
+                        className="quick-action-btn extend"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExtendRental(room, 7);
+                        }}
+                        title="Продлить на неделю"
+                      >
+                        +1н
+                      </button>
+                      <button
+                        className="quick-action-btn checkout"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCheckOut(room);
+                        }}
+                        title="Выселить"
+                      >
+                        <FiPause size={12} />
+                      </button>
+                    </>
+                  )}
+                  
                   <button
                     className="quick-action-btn terminate"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleTerminateRental(room);
+                      handleCancelRental(room);
                     }}
-                    title="Завершить аренду"
+                    title="Отменить аренду"
                   >
                     <FiX size={12} />
                   </button>
@@ -562,8 +671,9 @@ const FloorPlan = ({ onRoomClick }) => {
             setShowPropertyDetails(false);
             setShowPropertyModal(true);
           }}
-          onExtendRental={handleExtendRental}
-          onTerminateRental={handleTerminateRental}
+          onCheckIn={handleCheckIn}
+          onCheckOut={handleCheckOut}
+          onCancelRental={handleCancelRental}
         />
       )}
     </div>

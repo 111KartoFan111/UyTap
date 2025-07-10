@@ -110,7 +110,7 @@ const Login = () => {
           <div className="login-logo">
             <FaBuilding size={40} />
           </div>
-          <h1>PropertyMS</h1>
+          <h1>UyTap</h1>
           <p>Система управления недвижимостью</p>
         </div>
 

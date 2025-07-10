@@ -8,8 +8,10 @@ import {
   FiAlertCircle,
   FiTrendingUp,
   FiCalendar,
-  FiArrowRight
+  FiArrowRight,
+  FiRefreshCw
 } from 'react-icons/fi';
+
 import { FaUsersGear } from "react-icons/fa6";
 import { Link } from 'react-router-dom';
 import { useTranslation } from '../../contexts/LanguageContext';
@@ -26,6 +28,7 @@ const ManagerDashboard = () => {
     clients, 
     rentals, 
     reports,
+    organization,
     loading, 
     error, 
     utils 
@@ -36,6 +39,7 @@ const ManagerDashboard = () => {
     occupiedRooms: 0,
     availableRooms: 0,
     maintenanceRooms: 0,
+    cleaningRooms: 0,
     totalClients: 0,
     activeRentals: 0,
     monthlyRevenue: 0,
@@ -49,6 +53,7 @@ const ManagerDashboard = () => {
     rentalsList: [],
     financialSummary: null
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load dashboard data
   useEffect(() => {
@@ -57,28 +62,37 @@ const ManagerDashboard = () => {
 
   const loadDashboardData = async () => {
     try {
+      setIsRefreshing(true);
       console.log('Loading dashboard data...');
       
       // Load all data in parallel
-      const [propertiesData, clientsData, rentalsData] = await Promise.allSettled([
+      const [
+        propertiesResult, 
+        clientsResult, 
+        rentalsResult, 
+        organizationResult
+      ] = await Promise.allSettled([
         properties.getAll(),
         clients.getAll({ limit: 100 }),
-        rentals.getAll({ is_active: true })
+        rentals.getAll({ is_active: true }),
+        organization.getDashboardStatistics()
       ]);
 
-      console.log('Data loaded:', { propertiesData, clientsData, rentalsData });
-
       // Extract successful results or fallback to empty arrays
-      const propsList = propertiesData.status === 'fulfilled' ? propertiesData.value : [];
-      const clientsList = clientsData.status === 'fulfilled' ? clientsData.value : [];
-      const rentalsList = rentalsData.status === 'fulfilled' ? rentalsData.value : [];
+      const propsList = propertiesResult.status === 'fulfilled' ? propertiesResult.value : [];
+      const clientsList = clientsResult.status === 'fulfilled' ? clientsResult.value : [];
+      const rentalsList = rentalsResult.status === 'fulfilled' ? rentalsResult.value : [];
+      const orgStats = organizationResult.status === 'fulfilled' ? organizationResult.value : null;
 
       // Try to load financial data (optional)
       let financialData = null;
       try {
-        const endDate = new Date().toISOString().split('T')[0];
-        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        financialData = await reports.getFinancialSummary(startDate, endDate);
+        const endDate = new Date();
+        const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        financialData = await reports.getFinancialSummary(
+          startDate.toISOString(), 
+          endDate.toISOString()
+        );
       } catch (error) {
         console.warn('Failed to load financial data:', error.message);
       }
@@ -87,70 +101,121 @@ const ManagerDashboard = () => {
         properties: propsList,
         clientsList: clientsList,
         rentalsList: rentalsList,
-        financialSummary: financialData
+        financialSummary: financialData,
+        organizationStats: orgStats
       });
 
       // Calculate stats from loaded data
       calculateStats(propsList, clientsList, rentalsList, financialData);
-      generateActivities(rentalsList);
+      generateActivities(rentalsList, propsList, clientsList);
 
       console.log('Dashboard data updated successfully');
 
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
       utils.showError('Ошибка загрузки данных дашборда');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
   const calculateStats = (propertiesData, clientsData, rentalsData, financialData) => {
     // Count properties by status
     const statusCounts = propertiesData.reduce((acc, prop) => {
-      acc[prop.status] = (acc[prop.status] || 0) + 1;
+      const status = prop.status || 'available';
+      acc[status] = (acc[status] || 0) + 1;
       return acc;
     }, {});
 
-    const occupancyRate = propertiesData.length > 0 
-      ? Math.round((statusCounts.occupied || 0) / propertiesData.length * 100) 
+    const totalRooms = propertiesData.length;
+    const occupiedRooms = statusCounts.occupied || 0;
+    const availableRooms = statusCounts.available || 0;
+    const maintenanceRooms = statusCounts.maintenance || 0;
+    const cleaningRooms = statusCounts.cleaning || 0;
+
+    const occupancyRate = totalRooms > 0 
+      ? Math.round((occupiedRooms / totalRooms) * 100) 
       : 0;
 
     setStats({
-      totalRooms: propertiesData.length,
-      occupiedRooms: statusCounts.occupied || 0,
-      availableRooms: statusCounts.available || 0,
-      maintenanceRooms: statusCounts.maintenance || 0,
+      totalRooms,
+      occupiedRooms,
+      availableRooms,
+      maintenanceRooms,
+      cleaningRooms,
       totalClients: clientsData.length,
       activeRentals: rentalsData.length,
       monthlyRevenue: financialData?.total_revenue || 0,
-      occupancyRate: occupancyRate
+      occupancyRate
     });
   };
 
-  const generateActivities = (rentalsData) => {
-    const activities = rentalsData
+  const generateActivities = (rentalsData, propertiesData, clientsData) => {
+    const activities = [];
+    
+    // Add rental activities
+    rentalsData
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 5)
-      .map((rental) => ({
-        id: rental.id,
-        type: rental.checked_in ? 'rental_active' : 'rental_started',
-        client: rental.client 
-          ? `${rental.client.first_name} ${rental.client.last_name}`.trim() 
-          : 'Клиент',
-        room: rental.property?.number || rental.property_id,
-        time: new Date(rental.created_at).toLocaleTimeString('ru-RU', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        amount: rental.total_amount,
-        date: new Date(rental.created_at).toLocaleDateString('ru-RU')
-      }));
+      .forEach((rental) => {
+        const property = propertiesData.find(p => p.id === rental.property_id);
+        const client = clientsData.find(c => c.id === rental.client_id);
+        
+        activities.push({
+          id: `rental-${rental.id}`,
+          type: rental.checked_in ? 'rental_active' : 'rental_started',
+          client: client ? `${client.first_name} ${client.last_name}`.trim() : 'Клиент',
+          room: property?.number || rental.property_id,
+          time: new Date(rental.created_at).toLocaleTimeString('ru-RU', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
+          amount: rental.total_amount,
+          date: new Date(rental.created_at).toLocaleDateString('ru-RU')
+        });
+      });
+
+    // Add recent client registrations
+    clientsData
+      .filter(client => {
+        const createdAt = new Date(client.created_at);
+        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        return createdAt > threeDaysAgo;
+      })
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 2)
+      .forEach((client) => {
+        activities.push({
+          id: `client-${client.id}`,
+          type: 'client_registered',
+          client: `${client.first_name} ${client.last_name}`.trim(),
+          time: new Date(client.created_at).toLocaleTimeString('ru-RU', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
+          date: new Date(client.created_at).toLocaleDateString('ru-RU')
+        });
+      });
+
+    // Sort all activities by date
+    activities.sort((a, b) => {
+      const dateA = new Date(`${a.date} ${a.time}`);
+      const dateB = new Date(`${b.date} ${b.time}`);
+      return dateB - dateA;
+    });
     
-    setRecentActivities(activities);
+    setRecentActivities(activities.slice(0, 8));
   };
 
   // Handle room click from floor plan
   const handleRoomClick = (room) => {
     console.log('Room clicked:', room);
     // You can navigate to room details or open a modal
+  };
+
+  // Handle refresh
+  const handleRefresh = async () => {
+    await loadDashboardData();
   };
 
   if (loading && !dashboardData.properties.length) {
@@ -169,12 +234,12 @@ const ManagerDashboard = () => {
         <div className="user-info">
           <span>Привет, {user?.first_name || 'Менеджер'}!</span>
           <button 
-            className="refresh-btn"
-            onClick={loadDashboardData}
-            disabled={loading}
+            className={`refresh-btn ${isRefreshing ? 'refreshing' : ''}`}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
             title="Обновить данные"
           >
-            🔄
+            <FiRefreshCw />
           </button>
         </div>
       </div>
@@ -281,16 +346,6 @@ const ManagerDashboard = () => {
               <FiArrowRight />
             </div>
           </Link>
-          <Link to="/manager/staff" className="action-card">
-            <div className="action-icon">
-              <FaUsersGear />
-            </div>
-            <h3>Сотрудники</h3>
-            <p>Аналитика и финансовые отчеты</p>
-            <div className="action-arrow">
-              <FiArrowRight />
-            </div>
-          </Link>
         </div>
       </div>
 
@@ -303,7 +358,6 @@ const ManagerDashboard = () => {
           </Link>
         </div>
         <FloorPlan 
-          properties={dashboardData.properties} 
           onRoomClick={handleRoomClick}
           compact={true} 
         />
@@ -335,6 +389,11 @@ const ManagerDashboard = () => {
                   {activity.type === 'rental_active' && (
                     <span>
                       Активная аренда: <strong>{activity.client}</strong> в комнате <strong>{activity.room}</strong>
+                    </span>
+                  )}
+                  {activity.type === 'client_registered' && (
+                    <span>
+                      Новый клиент: <strong>{activity.client}</strong>
                     </span>
                   )}
                 </div>

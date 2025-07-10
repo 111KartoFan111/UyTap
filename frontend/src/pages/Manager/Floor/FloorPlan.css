@@ -321,6 +321,12 @@
   margin-bottom: 2px;
 }
 
+.rental-quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
 .client-dates {
   font-size: 11px;
   color: #666;
@@ -529,5 +535,456 @@
   .create-first-property-btn {
     padding: 10px 16px;
     font-size: 13px;
+  }
+}
+/* Добавляем новые стили для статусов заселения */
+.checkin-status {
+  margin: 8px 0;
+  text-align: center;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+.status-badge.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.completed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.rental-quick-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-action-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.quick-action-btn.checkin {
+  background: #28a745;
+  color: white;
+}
+
+.quick-action-btn.checkin:hover {
+  background: #218838;
+}
+
+.quick-action-btn.checkout {
+  background: #6c757d;
+  color: white;
+}
+
+.quick-action-btn.checkout:hover {
+  background: #5a6268;
+}
+
+.quick-action-btn.extend {
+  background: #17a2b8;
+  color: white;
+}
+
+.quick-action-btn.extend:hover {
+  background: #138496;
+}
+
+.quick-action-btn.terminate {
+  background: #dc3545;
+  color: white;
+}
+
+.quick-action-btn.terminate:hover {
+  background: #c82333;
+}
+
+/* Обновляем существующие стили для лучшей совместимости */
+.room-card {
+  background: #f8f9fa;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  position: relative;
+  transition: all 0.2s;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.room-card.available {
+  background: #fff;
+  border-color: #27ae60;
+}
+
+.room-card.occupied {
+  background: #fff;
+  border-color: #e74c3c;
+}
+
+.room-card.maintenance {
+  background: #f39c12;
+  border-color: #f39c12;
+}
+
+.room-card.cleaning {
+  background: #fff;
+  border-color: #3498db;
+}
+
+.room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.room-number {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.room-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.room-edit-btn {
+  background: rgba(52, 152, 219, 0.1);
+  border: none;
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  color: #3498db;
+  opacity: 0;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-card:hover .room-edit-btn {
+  opacity: 1;
+}
+
+.room-edit-btn:hover {
+  background: rgba(52, 152, 219, 0.2);
+}
+
+.room-status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: white;
+  font-size: 12px;
+}
+
+.room-card.available .room-status-indicator {
+  background: #27ae60;
+}
+
+.room-card.occupied .room-status-indicator {
+  background: #e74c3c;
+}
+
+.room-card.maintenance .room-status-indicator {
+  background: #f39c12;
+}
+
+.room-card.cleaning .room-status-indicator {
+  background: #3498db;
+}
+
+.occupied-dot {
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+}
+
+.room-type {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.room-status {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.room-card.available .room-status { color: #27ae60; }
+.room-card.occupied .room-status { color: #e74c3c; }
+.room-card.maintenance .room-status { color: #f39c12; }
+.room-card.cleaning .room-status { color: #3498db; }
+
+.room-client {
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.client-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2c3e50;
+  margin-bottom: 2px;
+}
+
+.client-dates {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.room-rates {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: auto;
+}
+
+.rate-item {
+  font-size: 10px;
+  color: #27ae60;
+  background: rgba(39, 174, 96, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-align: center;
+}
+
+/* Стили для PropertyDetailsModal */
+.action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.action-group > span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #495057;
+}
+
+.quick-extend-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.extend-btn {
+  padding: 6px 12px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.extend-btn:hover {
+  background: #218838;
+}
+
+.extend-btn.small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.action-btn.primary {
+  background: #007bff;
+  color: white;
+}
+
+.action-btn.primary:hover {
+  background: #0056b3;
+}
+
+.action-btn.secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.action-btn.secondary:hover {
+  background: #5a6268;
+}
+
+.action-btn.danger {
+  background: #dc3545;
+  color: white;
+}
+
+.action-btn.danger:hover {
+  background: #c82333;
+}
+
+.action-btn.full-width {
+  width: 100%;
+  justify-content: center;
+}
+
+.action-btn.edit {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.action-btn.edit:hover {
+  background: #bbdefb;
+}
+
+.action-btn.small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.rental-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.rental-actions h5 {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .rental-quick-actions {
+    gap: 2px;
+  }
+  
+  .quick-action-btn {
+    padding: 2px 4px;
+    font-size: 9px;
+  }
+  
+  .status-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+  
+  .room-card {
+    padding: 12px;
+  }
+  
+  .room-number {
+    font-size: 16px;
+  }
+  
+  .room-status-indicator {
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+  }
+  
+  .occupied-dot {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .client-name {
+    font-size: 12px;
+  }
+  
+  .client-dates {
+    font-size: 10px;
+  }
+  
+  .rate-item {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 480px) {
+  .rental-quick-actions {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .quick-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .room-card {
+    padding: 8px;
+    aspect-ratio: 1.1;
+  }
+  
+  .room-number {
+    font-size: 14px;
+  }
+  
+  .room-status-indicator {
+    width: 16px;
+    height: 16px;
+    font-size: 8px;
+  }
+  
+  .occupied-dot {
+    width: 4px;
+    height: 4px;
   }
 }

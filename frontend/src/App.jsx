@@ -17,6 +17,7 @@ import Rentals from './pages/Manager/Rentals.jsx';
 import Clients from './pages/Manager/Clients.jsx';
 import Reports from './pages/Manager/Reports.jsx';
 import Settings from './pages/Manager/Settings.jsx';
+import Staff from './pages/Manager/Staff.jsx';
 
 // Import other role pages
 import CleanerDashboard from './pages/Cleaner/CleanerDashboard.jsx';
@@ -153,6 +154,7 @@ const AppRoutes = () => {
                 <Route path="clients" element={<Clients />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="staff" element={<Staff />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

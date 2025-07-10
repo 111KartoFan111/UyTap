@@ -1,6 +1,6 @@
 from models.extended_models import RentalType, PaymentMethod
 import uuid
-from datetime import datetime
+from datetime import datetime , timezone
 from typing import Optional, List, Dict
 from pydantic import BaseModel, Field, validator
 from schemas.property import PropertyResponse
@@ -25,10 +25,17 @@ class RentalBase(BaseModel):
 class RentalCreate(RentalBase):
     @validator('end_date')
     def validate_dates(cls, v, values):
-        if 'start_date' in values and v <= values['start_date']:
-            raise ValueError('End date must be after start date')
-        return v
+        start = values.get('start_date')
+        if start:
+            # Сделать оба aware (UTC), если они naive
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+            if v.tzinfo is None:
+                v = v.replace(tzinfo=timezone.utc)
 
+            if v <= start:
+                raise ValueError('End date must be after start date')
+        return v
 
 class RentalUpdate(BaseModel):
     start_date: Optional[datetime] = None

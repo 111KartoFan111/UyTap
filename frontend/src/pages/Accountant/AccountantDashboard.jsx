@@ -13,10 +13,10 @@ import { useAuth } from '../../contexts/AuthContext';
 const AccountantDashboard = () => {
   const { user } = useAuth();
   const [financialData, setFinancialData] = useState({
-    monthlyRevenue: 2450000,
-    expenses: 850000,
-    profit: 1600000,
-    unpaidInvoices: 340000
+    monthlyRevenue: 0,
+    expenses: 0,
+    profit: 0,
+    unpaidInvoices: 0
   });
 
   return (

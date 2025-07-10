@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc
 import uuid
 
+
 from models.extended_models import (
     Task, TaskType, TaskStatus, TaskPriority, Property, User, UserRole, Payroll,PropertyStatus
 )
@@ -14,42 +15,47 @@ from schemas.property import PropertyResponse
 
 class TaskService:
     """Сервис для управления задачами"""
-    
     @staticmethod
     def create_task(
         db: Session,
-        task_data: TaskCreate,
+        task_data: TaskCreate | dict,
         property_id: uuid.UUID,
         created_by: uuid.UUID,
         organization_id: uuid.UUID
     ) -> Task:
         """Создать новую задачу"""
-        
+
+        if isinstance(task_data, dict):
+            task_data = TaskCreate(**task_data)
+
+        filtered_data = {
+            k: v for k, v in task_data.dict().items()
+            if k not in {'assigned_to', 'property_id', 'organization_id', 'created_by', 'id'}
+        }
+
         task = Task(
             id=uuid.uuid4(),
             organization_id=organization_id,
             property_id=property_id,
             created_by=created_by,
-            **task_data.dict(exclude={'assigned_to'}),
+            **filtered_data,
             status=TaskStatus.PENDING
         )
-        
-        # Назначаем исполнителя если указан
+
         if task_data.assigned_to:
-            task.assigned_to = uuid.UUID(task_data.assigned_to)
+            task.assigned_to = uuid.UUID(str(task_data.assigned_to))
         elif task.task_type == TaskType.CLEANING:
-            # Автоматически назначаем уборщика с наименьшей загрузкой
             assigned_cleaner = TaskService.get_least_busy_cleaner(db, organization_id)
             if assigned_cleaner:
                 task.assigned_to = assigned_cleaner.id
                 task.status = TaskStatus.ASSIGNED
-        
+
         db.add(task)
         db.commit()
         db.refresh(task)
-        
+
         return task
-    
+
     @staticmethod
     def create_cleaning_task(
         db: Session,

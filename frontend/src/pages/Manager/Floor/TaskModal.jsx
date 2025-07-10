@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { FiX, FiTool, FiUser, FiCalendar, FiAlertCircle } from 'react-icons/fi';
 import { useData } from '../../../contexts/DataContext';
-import { organizationAPI } from '../../../services/api';
 import './TaskModal.css';
 
 const TaskModal = ({ property, onClose, onSubmit }) => {
-  const { utils } = useData();
+  const { organization, utils } = useData();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -30,13 +29,18 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
     try {
       setLoadingEmployees(true);
       
-      // Получаем сотрудников подходящих для выполнения задач
-      const employeesData = await organizationAPI.getUsers({
-        role: ['cleaner', 'technical_staff', 'manager'],
-        status: 'active'
+      // Получаем всех пользователей организации
+      const employeesData = await organization.getUsers({
+        status: 'active',
+        limit: 100
       });
       
-      setEmployees(employeesData);
+      // Фильтруем сотрудников, которые могут выполнять задачи
+      const taskExecutors = employeesData.filter(emp => 
+        ['cleaner', 'technical_staff', 'manager', 'admin'].includes(emp.role)
+      );
+      
+      setEmployees(taskExecutors);
     } catch (error) {
       console.error('Failed to load employees:', error);
       utils.showError('Не удалось загрузить список сотрудников');
@@ -49,10 +53,10 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
   const taskTypes = [
     { value: 'cleaning', label: 'Уборка', icon: '🧹' },
     { value: 'maintenance', label: 'Техническое обслуживание', icon: '🔧' },
-    { value: 'repair', label: 'Ремонт', icon: '🛠️' },
-    { value: 'inspection', label: 'Инспекция', icon: '🔍' },
-    { value: 'decoration', label: 'Декор', icon: '🎨' },
-    { value: 'other', label: 'Другое', icon: '📋' }
+    { value: 'check_in', label: 'Заселение', icon: '🔑' },
+    { value: 'check_out', label: 'Выселение', icon: '🚪' },
+    { value: 'delivery', label: 'Доставка', icon: '📦' },
+    { value: 'laundry', label: 'Стирка', icon: '👕' }
   ];
 
   const priorities = [
@@ -93,9 +97,13 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
     e.preventDefault();
     if (validateForm()) {
       const taskData = {
-        ...formData,
+        title: formData.title,
+        description: formData.description,
+        task_type: formData.task_type,
+        priority: formData.priority,
         property_id: property.id,
         estimated_duration: parseInt(formData.estimated_duration),
+        due_date: formData.due_date,
         assigned_to: formData.assigned_to || null
       };
       onSubmit(taskData);
@@ -198,7 +206,7 @@ const TaskModal = ({ property, onClose, onSubmit }) => {
                 </select>
                 {loadingEmployees && <small>Загрузка сотрудников...</small>}
                 {!loadingEmployees && employees.length === 0 && (
-                  <small className="warning-text">Нет доступных сотрудников</small>
+                  <small style={{ color: '#e74c3c' }}>Нет доступных сотрудников</small>
                 )}
               </div>
             </div>

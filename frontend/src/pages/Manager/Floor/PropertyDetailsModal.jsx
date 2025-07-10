@@ -12,7 +12,10 @@ import {
   FiMapPin,
   FiInfo,
   FiUsers,
-  FiMaximize
+  FiMaximize,
+  FiPlay,
+  FiPause,
+  FiRotateCcw
 } from 'react-icons/fi';
 import { useData } from '../../../contexts/DataContext';
 import './PropertyDetailsModal.css';
@@ -24,7 +27,9 @@ const PropertyDetailsModal = ({
   onCreateTask, 
   onEdit,
   onExtendRental,
-  onTerminateRental 
+  onCheckIn,
+  onCheckOut,
+  onCancelRental
 }) => {
   const { tasks, utils } = useData();
   const [activeTab, setActiveTab] = useState('overview');
@@ -131,9 +136,10 @@ const PropertyDetailsModal = ({
     switch (type) {
       case 'cleaning': return 'Уборка';
       case 'maintenance': return 'Техобслуживание';
-      case 'repair': return 'Ремонт';
-      case 'inspection': return 'Инспекция';
-      case 'decoration': return 'Декор';
+      case 'check_in': return 'Заселение';
+      case 'check_out': return 'Выселение';
+      case 'delivery': return 'Доставка';
+      case 'laundry': return 'Стирка';
       default: return type;
     }
   };
@@ -142,9 +148,10 @@ const PropertyDetailsModal = ({
     switch (type) {
       case 'cleaning': return '🧹';
       case 'maintenance': return '🔧';
-      case 'repair': return '🛠️';
-      case 'inspection': return '🔍';
-      case 'decoration': return '🎨';
+      case 'check_in': return '🔑';
+      case 'check_out': return '🚪';
+      case 'delivery': return '📦';
+      case 'laundry': return '👕';
       default: return '📋';
     }
   };
@@ -220,14 +227,34 @@ const PropertyDetailsModal = ({
             </button>
           )}
           
-          {property.status === 'occupied' && (
+          {property.status === 'occupied' && property.activeRental && (
             <>
-              <QuickExtendButtons />
+              {!property.isCheckedIn && (
+                <button 
+                  className="quick-action-btn primary" 
+                  onClick={() => onCheckIn(property)}
+                >
+                  <FiPlay /> Заселить
+                </button>
+              )}
+              
+              {property.isCheckedIn && !property.isCheckedOut && (
+                <>
+                  <QuickExtendButtons />
+                  <button 
+                    className="quick-action-btn secondary" 
+                    onClick={() => onCheckOut(property)}
+                  >
+                    <FiPause /> Выселить
+                  </button>
+                </>
+              )}
+              
               <button 
                 className="quick-action-btn danger" 
-                onClick={() => onTerminateRental(property)}
+                onClick={() => onCancelRental(property)}
               >
-                <FiX /> Завершить аренду
+                <FiRotateCcw /> Отменить аренду
               </button>
             </>
           )}
@@ -360,16 +387,54 @@ const PropertyDetailsModal = ({
                           <span>Сумма:</span>
                           <span>{formatCurrency(property.activeRental?.total_amount)}</span>
                         </div>
+                        <div className="detail-item">
+                          <span>Статус:</span>
+                          <span>
+                            {!property.isCheckedIn && (
+                              <span className="status-badge pending">Ожидает заселения</span>
+                            )}
+                            {property.isCheckedIn && !property.isCheckedOut && (
+                              <span className="status-badge active">Заселен</span>
+                            )}
+                            {property.isCheckedOut && (
+                              <span className="status-badge completed">Выселен</span>
+                            )}
+                          </span>
+                        </div>
                       </div>
                       
                       <div className="rental-actions">
-                        <h5>Быстрые действия:</h5>
-                        <QuickExtendButtons />
+                        <h5>Действия с арендой:</h5>
+                        
+                        {!property.isCheckedIn && (
+                          <button 
+                            className="action-btn primary"
+                            onClick={() => onCheckIn(property)}
+                          >
+                            <FiPlay /> Заселить клиента
+                          </button>
+                        )}
+                        
+                        {property.isCheckedIn && !property.isCheckedOut && (
+                          <>
+                            <div className="action-group">
+                              <span>Продлить аренду:</span>
+                              <QuickExtendButtons />
+                            </div>
+                            <button 
+                              className="action-btn secondary"
+                              onClick={() => onCheckOut(property)}
+                            >
+                              <FiPause /> Выселить клиента
+                            </button>
+                          </>
+                        )}
+                        
                         <button 
                           className="action-btn danger full-width"
-                          onClick={() => onTerminateRental(property)}
+                          onClick={() => onCancelRental(property)}
                         >
-                          <FiX /> Завершить аренду
+                          <FiRotateCcw /> Отменить аренду
                         </button>
                       </div>
                     </div>
@@ -414,7 +479,7 @@ const PropertyDetailsModal = ({
                           </div>
                           <div className="task-meta">
                             <span className="task-assignee">
-                              {task.assigned_to_name || 'Не назначен'}
+                              {task.assignee?.first_name ? `${task.assignee.first_name} ${task.assignee.last_name}` : 'Не назначен'}
                             </span>
                             <span className="task-due">
                               {task.due_date ? formatDate(task.due_date) : 'Без срока'}

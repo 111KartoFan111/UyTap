@@ -18,6 +18,7 @@ import {
   FiTool,
   FiDollarSign
 } from 'react-icons/fi';
+import { LuUserCog } from "react-icons/lu";
 import { FaUsersGear } from "react-icons/fa6";
 import { useTranslation } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -44,7 +45,7 @@ const Layout = ({ children }) => {
           { path: '/manager/clients', icon: FiUsers, label: 'Клиенты' },
           { path: '/manager/reports', icon: FiBarChart2, label: 'Отчеты' },
           { path: '/manager/staff', icon: FaUsersGear, label: 'Сотрудники' },
-          { path: '/manager/settings', icon: FiSettings, label: 'Настройки' },
+          { path: '/manager/settings', icon: LuUserCog, label: 'Настройки' },
         ];
       
       case 'cleaner':
@@ -170,9 +171,6 @@ const Layout = ({ children }) => {
               ))}
             </div>
           )}
-          <button className="nav-item" title="Настройки">
-            <FiSettings size={20} />
-          </button>
           <button className="nav-item" title="Помощь">
             <FiHelpCircle size={20} />
           </button>
