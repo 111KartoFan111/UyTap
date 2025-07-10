@@ -1,6 +1,6 @@
 from models.extended_models import TaskType, TaskPriority, TaskStatus
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field, validator
 import uuid
 from schemas.property import PropertyResponse
@@ -38,6 +38,24 @@ class TaskUpdate(BaseModel):
     quality_rating: Optional[int] = Field(None, ge=1, le=5)
 
 
+# Добавляем отдельную схему для пользователя
+class UserBasicInfo(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    email: str
+    role: str
+    
+    @validator('id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
+    class Config:
+        from_attributes = True
+
+
 class TaskResponse(TaskBase):
     id: str
     organization_id: str
@@ -55,7 +73,8 @@ class TaskResponse(TaskBase):
     
     # Связанные объекты
     property: Optional[PropertyResponse] = None
-    assignee: Optional[Dict[str, str]] = None
+    assignee: Optional[UserBasicInfo] = None
+    creator: Optional[UserBasicInfo] = None
 
     @validator('id', 'organization_id', 'assigned_to', 'created_by', 'property_id', pre=True)
     def convert_uuid_to_str(cls, v):
@@ -65,4 +84,3 @@ class TaskResponse(TaskBase):
 
     class Config:
         from_attributes = True
-
