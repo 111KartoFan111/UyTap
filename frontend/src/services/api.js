@@ -1,4 +1,4 @@
-// services/api.js - Updated with missing API methods
+// services/api.js - Обновленная версия с недостающими методами
 const API_BASE_URL = 'http://localhost:8000';
 
 // API Request helper with auth token
@@ -28,7 +28,7 @@ const apiRequest = async (endpoint, options = {}) => {
       } else {
         // Redirect to login
         localStorage.clear();
-        window.location.href = '/';
+        window.location.href = '/login';
         throw new Error('Session expired');
       }
     }
@@ -43,7 +43,13 @@ const apiRequest = async (endpoint, options = {}) => {
 const handleResponse = async (response) => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `HTTP ${response.status}`);
+    throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  // Для файловых загрузок возвращаем blob
+  if (response.headers.get('content-type')?.includes('application/') && 
+      !response.headers.get('content-type')?.includes('application/json')) {
+    return response.blob();
   }
   
   return response.json();
@@ -117,18 +123,45 @@ export const authAPI = {
   }
 };
 
-// Organization API - UPDATED WITH MISSING METHODS
+// Organization API - ОБНОВЛЕН
 export const organizationAPI = {
   async getCurrentOrganization() {
     return apiRequest('/api/organization/info');
   },
 
-  async getOrganizationLimits() {
-    return apiRequest('/api/organization/limits');
+  async getLimits() {
+    // Возвращаем лимиты из текущей организации или мок данные
+    try {
+      const orgInfo = await this.getCurrentOrganization();
+      return {
+        max_users: orgInfo.max_users || 10,
+        max_properties: orgInfo.max_properties || 50,
+        current_users: orgInfo.user_count || 0,
+        current_properties: 0 // Будет заполнено из статистики
+      };
+    } catch (error) {
+      console.warn('Failed to get org limits, using defaults:', error);
+      return {
+        max_users: 10,
+        max_properties: 50,
+        current_users: 0,
+        current_properties: 0
+      };
+    }
   },
 
   async getUsageStatistics() {
-    return apiRequest('/api/organization/usage');
+    try {
+      return await apiRequest('/api/organization/dashboard/statistics');
+    } catch (error) {
+      console.warn('Failed to get usage stats, using defaults:', error);
+      return {
+        properties_count: 0,
+        active_rentals: 0,
+        monthly_tasks: 0,
+        revenue_this_month: 0
+      };
+    }
   },
 
   async updateSettings(settings) {
@@ -138,7 +171,7 @@ export const organizationAPI = {
     });
   },
 
-  // NEW: Get organization users (employees)
+  // User management methods
   async getUsers(params = {}) {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -149,12 +182,10 @@ export const organizationAPI = {
     return apiRequest(`/api/organization/users?${searchParams}`);
   },
 
-  // NEW: Get specific user
   async getUser(userId) {
     return apiRequest(`/api/organization/users/${userId}`);
   },
 
-  // NEW: Create new user
   async createUser(userData) {
     return apiRequest('/api/organization/users', {
       method: 'POST',
@@ -162,7 +193,6 @@ export const organizationAPI = {
     });
   },
 
-  // NEW: Update user
   async updateUser(userId, userData) {
     return apiRequest(`/api/organization/users/${userId}`, {
       method: 'PUT',
@@ -170,94 +200,36 @@ export const organizationAPI = {
     });
   },
 
-  // NEW: Delete user
   async deleteUser(userId) {
     return apiRequest(`/api/organization/users/${userId}`, {
       method: 'DELETE'
     });
   },
 
-  // NEW: Get available roles
   async getAvailableRoles() {
     return apiRequest('/api/organization/users/roles/available');
   },
 
-  // NEW: Reset user password
   async resetUserPassword(userId) {
     return apiRequest(`/api/organization/users/${userId}/reset-password`, {
       method: 'POST'
     });
   },
 
-  // NEW: Get user performance
   async getUserPerformance(userId, periodDays = 30) {
     return apiRequest(`/api/organization/users/${userId}/performance?period_days=${periodDays}`);
   },
 
-  // NEW: Get dashboard statistics
   async getDashboardStatistics() {
     return apiRequest('/api/organization/dashboard/statistics');
   },
 
-  // NEW: Get recent audit actions
   async getRecentAuditActions(limit = 50) {
     return apiRequest(`/api/organization/audit/recent-actions?limit=${limit}`);
   }
 };
 
-// Clients API - COMPLETE IMPLEMENTATION
-export const clientsAPI = {
-  async getClients(params = {}) {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        searchParams.append(key, value);
-      }
-    });
-    return apiRequest(`/api/clients?${searchParams}`);
-  },
-
-  async getClient(id) {
-    return apiRequest(`/api/clients/${id}`);
-  },
-
-  async createClient(clientData) {
-    return apiRequest('/api/clients', {
-      method: 'POST',
-      body: JSON.stringify(clientData)
-    });
-  },
-
-  async updateClient(id, clientData) {
-    return apiRequest(`/api/clients/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(clientData)
-    });
-  },
-
-  async deleteClient(id) {
-    return apiRequest(`/api/clients/${id}`, {
-      method: 'DELETE'
-    });
-  },
-
-  async getClientHistory(id) {
-    return apiRequest(`/api/clients/${id}/history`);
-  },
-
-  async getClientStatistics(id) {
-    return apiRequest(`/api/clients/${id}/statistics`);
-  },
-
-  async bulkImport(clientsData) {
-    return apiRequest('/api/clients/bulk-import', {
-      method: 'POST',
-      body: JSON.stringify(clientsData)
-    });
-  }
-};
-
-// Properties API - COMPLETE IMPLEMENTATION
+// Properties API - ОБНОВЛЕН
 export const propertiesAPI = {
   async getProperties(params = {}) {
     const searchParams = new URLSearchParams();
@@ -267,6 +239,22 @@ export const propertiesAPI = {
       }
     });
     return apiRequest(`/api/properties?${searchParams}`);
+  },
+
+  async getPropertiesWithLimits(params = {}) {
+    // Получаем свойства и лимиты одновременно
+    const [properties, limits] = await Promise.all([
+      this.getProperties(params),
+      organizationAPI.getLimits()
+    ]);
+    
+    return {
+      properties,
+      limits: {
+        ...limits,
+        current_properties: properties.length
+      }
+    };
   },
 
   async getProperty(id) {
@@ -320,7 +308,7 @@ export const propertiesAPI = {
   }
 };
 
-// Rentals API - COMPLETE IMPLEMENTATION
+// Rentals API - ОБНОВЛЕН
 export const rentalsAPI = {
   async getRentals(params = {}) {
     const searchParams = new URLSearchParams();
@@ -362,14 +350,66 @@ export const rentalsAPI = {
     });
   },
 
-  async cancelRental(id, reason) {
+  async cancel(id, reason) {
     return apiRequest(`/api/rentals/${id}?reason=${encodeURIComponent(reason)}`, {
       method: 'DELETE'
     });
   }
 };
 
-// Tasks API - COMPLETE IMPLEMENTATION
+// Clients API - ОБНОВЛЕН
+export const clientsAPI = {
+  async getClients(params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
+    return apiRequest(`/api/clients?${searchParams}`);
+  },
+
+  async getClient(id) {
+    return apiRequest(`/api/clients/${id}`);
+  },
+
+  async createClient(clientData) {
+    return apiRequest('/api/clients', {
+      method: 'POST',
+      body: JSON.stringify(clientData)
+    });
+  },
+
+  async updateClient(id, clientData) {
+    return apiRequest(`/api/clients/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(clientData)
+    });
+  },
+
+  async deleteClient(id) {
+    return apiRequest(`/api/clients/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getClientHistory(id) {
+    return apiRequest(`/api/clients/${id}/history`);
+  },
+
+  async getClientStatistics(id) {
+    return apiRequest(`/api/clients/${id}/statistics`);
+  },
+
+  async bulkImport(clientsData) {
+    return apiRequest('/api/clients/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify(clientsData)
+    });
+  }
+};
+
+// Tasks API - ОБНОВЛЕН
 export const tasksAPI = {
   async getTasks(params = {}) {
     const searchParams = new URLSearchParams();
@@ -468,7 +508,52 @@ export const tasksAPI = {
   }
 };
 
-// Orders API - COMPLETE IMPLEMENTATION
+// Reports API - ОБНОВЛЕН (добавлены реальные эндпоинты)
+export const reportsAPI = {
+  async getFinancialSummary(startDate, endDate) {
+    return apiRequest(`/api/reports/financial-summary?start_date=${startDate}&end_date=${endDate}`);
+  },
+
+  async getPropertyOccupancy(startDate, endDate, propertyId = null) {
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate
+    });
+    if (propertyId) params.append('property_id', propertyId);
+    return apiRequest(`/api/reports/property-occupancy?${params}`);
+  },
+
+  async getEmployeePerformance(startDate, endDate, role = null, userId = null) {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    if (role) params.append('role', role);
+    if (userId) params.append('user_id', userId);
+    return apiRequest(`/api/reports/employee-performance?${params}`);
+  },
+
+  async getClientAnalytics(startDate, endDate) {
+    return apiRequest(`/api/reports/client-analytics?start_date=${startDate}&end_date=${endDate}`);
+  },
+
+  async getMyPayroll(periodStart = null, periodEnd = null) {
+    const params = new URLSearchParams();
+    if (periodStart) params.append('period_start', periodStart);
+    if (periodEnd) params.append('period_end', periodEnd);
+    return apiRequest(`/api/reports/my-payroll?${params}`);
+  },
+
+  async exportFinancialSummary(startDate, endDate, format = 'xlsx') {
+    const response = await fetch(`${API_BASE_URL}/api/reports/financial-summary/export?start_date=${startDate}&end_date=${endDate}&format=${format}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) throw new Error('Export failed');
+    return response.blob();
+  }
+};
+
+// Orders API
 export const ordersAPI = {
   async getOrders(params = {}) {
     const searchParams = new URLSearchParams();
@@ -513,6 +598,73 @@ export const ordersAPI = {
 
   async getOrderStatistics(periodDays = 30) {
     return apiRequest(`/api/orders/statistics/overview?period_days=${periodDays}`);
+  }
+};
+
+// Documents API
+export const documentsAPI = {
+  async getDocuments(params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
+    return apiRequest(`/api/documents?${searchParams}`);
+  },
+
+  async getDocument(id) {
+    return apiRequest(`/api/documents/${id}`);
+  },
+
+  async createDocument(documentData) {
+    return apiRequest('/api/documents', {
+      method: 'POST',
+      body: JSON.stringify(documentData)
+    });
+  },
+
+  async updateDocument(id, documentData) {
+    return apiRequest(`/api/documents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(documentData)
+    });
+  },
+
+  async downloadDocument(id) {
+    const response = await fetch(`${API_BASE_URL}/api/documents/${id}/download`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) throw new Error('Download failed');
+    return response.blob();
+  },
+
+  async signDocument(id, signatureData) {
+    return apiRequest(`/api/documents/${id}/sign`, {
+      method: 'POST',
+      body: JSON.stringify(signatureData)
+    });
+  },
+
+  async generateRentalContract(rentalId) {
+    return apiRequest(`/api/documents/rental/${rentalId}/generate-contract`, {
+      method: 'POST'
+    });
+  },
+
+  async generateWorkAct(rentalId) {
+    return apiRequest(`/api/documents/rental/${rentalId}/generate-act`, {
+      method: 'POST'
+    });
+  },
+
+  async sendESF(id) {
+    return apiRequest(`/api/documents/${id}/send-esf`, {
+      method: 'POST'
+    });
   }
 };
 
@@ -597,73 +749,6 @@ export const inventoryAPI = {
   }
 };
 
-// Documents API
-export const documentsAPI = {
-  async getDocuments(params = {}) {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        searchParams.append(key, value);
-      }
-    });
-    return apiRequest(`/api/documents?${searchParams}`);
-  },
-
-  async getDocument(id) {
-    return apiRequest(`/api/documents/${id}`);
-  },
-
-  async createDocument(documentData) {
-    return apiRequest('/api/documents', {
-      method: 'POST',
-      body: JSON.stringify(documentData)
-    });
-  },
-
-  async updateDocument(id, documentData) {
-    return apiRequest(`/api/documents/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(documentData)
-    });
-  },
-
-  async downloadDocument(id) {
-    const response = await fetch(`${API_BASE_URL}/api/documents/${id}/download`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-      }
-    });
-    
-    if (!response.ok) throw new Error('Download failed');
-    return response.blob();
-  },
-
-  async signDocument(id, signatureData) {
-    return apiRequest(`/api/documents/${id}/sign`, {
-      method: 'POST',
-      body: JSON.stringify(signatureData)
-    });
-  },
-
-  async generateRentalContract(rentalId) {
-    return apiRequest(`/api/documents/rental/${rentalId}/generate-contract`, {
-      method: 'POST'
-    });
-  },
-
-  async generateWorkAct(rentalId) {
-    return apiRequest(`/api/documents/rental/${rentalId}/generate-act`, {
-      method: 'POST'
-    });
-  },
-
-  async sendESF(id) {
-    return apiRequest(`/api/documents/${id}/send-esf`, {
-      method: 'POST'
-    });
-  }
-};
-
 // Payroll API
 export const payrollAPI = {
   async getPayrolls(params = {}) {
@@ -695,9 +780,8 @@ export const payrollAPI = {
   },
 
   async markAsPaid(id, paymentMethod) {
-    return apiRequest(`/api/payroll/${id}/pay`, {
-      method: 'POST',
-      body: JSON.stringify({ payment_method: paymentMethod })
+    return apiRequest(`/api/payroll/${id}/pay?payment_method=${paymentMethod}`, {
+      method: 'POST'
     });
   },
 
@@ -730,121 +814,6 @@ export const payrollAPI = {
   }
 };
 
-// Reports API - STUB (placeholder for future implementation)
-export const reportsAPI = {
-  async getFinancialSummary(startDate, endDate) {
-    // This endpoint doesn't exist in the OpenAPI spec, so we'll return mock data
-    return {
-      total_revenue: 2450000,
-      total_expenses: 1250000,
-      net_profit: 1200000,
-      period: { start: startDate, end: endDate }
-    };
-  },
-
-  async getPropertyOccupancy(startDate, endDate, propertyId = null) {
-    // Mock data for now
-    return {
-      average_occupancy: 78,
-      peak_days: ['saturday', 'sunday'],
-      period: { start: startDate, end: endDate }
-    };
-  },
-
-  async getEmployeePerformance(startDate, endDate, role = null, userId = null) {
-    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
-    if (role) params.append('role', role);
-    if (userId) params.append('user_id', userId);
-    return apiRequest(`/api/reports/employee-performance?${params}`);
-  },
-
-  async getClientAnalytics(startDate, endDate) {
-    return apiRequest(`/api/reports/client-analytics?start_date=${startDate}&end_date=${endDate}`);
-  },
-
-  async getMyPayroll(periodStart = null, periodEnd = null) {
-    const params = new URLSearchParams();
-    if (periodStart) params.append('period_start', periodStart);
-    if (periodEnd) params.append('period_end', periodEnd);
-    return apiRequest(`/api/reports/my-payroll?${params}`);
-  },
-
-  async exportFinancialSummary(startDate, endDate, format = 'xlsx') {
-    const response = await fetch(`${API_BASE_URL}/api/reports/financial-summary/export?start_date=${startDate}&end_date=${endDate}&format=${format}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-      }
-    });
-    
-    if (!response.ok) throw new Error('Export failed');
-    return response.blob();
-  }
-};
-
-// Admin API
-export const adminAPI = {
-  async getOrganizations(params = {}) {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        searchParams.append(key, value);
-      }
-    });
-    return apiRequest(`/api/admin/organizations?${searchParams}`);
-  },
-
-  async getOrganization(id) {
-    return apiRequest(`/api/admin/organizations/${id}`);
-  },
-
-  async createOrganization(orgData) {
-    return apiRequest('/api/admin/organizations', {
-      method: 'POST',
-      body: JSON.stringify(orgData)
-    });
-  },
-
-  async updateOrganization(id, orgData) {
-    return apiRequest(`/api/admin/organizations/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(orgData)
-    });
-  },
-
-  async deleteOrganization(id) {
-    return apiRequest(`/api/admin/organizations/${id}`, {
-      method: 'DELETE'
-    });
-  },
-
-  async getOrganizationUsers(orgId, params = {}) {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        searchParams.append(key, value);
-      }
-    });
-    return apiRequest(`/api/admin/organizations/${orgId}/users?${searchParams}`);
-  },
-
-  async createOrganizationUser(orgId, userData) {
-    return apiRequest(`/api/admin/organizations/${orgId}/users`, {
-      method: 'POST',
-      body: JSON.stringify(userData)
-    });
-  },
-
-  async deleteUser(userId) {
-    return apiRequest(`/api/admin/users/${userId}`, {
-      method: 'DELETE'
-    });
-  },
-
-  async getSystemStats() {
-    return apiRequest('/api/admin/stats');
-  }
-};
-
 // Export all APIs
 export default {
   authAPI,
@@ -857,6 +826,5 @@ export default {
   inventoryAPI,
   documentsAPI,
   payrollAPI,
-  reportsAPI,
-  adminAPI
+  reportsAPI
 };

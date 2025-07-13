@@ -1,4 +1,4 @@
-// frontend/src/contexts/DataContext.jsx
+// frontend/src/contexts/DataContext.jsx - ОБНОВЛЕННЫЙ
 import { createContext, useContext, useState, useCallback } from 'react';
 import { useToast } from '../components/Common/Toast';
 import { 
@@ -29,14 +29,27 @@ export const DataProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const toast = useToast();
 
-  // Generic error handler
+  // Generic error handler with improved error messages
   const handleError = useCallback((error, operation, showToast = true) => {
     console.error(`${operation} failed:`, error);
     
     let errorMessage = 'Произошла ошибка';
     
     if (error.message) {
-      errorMessage = error.message;
+      // Переводим типичные HTTP ошибки
+      if (error.message.includes('404')) {
+        errorMessage = 'Ресурс не найден';
+      } else if (error.message.includes('403')) {
+        errorMessage = 'Нет прав доступа';
+      } else if (error.message.includes('401')) {
+        errorMessage = 'Необходима авторизация';
+      } else if (error.message.includes('500')) {
+        errorMessage = 'Внутренняя ошибка сервера';
+      } else if (error.message.includes('Network')) {
+        errorMessage = 'Ошибка сети. Проверьте подключение к интернету';
+      } else {
+        errorMessage = error.message;
+      }
     } else if (typeof error === 'string') {
       errorMessage = error;
     }
@@ -56,9 +69,10 @@ export const DataProvider = ({ children }) => {
     if (message) {
       toast.showSuccess(message);
     }
+    setError(null); // Clear any previous errors on success
   }, [toast]);
 
-  // Generic loading wrapper
+  // Generic loading wrapper with better error handling
   const withLoading = useCallback(async (operation, suppressLoading = false, successMessage = null) => {
     try {
       if (!suppressLoading) setLoading(true);
@@ -79,7 +93,7 @@ export const DataProvider = ({ children }) => {
     }
   }, [handleError, handleSuccess]);
 
-  // Clients operations
+  // Enhanced clients operations
   const clients = {
     getAll: (params) => withLoading(() => clientsAPI.getClients(params), true),
     getById: (id) => withLoading(() => clientsAPI.getClient(id)),
@@ -91,7 +105,7 @@ export const DataProvider = ({ children }) => {
     bulkImport: (data) => withLoading(() => clientsAPI.bulkImport(data), false, 'Клиенты импортированы')
   };
 
-  // Properties operations
+  // Enhanced properties operations
   const properties = {
     getAll: (params) => withLoading(() => propertiesAPI.getProperties(params), true),
     getAllWithLimits: (params) => withLoading(() => propertiesAPI.getPropertiesWithLimits(params), true),
@@ -106,7 +120,7 @@ export const DataProvider = ({ children }) => {
     getStatistics: (id, periodDays) => withLoading(() => propertiesAPI.getPropertyStatistics(id, periodDays))
   };
 
-  // Rentals operations
+  // Enhanced rentals operations
   const rentals = {
     getAll: (params) => withLoading(() => rentalsAPI.getRentals(params), true),
     getById: (id) => withLoading(() => rentalsAPI.getRental(id)),
@@ -114,10 +128,10 @@ export const DataProvider = ({ children }) => {
     update: (id, data) => withLoading(() => rentalsAPI.updateRental(id, data), false, 'Аренда обновлена'),
     checkIn: (id) => withLoading(() => rentalsAPI.checkIn(id), false, 'Заселение выполнено'),
     checkOut: (id) => withLoading(() => rentalsAPI.checkOut(id), false, 'Выселение выполнено'),
-    cancel: (id, reason) => withLoading(() => rentalsAPI.cancelRental(id, reason), false, 'Аренда отменена')
+    cancel: (id, reason) => withLoading(() => rentalsAPI.cancel(id, reason), false, 'Аренда отменена')
   };
 
-  // Tasks operations
+  // Enhanced tasks operations
   const tasks = {
     getAll: (params) => withLoading(() => tasksAPI.getTasks(params), true),
     getById: (id) => withLoading(() => tasksAPI.getTask(id)),
@@ -135,7 +149,7 @@ export const DataProvider = ({ children }) => {
     createRecurring: () => withLoading(() => tasksAPI.createRecurringTasks(), false, 'Регулярные задачи созданы')
   };
 
-  // Orders operations
+  // Enhanced orders operations
   const orders = {
     getAll: (params) => withLoading(() => ordersAPI.getOrders(params), true),
     getById: (id) => withLoading(() => ordersAPI.getOrder(id)),
@@ -146,7 +160,7 @@ export const DataProvider = ({ children }) => {
     getStatistics: (periodDays) => withLoading(() => ordersAPI.getOrderStatistics(periodDays))
   };
 
-  // Inventory operations
+  // Enhanced inventory operations
   const inventory = {
     getAll: (params) => withLoading(() => inventoryAPI.getItems(params), true),
     getById: (id) => withLoading(() => inventoryAPI.getItem(id)),
@@ -161,7 +175,7 @@ export const DataProvider = ({ children }) => {
     export: (format, category) => withLoading(() => inventoryAPI.exportData(format, category))
   };
 
-  // Documents operations
+  // Enhanced documents operations
   const documents = {
     getAll: (params) => withLoading(() => documentsAPI.getDocuments(params), true),
     getById: (id) => withLoading(() => documentsAPI.getDocument(id)),
@@ -174,7 +188,7 @@ export const DataProvider = ({ children }) => {
     sendESF: (id) => withLoading(() => documentsAPI.sendESF(id), false, 'ЭСФ отправлен')
   };
 
-  // Payroll operations
+  // Enhanced payroll operations
   const payroll = {
     getAll: (params) => withLoading(() => payrollAPI.getPayrolls(params), true),
     getById: (id) => withLoading(() => payrollAPI.getPayroll(id)),
@@ -186,7 +200,7 @@ export const DataProvider = ({ children }) => {
     export: (format, year, month) => withLoading(() => payrollAPI.exportData(format, year, month))
   };
 
-  // Reports operations
+  // Enhanced reports operations
   const reports = {
     getFinancialSummary: (startDate, endDate) => withLoading(() => reportsAPI.getFinancialSummary(startDate, endDate)),
     getPropertyOccupancy: (startDate, endDate, propertyId) => withLoading(() => reportsAPI.getPropertyOccupancy(startDate, endDate, propertyId)),
@@ -196,21 +210,21 @@ export const DataProvider = ({ children }) => {
     exportFinancialSummary: (startDate, endDate, format) => withLoading(() => reportsAPI.exportFinancialSummary(startDate, endDate, format))
   };
 
-  // Organization operations - UPDATED WITH NEW METHODS
+  // Enhanced organization operations
   const organization = {
     getCurrent: () => withLoading(() => organizationAPI.getCurrentOrganization(), true),
-    getLimits: () => withLoading(() => organizationAPI.getOrganizationLimits(), true),
+    getLimits: () => withLoading(() => organizationAPI.getLimits(), true),
     getUsage: () => withLoading(() => organizationAPI.getUsageStatistics(), true),
     updateSettings: (settings) => withLoading(() => organizationAPI.updateSettings(settings), false, 'Настройки организации обновлены'),
     
-    // NEW: User management methods
+    // User management methods
     getUsers: (params) => withLoading(() => organizationAPI.getUsers(params), true),
     getUser: (userId) => withLoading(() => organizationAPI.getUser(userId)),
     createUser: (userData) => withLoading(() => organizationAPI.createUser(userData), false, 'Пользователь создан'),
     updateUser: (userId, userData) => withLoading(() => organizationAPI.updateUser(userId, userData), false, 'Пользователь обновлен'),
     deleteUser: (userId) => withLoading(() => organizationAPI.deleteUser(userId), false, 'Пользователь удален'),
     
-    // NEW: Additional methods
+    // Additional methods
     getAvailableRoles: () => withLoading(() => organizationAPI.getAvailableRoles(), true),
     resetUserPassword: (userId) => withLoading(() => organizationAPI.resetUserPassword(userId), false, 'Пароль сброшен'),
     getUserPerformance: (userId, periodDays) => withLoading(() => organizationAPI.getUserPerformance(userId, periodDays)),
@@ -227,7 +241,29 @@ export const DataProvider = ({ children }) => {
     showWarning: toast.showWarning,
     showInfo: toast.showInfo,
     toast: toast.toasts,
-    removeToast: toast.removeToast
+    removeToast: toast.removeToast,
+    
+    // Helper function for file downloads
+    downloadFile: (blob, filename) => {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    },
+    
+    // Helper function for error retry
+    retry: async (operation, maxRetries = 3, delay = 1000) => {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await operation();
+        } catch (error) {
+          if (i === maxRetries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+        }
+      }
+    }
   };
 
   const value = {

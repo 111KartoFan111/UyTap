@@ -1,3 +1,4 @@
+// frontend/src/pages/TechnicalStaff/TechnicalStaffDashboard.jsx
 import { useState, useEffect } from 'react';
 import { 
   FiTool, 
@@ -11,69 +12,39 @@ import {
   FiThermometer,
   FiPlay,
   FiPause,
-  FiCheck
+  FiCheck,
+  FiUser,
+  FiMapPin,
+  FiPhone
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
+import { useData } from '../../contexts/DataContext';
 import './TechnicalStaffDashboard.css';
 
 const TechnicalStaffDashboard = () => {
   const { user } = useAuth();
-  const [activeRequests, setActiveRequests] = useState([]);
+  const { tasks, properties, organization } = useData();
+  
+  const [myTasks, setMyTasks] = useState([]);
   const [currentTask, setCurrentTask] = useState(null);
   const [isWorking, setIsWorking] = useState(false);
   const [workTimer, setWorkTimer] = useState(0);
+  const [loading, setLoading] = useState(true);
   
   const [todayStats, setTodayStats] = useState({
-    completedTasks: 8,
-    activeRequests: 12,
-    urgentIssues: 3,
-    workingHours: 5.2
+    completedTasks: 0,
+    activeRequests: 0,
+    urgentIssues: 0,
+    workingHours: 0,
+    avgCompletionTime: 0
   });
 
   useEffect(() => {
-    // Генерируем заявки на обслуживание
-    const generateRequests = () => {
-      const requestTypes = [
-        { type: 'electrical', icon: FiZap, name: 'Электрика', color: '#f39c12' },
-        { type: 'plumbing', icon: FiDroplet, name: 'Сантехника', color: '#3498db' },
-        { type: 'hvac', icon: FiThermometer, name: 'Отопление/Кондиционер', color: '#e74c3c' },
-        { type: 'internet', icon: FiWifi, name: 'Интернет/ТВ', color: '#9b59b6' },
-        { type: 'general', icon: FiTool, name: 'Общий ремонт', color: '#27ae60' }
-      ];
+    loadMyTasks();
+    loadStatistics();
+  }, []);
 
-      const priorities = ['urgent', 'high', 'medium', 'low'];
-      const statuses = ['new', 'assigned', 'in_progress', 'completed'];
-
-      const requestsData = [];
-      for (let i = 1; i <= 20; i++) {
-        const typeData = requestTypes[Math.floor(Math.random() * requestTypes.length)];
-        const priority = priorities[Math.floor(Math.random() * priorities.length)];
-        const status = i <= 5 ? 'new' : i <= 10 ? 'assigned' : i <= 15 ? 'in_progress' : 'completed';
-        const roomNumber = `${Math.floor(Math.random() * 3) + 1}-${String(Math.floor(Math.random() * 20) + 1).padStart(2, '0')}`;
-        
-        requestsData.push({
-          id: i,
-          roomNumber,
-          type: typeData.type,
-          typeName: typeData.name,
-          typeIcon: typeData.icon,
-          typeColor: typeData.color,
-          priority,
-          status,
-          title: getRandomIssue(typeData.type),
-          description: getRandomDescription(typeData.type),
-          reportedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-          estimatedTime: Math.floor(Math.random() * 180) + 30, // 30-210 минут
-          clientName: getRandomClient(),
-          urgency: priority === 'urgent'
-        });
-      }
-      
-      setActiveRequests(requestsData);
-    };
-
-    generateRequests();
-
+  useEffect(() => {
     // Таймер для текущей работы
     let interval;
     if (isWorking && currentTask) {
@@ -81,34 +52,67 @@ const TechnicalStaffDashboard = () => {
         setWorkTimer(prev => prev + 1);
       }, 1000);
     }
-
     return () => clearInterval(interval);
   }, [isWorking, currentTask]);
 
-  const getRandomIssue = (type) => {
-    const issues = {
-      electrical: ['Не работает свет', 'Проблемы с розетками', 'Перегорела лампочка', 'Не работает выключатель'],
-      plumbing: ['Засор в ванной', 'Течет кран', 'Слабый напор воды', 'Не работает душ'],
-      hvac: ['Не работает кондиционер', 'Холодно в комнате', 'Шумит вентиляция', 'Не регулируется температура'],
-      internet: ['Нет интернета', 'Не работает ТВ', 'Слабый сигнал WiFi', 'Проблемы с пультом'],
-      general: ['Скрипит дверь', 'Не закрывается окно', 'Сломана мебель', 'Требуется мелкий ремонт']
-    };
-    const typeIssues = issues[type] || issues.general;
-    return typeIssues[Math.floor(Math.random() * typeIssues.length)];
+  const loadMyTasks = async () => {
+    try {
+      const assignedTasks = await tasks.getMy();
+      const enrichedTasks = await Promise.all(
+        assignedTasks.map(async (task) => {
+          let property = null;
+          if (task.property_id) {
+            try {
+              property = await properties.getById(task.property_id);
+            } catch (error) {
+              console.error('Error loading property:', error);
+            }
+          }
+          
+          return {
+            ...task,
+            property,
+            typeData: getTaskTypeData(task.task_type),
+            clientName: generateRandomClient()
+          };
+        })
+      );
+      
+      setMyTasks(enrichedTasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getRandomDescription = (type) => {
-    const descriptions = {
-      electrical: 'Клиент сообщает о проблемах с электричеством в номере',
-      plumbing: 'Требуется срочное вмешательство сантехника',
-      hvac: 'Проблемы с климат-контролем в помещении',
-      internet: 'Технические неполадки с интернетом или ТВ',
-      general: 'Требуется техническое обслуживание'
-    };
-    return descriptions[type] || descriptions.general;
+  const loadStatistics = async () => {
+    try {
+      const stats = await tasks.getStatistics(30, user.id);
+      setTodayStats({
+        completedTasks: stats.completed_tasks || 0,
+        activeRequests: stats.active_tasks || 0,
+        urgentIssues: stats.urgent_tasks || 0,
+        workingHours: stats.total_hours || 0,
+        avgCompletionTime: stats.avg_completion_time || 0
+      });
+    } catch (error) {
+      console.error('Error loading statistics:', error);
+    }
   };
 
-  const getRandomClient = () => {
+  const getTaskTypeData = (taskType) => {
+    const types = {
+      maintenance: { icon: FiTool, name: 'Общий ремонт', color: '#27ae60' },
+      electrical: { icon: FiZap, name: 'Электрика', color: '#f39c12' },
+      plumbing: { icon: FiDroplet, name: 'Сантехника', color: '#3498db' },
+      hvac: { icon: FiThermometer, name: 'Отопление/Кондиционер', color: '#e74c3c' },
+      internet: { icon: FiWifi, name: 'Интернет/ТВ', color: '#9b59b6' }
+    };
+    return types[taskType] || types.maintenance;
+  };
+
+  const generateRandomClient = () => {
     const clients = [
       'Анна Петрова', 'Марат Саметов', 'Дмитрий Ким', 'Света Жанова',
       'Алексей Иванов', 'Мария Казакова', 'Даулет Мурат', 'Нина Сергеева'
@@ -123,14 +127,20 @@ const TechnicalStaffDashboard = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const startTask = (request) => {
-    setCurrentTask(request);
-    setIsWorking(true);
-    setWorkTimer(0);
-    
-    setActiveRequests(prev => prev.map(r => 
-      r.id === request.id ? { ...r, status: 'in_progress' } : r
-    ));
+  const startTask = async (task) => {
+    try {
+      await tasks.start(task.id);
+      setCurrentTask(task);
+      setIsWorking(true);
+      setWorkTimer(0);
+      
+      // Обновляем локальный статус
+      setMyTasks(prev => prev.map(t => 
+        t.id === task.id ? { ...t, status: 'in_progress' } : t
+      ));
+    } catch (error) {
+      console.error('Error starting task:', error);
+    }
   };
 
   const pauseTask = () => {
@@ -141,29 +151,30 @@ const TechnicalStaffDashboard = () => {
     setIsWorking(true);
   };
 
-  const completeTask = (requestId, resolution = 'Проблема решена') => {
-    setActiveRequests(prev => prev.map(r => 
-      r.id === requestId 
-        ? { 
-            ...r, 
-            status: 'completed', 
-            completedAt: new Date().toISOString(),
-            workTime: workTimer,
-            resolution
-          } 
-        : r
-    ));
-    
-    setTodayStats(prev => ({
-      ...prev,
-      completedTasks: prev.completedTasks + 1,
-      activeRequests: prev.activeRequests - 1,
-      workingHours: prev.workingHours + (workTimer / 3600)
-    }));
-    
-    setCurrentTask(null);
-    setIsWorking(false);
-    setWorkTimer(0);
+  const completeTask = async (taskId, resolution = 'Проблема решена') => {
+    try {
+      await tasks.complete(taskId, {
+        completion_notes: resolution,
+        actual_duration: workTimer
+      });
+      
+      // Обновляем статистику
+      setTodayStats(prev => ({
+        ...prev,
+        completedTasks: prev.completedTasks + 1,
+        activeRequests: prev.activeRequests - 1,
+        workingHours: prev.workingHours + (workTimer / 3600)
+      }));
+      
+      // Убираем задачу из списка
+      setMyTasks(prev => prev.filter(t => t.id !== taskId));
+      
+      setCurrentTask(null);
+      setIsWorking(false);
+      setWorkTimer(0);
+    } catch (error) {
+      console.error('Error completing task:', error);
+    }
   };
 
   const getPriorityColor = (priority) => {
@@ -186,20 +197,22 @@ const TechnicalStaffDashboard = () => {
     }
   };
 
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'new': return 'Новая';
-      case 'assigned': return 'Назначена';
-      case 'in_progress': return 'В работе';
-      case 'completed': return 'Выполнена';
-      default: return status;
-    }
-  };
+  // Фильтруем задачи
+  const newTasks = myTasks.filter(t => t.status === 'pending');
+  const assignedTasks = myTasks.filter(t => t.status === 'assigned');
+  const inProgressTasks = myTasks.filter(t => t.status === 'in_progress');
+  const urgentTasks = myTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed');
 
-  const newRequests = activeRequests.filter(r => r.status === 'new');
-  const assignedRequests = activeRequests.filter(r => r.status === 'assigned');
-  const inProgressRequests = activeRequests.filter(r => r.status === 'in_progress');
-  const urgentRequests = activeRequests.filter(r => r.priority === 'urgent' && r.status !== 'completed');
+  if (loading) {
+    return (
+      <div className="technical-dashboard">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Загрузка задач...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="technical-dashboard">
@@ -240,7 +253,7 @@ const TechnicalStaffDashboard = () => {
           </div>
           <div className="stat-content">
             <h3>Срочные</h3>
-            <div className="stat-number">{urgentRequests.length}</div>
+            <div className="stat-number">{urgentTasks.length}</div>
             <div className="stat-label">требуют внимания</div>
           </div>
         </div>
@@ -271,13 +284,23 @@ const TechnicalStaffDashboard = () => {
           <div className="task-content">
             <div className="task-info">
               <div className="task-type">
-                <currentTask.typeIcon style={{ color: currentTask.typeColor }} />
-                <span>{currentTask.typeName}</span>
+                <currentTask.typeData.icon style={{ color: currentTask.typeData.color }} />
+                <span>{currentTask.typeData.name}</span>
               </div>
               <h3>{currentTask.title}</h3>
-              <div className="task-room">Комната {currentTask.roomNumber}</div>
-              <div className="task-client">Клиент: {currentTask.clientName}</div>
-              <div className="task-description">{currentTask.description}</div>
+              <div className="task-details">
+                <div className="task-room">
+                  <FiMapPin />
+                  {currentTask.property?.name || `Объект ${currentTask.property_id}`}
+                </div>
+                <div className="task-client">
+                  <FiUser />
+                  {currentTask.created_by}
+                </div>
+              </div>
+              {currentTask.description && (
+                <div className="task-description">{currentTask.description}</div>
+              )}
             </div>
             
             <div className="task-controls">
@@ -303,40 +326,49 @@ const TechnicalStaffDashboard = () => {
       )}
 
       {/* Срочные заявки */}
-      {urgentRequests.length > 0 && (
+      {urgentTasks.length > 0 && (
         <div className="urgent-requests">
           <h2>
             <FiAlertTriangle />
-            Срочные заявки ({urgentRequests.length})
+            Срочные заявки ({urgentTasks.length})
           </h2>
           <div className="requests-grid">
-            {urgentRequests.map(request => (
-              <div key={request.id} className="request-card urgent">
+            {urgentTasks.map(task => (
+              <div key={task.id} className="request-card urgent">
                 <div className="request-header">
                   <div className="request-type">
-                    <request.typeIcon style={{ color: request.typeColor }} />
-                    <span>{request.typeName}</span>
+                    <task.typeData.icon style={{ color: task.typeData.color }} />
+                    <span>{task.typeData.name}</span>
                   </div>
                   <div className="priority urgent">СРОЧНО</div>
                 </div>
                 
-                <h4>{request.title}</h4>
-                <div className="request-room">Комната {request.roomNumber}</div>
-                <div className="request-client">{request.clientName}</div>
+                <h4>{task.title}</h4>
+                <div className="request-details">
+                  <div className="request-room">
+                    <FiMapPin />
+                    {task.property?.name || `Объект ${task.property_id}`}
+                  </div>
+                  <div className="request-client">
+                    <FiUser />
+                    {task.clientName}
+                  </div>
+                </div>
                 
                 <div className="request-meta">
                   <div className="request-time">
-                    Время: ~{request.estimatedTime} мин
+                    <FiClock />
+                    ~{task.estimated_duration || 60} мин
                   </div>
-                  <div className="request-reported">
-                    {new Date(request.reportedAt).toLocaleDateString()}
+                  <div className="request-created">
+                    {new Date(task.created_at).toLocaleDateString('ru-RU')}
                   </div>
                 </div>
                 
                 <div className="request-actions">
                   <button 
                     className="btn-start urgent"
-                    onClick={() => startTask(request)}
+                    onClick={() => startTask(task)}
                     disabled={!!currentTask}
                   >
                     Взять в работу
@@ -351,49 +383,67 @@ const TechnicalStaffDashboard = () => {
       {/* Все заявки */}
       <div className="requests-sections">
         <div className="requests-section">
-          <h2>Новые заявки ({newRequests.length})</h2>
+          <h2>Мои задачи ({assignedTasks.length + newTasks.length})</h2>
           <div className="requests-list">
-            {newRequests.map(request => (
-              <div key={request.id} className="request-card">
+            {[...newTasks, ...assignedTasks].map(task => (
+              <div key={task.id} className="request-card">
                 <div className="request-header">
                   <div className="request-type">
-                    <request.typeIcon style={{ color: request.typeColor }} />
-                    <span>{request.typeName}</span>
+                    <task.typeData.icon style={{ color: task.typeData.color }} />
+                    <span>{task.typeData.name}</span>
                   </div>
                   <div 
                     className="priority"
-                    style={{ color: getPriorityColor(request.priority) }}
+                    style={{ color: getPriorityColor(task.priority) }}
                   >
-                    {getPriorityText(request.priority)}
+                    {getPriorityText(task.priority)}
                   </div>
                 </div>
                 
-                <h4>{request.title}</h4>
-                <div className="request-room">Комната {request.roomNumber}</div>
-                <div className="request-client">{request.clientName}</div>
-                <div className="request-description">{request.description}</div>
+                <h4>{task.title}</h4>
+                <div className="request-details">
+                  <div className="request-room">
+                    <FiMapPin /> Адрес: {task.property?.name || `Объект ${task.property_id}`} {task.property.address }
+                  </div>
+                  <div className="request-client">
+                    <FiUser /> Назначил: {task.creator.first_name}
+                  </div>
+                </div>
+                
+                {task.description && (
+                  <div className="request-description">{task.description}</div>
+                )}
                 
                 <div className="request-meta">
                   <div className="request-time">
-                    Время: ~{request.estimatedTime} мин
+                    <FiClock />
+                    ~{task.estimated_duration} мин
                   </div>
-                  <div className="request-reported">
-                    {new Date(request.reportedAt).toLocaleDateString()}
+                  <div className="request-created">
+                    {new Date(task.created_at).toLocaleDateString('ru-RU')}
                   </div>
                 </div>
                 
                 <div className="request-actions">
                   <button 
                     className="btn-start"
-                    onClick={() => startTask(request)}
+                    onClick={() => startTask(task)}
                     disabled={!!currentTask}
                   >
-                    Начать работу
+                    <FiPlay /> Начать работу
                   </button>
                 </div>
               </div>
             ))}
           </div>
+          
+          {assignedTasks.length === 0 && newTasks.length === 0 && (
+            <div className="no-tasks">
+              <FiCheckCircle size={48} />
+              <h3>Все задачи выполнены!</h3>
+              <p>Отличная работа! Новые задачи появятся здесь.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

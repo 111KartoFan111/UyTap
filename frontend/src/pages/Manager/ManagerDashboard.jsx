@@ -1,4 +1,4 @@
-// frontend/src/pages/Manager/ManagerDashboard.jsx
+// frontend/src/pages/Manager/ManagerDashboard.jsx - ОБНОВЛЕННЫЙ
 import { useState, useEffect } from 'react';
 import { 
   FiHome, 
@@ -51,9 +51,11 @@ const ManagerDashboard = () => {
     properties: [],
     clientsList: [],
     rentalsList: [],
-    financialSummary: null
+    financialSummary: null,
+    organizationStats: null
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // Load dashboard data
   useEffect(() => {
@@ -65,24 +67,32 @@ const ManagerDashboard = () => {
       setIsRefreshing(true);
       console.log('Loading dashboard data...');
       
-      // Load all data in parallel
-      const [
-        propertiesResult, 
-        clientsResult, 
-        rentalsResult, 
-        organizationResult
-      ] = await Promise.allSettled([
-        properties.getAll(),
-        clients.getAll({ limit: 100 }),
-        rentals.getAll({ is_active: true }),
-        organization.getDashboardStatistics()
-      ]);
+      // Load data with error handling for each request
+      const dataPromises = [
+        properties.getAll().catch(err => {
+          console.warn('Properties load failed:', err);
+          return [];
+        }),
+        clients.getAll({ limit: 100 }).catch(err => {
+          console.warn('Clients load failed:', err);
+          return [];
+        }),
+        rentals.getAll({ is_active: true }).catch(err => {
+          console.warn('Rentals load failed:', err);
+          return [];
+        }),
+        organization.getDashboardStatistics().catch(err => {
+          console.warn('Organization stats load failed:', err);
+          return null;
+        })
+      ];
 
-      // Extract successful results or fallback to empty arrays
-      const propsList = propertiesResult.status === 'fulfilled' ? propertiesResult.value : [];
-      const clientsList = clientsResult.status === 'fulfilled' ? clientsResult.value : [];
-      const rentalsList = rentalsResult.status === 'fulfilled' ? rentalsResult.value : [];
-      const orgStats = organizationResult.status === 'fulfilled' ? organizationResult.value : null;
+      const [
+        propertiesData, 
+        clientsData, 
+        rentalsData, 
+        orgStats
+      ] = await Promise.all(dataPromises);
 
       // Try to load financial data (optional)
       let financialData = null;
@@ -95,21 +105,33 @@ const ManagerDashboard = () => {
         );
       } catch (error) {
         console.warn('Failed to load financial data:', error.message);
+        // Create mock financial data if API fails
+        financialData = {
+          total_revenue: 0,
+          rental_revenue: 0,
+          orders_revenue: 0,
+          total_expenses: 0,
+          net_profit: 0,
+          occupancy_rate: 0,
+          active_rentals: rentalsData.length,
+          properties_count: propertiesData.length
+        };
       }
 
       setDashboardData({
-        properties: propsList,
-        clientsList: clientsList,
-        rentalsList: rentalsList,
+        properties: propertiesData,
+        clientsList: clientsData,
+        rentalsList: rentalsData,
         financialSummary: financialData,
         organizationStats: orgStats
       });
 
       // Calculate stats from loaded data
-      calculateStats(propsList, clientsList, rentalsList, financialData);
-      generateActivities(rentalsList, propsList, clientsList);
-
-      console.log('Dashboard data updated successfully');
+      calculateStats(propertiesData, clientsData, rentalsData, financialData);
+      generateActivities(rentalsData, propertiesData, clientsData);
+      
+      setDataLoaded(true);
+      console.log('Dashboard data loaded successfully');
 
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -137,6 +159,10 @@ const ManagerDashboard = () => {
       ? Math.round((occupiedRooms / totalRooms) * 100) 
       : 0;
 
+    // Calculate monthly revenue from rentals or financial data
+    const monthlyRevenue = financialData?.rental_revenue || 
+      rentalsData.reduce((total, rental) => total + (rental.paid_amount || 0), 0);
+
     setStats({
       totalRooms,
       occupiedRooms,
@@ -145,7 +171,7 @@ const ManagerDashboard = () => {
       cleaningRooms,
       totalClients: clientsData.length,
       activeRentals: rentalsData.length,
-      monthlyRevenue: financialData?.total_revenue || 0,
+      monthlyRevenue,
       occupancyRate
     });
   };
@@ -218,7 +244,8 @@ const ManagerDashboard = () => {
     await loadDashboardData();
   };
 
-  if (loading && !dashboardData.properties.length) {
+  // Show loading state only on initial load
+  if (loading && !dataLoaded) {
     return (
       <div className="manager-dashboard loading">
         <div className="loading-spinner"></div>
@@ -239,7 +266,7 @@ const ManagerDashboard = () => {
             disabled={isRefreshing}
             title="Обновить данные"
           >
-            <FiRefreshCw />
+            <FiRefreshCw className={isRefreshing ? 'spinning' : ''} />
           </button>
         </div>
       </div>
@@ -346,6 +373,28 @@ const ManagerDashboard = () => {
               <FiArrowRight />
             </div>
           </Link>
+
+          <Link to="/manager/staff" className="action-card">
+            <div className="action-icon">
+              <FaUsersGear />
+            </div>
+            <h3>Персонал</h3>
+            <p>Управление сотрудниками</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
+
+          <Link to="/manager/settings" className="action-card">
+            <div className="action-icon">
+              <FiBarChart2 />
+            </div>
+            <h3>Настройки</h3>
+            <p>Конфигурация системы</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
         </div>
       </div>
 
@@ -357,10 +406,19 @@ const ManagerDashboard = () => {
             Подробный план <FiArrowRight />
           </Link>
         </div>
-        <FloorPlan 
-          onRoomClick={handleRoomClick}
-          compact={true} 
-        />
+        {dashboardData.properties.length > 0 ? (
+          <FloorPlan 
+            onRoomClick={handleRoomClick}
+            compact={true} 
+          />
+        ) : (
+          <div className="no-properties-message">
+            <p>Нет созданных помещений</p>
+            <Link to="/manager/floor-plan" className="btn-primary">
+              Создать первое помещение
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Recent Activities */}
