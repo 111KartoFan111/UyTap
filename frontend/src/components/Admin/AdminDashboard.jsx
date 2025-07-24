@@ -193,6 +193,15 @@ const AdminDashboard = () => {
           >
             <FiPlus /> Создать организацию
           </button>
+          <button 
+            className="btn-outline"
+            onClick={() => {
+              localStorage.removeItem('access_token');
+              window.location.reload();
+            }}
+          >
+            <FiEye /> Выйти
+          </button>
         </div>
       </div>
 
