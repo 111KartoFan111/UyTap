@@ -15,10 +15,12 @@ import {
   FiMaximize,
   FiPlay,
   FiPause,
-  FiRotateCcw
+  FiRotateCcw,
+  FiCheck
 } from 'react-icons/fi';
 import { useData } from '../../../contexts/DataContext';
 import './PropertyDetailsModal.css';
+import { TbStatusChange } from "react-icons/tb";
 
 const PropertyDetailsModal = ({ 
   property, 
@@ -262,6 +264,18 @@ const PropertyDetailsModal = ({
           <button className="quick-action-btn secondary" onClick={onCreateTask}>
             <FiTool /> Создать задачу
           </button>
+          <div className="quick-actions">
+            <select
+              className="quick-action-btn secondary"
+              value={property.status}
+              onChange={e => updateStatus(property.id, e.target.value)}
+            >
+              <option value="available">Доступно</option>
+              <option value="occupied">Недоступно</option>
+              <option value="removed">Удалено</option>
+            </select>
+          </div>
+
         </div>
 
         {/* Tabs */}
@@ -487,6 +501,33 @@ const PropertyDetailsModal = ({
                           </div>
                           <div className={`task-status ${task.status}`}>
                             {getTaskStatusText(task.status)}
+                          </div>
+                          <div className="task-actions">
+                            <button 
+                              className="action-btn edit small" 
+                              onClick={() => onEdit(task)}
+                              title="Редактировать задачу"
+                            >
+                              <FiEdit2 />
+                            </button>
+                            {task.status === 'pending' && (
+                              <button 
+                                className="action-btn complete small" 
+                                onClick={() => tasks.complete(task.id)}
+                                title="Завершить задачу"
+                              >
+                                <FiCheck />
+                              </button>
+                            )}
+                            {task.status !== 'cancelled' && (
+                              <button 
+                                className="action-btn cancel small" 
+                                onClick={() => tasks.cancel(task.id)}
+                                title="Отменить задачу"
+                              >
+                                <FiX />
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))
