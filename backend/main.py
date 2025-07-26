@@ -16,7 +16,7 @@ from models.models import Base
 # Импортируем все роутеры
 from routers import (
     auth, admin, properties, rentals, clients, 
-    orders, reports, documents, tasks, payroll, inventory,organization
+    orders, reports, documents, tasks, payroll, inventory,organization, payments
 )
 from services.init_service import DatabaseInitService
 from utils.logging_config import setup_logging
@@ -205,6 +205,7 @@ app.include_router(documents.router)
 app.include_router(tasks.router)
 app.include_router(payroll.router)
 app.include_router(inventory.router)
+app.include_router(payments.router)
 
 # Корневой endpoint
 @app.get("/", tags=["Root"])

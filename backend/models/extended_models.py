@@ -11,6 +11,7 @@ import uuid
 import enum
 from .database import Base
 from models.models import User, UserRole , Organization, OrganizationStatus # Импортируем базовые модели
+from models.payment_models import Payment
 
 # Enums
 
@@ -252,7 +253,7 @@ class Rental(Base):
     client = relationship("Client", back_populates="rentals")
     orders = relationship("RoomOrder", back_populates="rental")
     documents = relationship("Document", back_populates="rental")
-
+    payments = relationship("Payment", back_populates="rental", cascade="all, delete-orphan")
     __table_args__ = (
         CheckConstraint("end_date > start_date", name="check_rental_dates"),
         CheckConstraint("total_amount >= 0", name="check_positive_amount"),
