@@ -455,3 +455,85 @@ async def get_property_statistics(
     )
     
     return stats
+
+@router.post("/bulk-release-from-cleaning")
+async def bulk_release_from_cleaning(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Массово освободить помещения из уборки (если нет активных задач)"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions"
+        )
+    
+    # Находим помещения в статусе уборки
+    cleaning_properties = db.query(Property).filter(
+        and_(
+            Property.organization_id == current_user.organization_id,
+            Property.status == PropertyStatus.CLEANING
+        )
+    ).all()
+    
+    released_properties = []
+    skipped_properties = []
+    
+    for prop in cleaning_properties:
+        # Проверяем, есть ли незавершенные задачи уборки
+        pending_cleaning_tasks = db.query(Task).filter(
+            and_(
+                Task.property_id == prop.id,
+                Task.task_type == TaskType.CLEANING,
+                Task.status.in_([TaskStatus.PENDING, TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS])
+            )
+        ).all()
+        
+        if not pending_cleaning_tasks:
+            # Можно освобождать - нет активных задач уборки
+            prop.status = PropertyStatus.AVAILABLE
+            prop.updated_at = datetime.now(timezone.utc)
+            
+            released_properties.append({
+                "id": str(prop.id),
+                "name": prop.name,
+                "number": prop.number
+            })
+        else:
+            # Есть незавершенные задачи - пропускаем
+            skipped_properties.append({
+                "id": str(prop.id),
+                "name": prop.name,
+                "number": prop.number,
+                "pending_tasks": len(pending_cleaning_tasks),
+                "task_ids": [str(t.id) for t in pending_cleaning_tasks]
+            })
+    
+    if released_properties:
+        db.commit()
+    
+    # Логируем массовое действие
+    AuthService.log_user_action(
+        db=db,
+        user_id=current_user.id,
+        action="bulk_properties_released_from_cleaning",
+        organization_id=current_user.organization_id,
+        details={
+            "released_count": len(released_properties),
+            "skipped_count": len(skipped_properties),
+            "released_properties": released_properties,
+            "skipped_properties": skipped_properties
+        }
+    )
+    
+    return {
+        "message": f"Released {len(released_properties)} properties from cleaning",
+        "released": released_properties,
+        "skipped": skipped_properties,
+        "summary": {
+            "total_cleaning_properties": len(cleaning_properties),
+            "released_count": len(released_properties),
+            "skipped_count": len(skipped_properties)
+        }
+    }

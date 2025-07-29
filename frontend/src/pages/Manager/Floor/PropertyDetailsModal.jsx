@@ -33,7 +33,7 @@ const PropertyDetailsModal = ({
   onCheckOut,
   onCancelRental
 }) => {
-  const { tasks, utils } = useData();
+  const { tasks, utils ,properties } = useData();
   const [activeTab, setActiveTab] = useState('overview');
   const [propertyTasks, setPropertyTasks] = useState([]);
   const [propertyHistory, setPropertyHistory] = useState([]);
@@ -53,6 +53,11 @@ const PropertyDetailsModal = ({
       loadPropertyHistory();
     }
   }, [property, activeTab]);
+
+  const handleChange = (e) => {
+    const newStatus = e.target.value;
+    properties.updateStatus(property.id, newStatus); // вызываем с id и новым статусом
+  };
 
   const loadPropertyTasks = async () => {
     try {
@@ -265,16 +270,19 @@ const PropertyDetailsModal = ({
             <FiTool /> Создать задачу
           </button>
           <div className="quick-actions">
-            <select
-              className="quick-action-btn secondary"
-              value={property.status}
-              onChange={e => updateStatus(property.id, e.target.value)}
-            >
-              <option value="available">Доступно</option>
-              <option value="occupied">Недоступно</option>
-              <option value="removed">Удалено</option>
-            </select>
-          </div>
+                <select
+                  className="quick-action-btn secondary"
+                  value={property.status}
+                  onChange={handleChange}
+                >
+                  <option value="available">Доступна</option>
+                  <option value="occupied">Занята</option>
+                  <option value="maintenance">На обслуживании</option>
+                  <option value="cleaning">Уборка</option>
+                  <option value="suspended">Приостановлена</option>
+                  <option value="out_of_order">Неисправна</option>
+                </select>
+              </div>
 
         </div>
 

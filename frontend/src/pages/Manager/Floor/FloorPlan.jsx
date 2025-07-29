@@ -427,6 +427,14 @@ const FloorPlan = ({ onRoomClick }) => {
               </span>
             )}
           </button>
+          <button 
+            className="update-status-btn"
+            onClick={loadData}
+            title="Оcвободить после уборки/ремонта"
+          >
+            <FiEdit2 />
+            Обновить статусы
+          </button>
         </div>
 
         <div className="floor-stats">

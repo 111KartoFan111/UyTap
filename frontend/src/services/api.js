@@ -391,7 +391,12 @@ export const rentalsAPI = {
     return apiRequest(`/api/rentals/${id}?reason=${encodeURIComponent(reason)}`, {
       method: 'DELETE'
     });
-  }
+  },
+  async postUpdateAllStatuses() {
+    return apiRequest(`/api/properties/bulk-release-from-cleaning`, {
+      method: 'POST'
+    })
+  },
 };
 
 // Clients API - ОБНОВЛЕН

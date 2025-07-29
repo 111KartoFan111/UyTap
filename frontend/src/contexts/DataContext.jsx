@@ -117,7 +117,8 @@ export const DataProvider = ({ children }) => {
     getTasks: (id, status) => withLoading(() => propertiesAPI.getPropertyTasks(id, status)),
     createTask: (id, data) => withLoading(() => propertiesAPI.createPropertyTask(id, data), false, 'Задача создана'),
     checkAvailability: (id, startDate, endDate) => withLoading(() => propertiesAPI.checkAvailability(id, startDate, endDate)),
-    getStatistics: (id, periodDays) => withLoading(() => propertiesAPI.getPropertyStatistics(id, periodDays))
+    getStatistics: (id, periodDays) => withLoading(() => propertiesAPI.getPropertyStatistics(id, periodDays)),
+    postUpdateAllStatuses: (data) => withLoading(() => propertiesAPI.postUpdateAllStatuses(), false, 'Статусы обновлены')
   };
 
   // Enhanced rentals operations
