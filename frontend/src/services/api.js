@@ -123,21 +123,43 @@ export const authAPI = {
   }
 };
 
-// Organization API - ОБНОВЛЕН
 export const organizationAPI = {
   async getCurrentOrganization() {
     return apiRequest('/api/organization/info');
   },
 
   async getLimits() {
-    // Возвращаем лимиты из текущей организации или мок данные
     try {
-      const orgInfo = await this.getCurrentOrganization();
+      // Получаем статистику дашборда, которая содержит лимиты
+      const dashboardStats = await this.getDashboardStatistics();
+      
+      if (dashboardStats.admin_specific?.organization_health) {
+        const health = dashboardStats.admin_specific.organization_health;
+        
+        // Парсим строки лимитов "2/10"
+        const parseLimitUsage = (limitString) => {
+          if (!limitString || typeof limitString !== 'string') return { current: 0, max: 0 };
+          const [current, max] = limitString.split('/').map(num => parseInt(num) || 0);
+          return { current, max };
+        };
+
+        const userLimits = parseLimitUsage(health.user_limit_usage);
+        const propertyLimits = parseLimitUsage(health.property_limit_usage);
+
+        return {
+          max_users: userLimits.max,
+          max_properties: propertyLimits.max,
+          current_users: userLimits.current,
+          current_properties: propertyLimits.current
+        };
+      }
+      
+      // Fallback на значения по умолчанию
       return {
-        max_users: orgInfo.max_users || 10,
-        max_properties: orgInfo.max_properties || 50,
-        current_users: orgInfo.user_count || 0,
-        current_properties: 0 // Будет заполнено из статистики
+        max_users: 10,
+        max_properties: 50,
+        current_users: 0,
+        current_properties: 0
       };
     } catch (error) {
       console.warn('Failed to get org limits, using defaults:', error);
@@ -152,14 +174,29 @@ export const organizationAPI = {
 
   async getUsageStatistics() {
     try {
-      return await apiRequest('/api/organization/dashboard/statistics');
+      const dashboardStats = await this.getDashboardStatistics();
+      
+      return {
+        properties_count: dashboardStats.organization_stats?.total_properties || 0,
+        active_rentals: dashboardStats.organization_stats?.active_rentals || 0,
+        monthly_tasks: dashboardStats.today_stats?.completed_tasks || 0,
+        revenue_this_month: dashboardStats.month_stats?.revenue || 0,
+        total_clients: dashboardStats.organization_stats?.total_clients || 0,
+        total_staff: dashboardStats.organization_stats?.total_staff || 0,
+        occupancy_rate: dashboardStats.month_stats?.occupancy_rate || 0,
+        new_clients: dashboardStats.month_stats?.new_clients || 0
+      };
     } catch (error) {
       console.warn('Failed to get usage stats, using defaults:', error);
       return {
         properties_count: 0,
         active_rentals: 0,
         monthly_tasks: 0,
-        revenue_this_month: 0
+        revenue_this_month: 0,
+        total_clients: 0,
+        total_staff: 0,
+        occupancy_rate: 0,
+        new_clients: 0
       };
     }
   },

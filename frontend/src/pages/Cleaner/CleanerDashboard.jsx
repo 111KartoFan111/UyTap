@@ -344,7 +344,7 @@ const CleanerDashboard = () => {
       </div>
 
       {/* Быстрые действия */}
-      <div className="quick-actions">
+      <div className="quick-action1">
         <h3>Быстрые действия</h3>
         <div className="action-buttons">
           <button className="action-btn">

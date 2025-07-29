@@ -9,8 +9,7 @@ const Settings = () => {
   const { user } = useAuth();
   
   const [organizationData, setOrganizationData] = useState(null);
-  const [organizationLimits, setOrganizationLimits] = useState(null);
-  const [usageStats, setUsageStats] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -52,10 +51,9 @@ const Settings = () => {
     try {
       setLoading(true);
       
-      const [orgData, limitsData, usageData] = await Promise.allSettled([
+      const [orgData, statsData] = await Promise.allSettled([
         organization.getCurrent(),
-        organization.getLimits(),
-        organization.getUsage()
+        organization.getDashboardStatistics()
       ]);
 
       if (orgData.status === 'fulfilled') {
@@ -68,14 +66,16 @@ const Settings = () => {
             ...orgData.value.settings
           }));
         }
+      } else {
+        console.error('Failed to load organization data:', orgData.reason);
+        utils.showError('Не удалось загрузить данные организации');
       }
       
-      if (limitsData.status === 'fulfilled') {
-        setOrganizationLimits(limitsData.value);
-      }
-      
-      if (usageData.status === 'fulfilled') {
-        setUsageStats(usageData.value);
+      if (statsData.status === 'fulfilled') {
+        setDashboardStats(statsData.value);
+      } else {
+        console.error('Failed to load dashboard stats:', statsData.reason);
+        utils.showError('Не удалось загрузить статистику');
       }
       
     } catch (error) {
@@ -144,6 +144,13 @@ const Settings = () => {
     return max > 0 ? Math.round((current / max) * 100) : 0;
   };
 
+  // Функция для парсинга лимитов из строки "2/10"
+  const parseLimitUsage = (limitString) => {
+    if (!limitString || typeof limitString !== 'string') return { current: 0, max: 0 };
+    const [current, max] = limitString.split('/').map(num => parseInt(num) || 0);
+    return { current, max };
+  };
+
   if (loading) {
     return (
       <div className="settings-page loading">
@@ -199,8 +206,8 @@ const Settings = () => {
             </div>
             <div className="info-item">
               <label>Статус:</label>
-              <span className={`status-badge ${organizationData.status}`}>
-                {organizationData.status}
+              <span className={`status-badge ${organizationData.status || 'active'}`}>
+                {organizationData.status || 'Активный'}
               </span>
             </div>
             <div className="info-item">
@@ -212,57 +219,96 @@ const Settings = () => {
       )}
 
       {/* Лимиты и использование */}
-      {(organizationLimits || usageStats) && (
+      {dashboardStats && (
         <div className="usage-section">
           <h2>Использование ресурсов</h2>
-          <div className="usage-grid">
-            {organizationLimits && (
+          <div className="actions-grid">
+            {dashboardStats.admin_specific?.organization_health && (
               <>
                 <div className="usage-card">
                   <h3>Пользователи</h3>
-                  <div className="usage-bar">
-                    <div 
-                      className="usage-fill"
-                      style={{
-                        width: `${getUsagePercentage(organizationData?.user_count || 0, organizationLimits.max_users)}%`
-                      }}
-                    />
-                  </div>
-                  <span className="usage-text">
-                    {organizationData?.user_count || 0} из {organizationLimits.max_users}
-                  </span>
+                  {(() => {
+                    const userLimits = parseLimitUsage(dashboardStats.admin_specific.organization_health.user_limit_usage);
+                    return (
+                      <>
+                        <div className="usage-bar">
+                          <div 
+                            className="usage-fill"
+                            style={{
+                              width: `${getUsagePercentage(userLimits.current, userLimits.max)}%`
+                            }}
+                          />
+                        </div>
+                        <span className="usage-text">
+                          {userLimits.current} из {userLimits.max}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
                 
                 <div className="usage-card">
                   <h3>Помещения</h3>
-                  <div className="usage-bar">
-                    <div 
-                      className="usage-fill"
-                      style={{
-                        width: `${getUsagePercentage(usageStats?.properties_count || 0, organizationLimits.max_properties)}%`
-                      }}
-                    />
-                  </div>
-                  <span className="usage-text">
-                    {usageStats?.properties_count || 0} из {organizationLimits.max_properties}
-                  </span>
+                  {(() => {
+                    const propertyLimits = parseLimitUsage(dashboardStats.admin_specific.organization_health.property_limit_usage);
+                    return (
+                      <>
+                        <div className="usage-bar">
+                          <div 
+                            className="usage-fill"
+                            style={{
+                              width: `${getUsagePercentage(propertyLimits.current, propertyLimits.max)}%`
+                            }}
+                          />
+                        </div>
+                        <span className="usage-text">
+                          {propertyLimits.current} из {propertyLimits.max}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
               </>
             )}
             
-            {usageStats && (
+            {dashboardStats.organization_stats && (
               <>
                 <div className="usage-card">
                   <h3>Активные аренды</h3>
                   <div className="usage-number">
-                    {usageStats.active_rentals || 0}
+                    {dashboardStats.organization_stats.active_rentals || 0}
                   </div>
                 </div>
                 
                 <div className="usage-card">
-                  <h3>Задачи за месяц</h3>
+                  <h3>Всего клиентов</h3>
                   <div className="usage-number">
-                    {usageStats.monthly_tasks || 0}
+                    {dashboardStats.organization_stats.total_clients || 0}
+                  </div>
+                </div>
+
+                <div className="usage-card">
+                  <h3>Всего сотрудников</h3>
+                  <div className="usage-number">
+                    {dashboardStats.organization_stats.total_staff || 0}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {dashboardStats.month_stats && (
+              <>
+                <div className="usage-card">
+                  <h3>Выручка за месяц</h3>
+                  <div className="usage-number">
+                    {dashboardStats.month_stats.revenue || 0} ₸
+                  </div>
+                </div>
+
+                <div className="usage-card">
+                  <h3>Заполняемость</h3>
+                  <div className="usage-number">
+                    {dashboardStats.month_stats.occupancy_rate || 0}%
                   </div>
                 </div>
               </>

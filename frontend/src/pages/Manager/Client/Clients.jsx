@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { FiPlus, FiSearch, FiFilter, FiEdit2, FiTrash2, FiEye, FiPhone, FiMail, FiX, FiDownload } from 'react-icons/fi';
-import { useData } from '../../contexts/DataContext';
+import { useData } from '../../../contexts/DataContext';
 import ClientModal from './ClientModal';
-import './Pages.css';
+import '../Pages.css';
 
 const Clients = () => {
   const { clients, utils } = useData();

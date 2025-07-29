@@ -61,7 +61,7 @@ class Payment(Base):
     completed_at = Column(DateTime(timezone=True))
     
     # Дополнительные данные
-    metadata = Column(Text)  # JSON строка с дополнительными данными
+    payment_metadata = Column("metadata", Text)  # JSON строка с дополнительными данными
     notes = Column(Text)
     
     # Отношения

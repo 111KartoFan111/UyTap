@@ -27,6 +27,10 @@ body {
   width: 100%;
 }
 
+::-webkit-scrollbar {
+  width: 0;
+}
+
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
@@ -190,4 +194,7 @@ a:focus {
   border-radius: 4px;
   cursor: pointer;
   margin: 0 2px;
+}
+::-webkit-scrollbar {
+  width: 0;
 }

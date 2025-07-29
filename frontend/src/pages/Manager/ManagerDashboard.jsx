@@ -327,7 +327,7 @@ const ManagerDashboard = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="quick-actions">
+      <div className="quick-actions1">
         <h2>Быстрые действия</h2>
         <div className="actions-grid">
           <Link to="/manager/floor-plan" className="action-card">
