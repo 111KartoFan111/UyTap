@@ -4,144 +4,91 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
 import uuid
 
-from models.extended_models import RoomOrder, OrderStatus, User, UserRole, PayrollType
-from schemas.order import RoomOrderCreate, RoomOrderUpdate
+from models.extended_models import (
+    RoomOrder, OrderStatus, User, UserRole, Inventory, InventoryMovement
+)
+from schemas.order import RoomOrderCreate, RoomOrderUpdate, RoomOrderResponse,OrderItemBase
+
 
 
 class OrderService:
-    """Сервис для управления заказами в номер"""
+    """Enhanced order service with inventory integration"""
     
     @staticmethod
-    def get_order_by_id(db: Session, order_id: uuid.UUID, organization_id: uuid.UUID) -> Optional[RoomOrder]:
-        """Получить заказ по ID с проверкой принадлежности к организации"""
-        return db.query(RoomOrder).filter(
-            and_(
-                RoomOrder.id == order_id,
-                RoomOrder.organization_id == organization_id
-            )
-        ).first()
-    
-    @staticmethod
-    def create_order(
+    def create_order_with_inventory_check(
         db: Session,
         order_data: RoomOrderCreate,
         organization_id: uuid.UUID
     ) -> RoomOrder:
-        """Создать новый заказ"""
+        """Create order with comprehensive inventory validation"""
         
-        # Генерируем номер заказа
+        # Step 1: Validate inventory availability for all items
+        inventory_validations = []
+        
+        for item in order_data.items:
+            if item.is_inventory_item and item.inventory_id:
+                inventory_item = db.query(Inventory).filter(
+                    and_(
+                        Inventory.id == uuid.UUID(item.inventory_id),
+                        Inventory.organization_id == organization_id,
+                        Inventory.is_active == True
+                    )
+                ).first()
+                
+                if not inventory_item:
+                    raise ValueError(f"Inventory item not found: {item.inventory_id}")
+                
+                if inventory_item.current_stock < item.quantity:
+                    raise ValueError(
+                        f"Insufficient stock for '{item.name}'. "
+                        f"Available: {inventory_item.current_stock}, "
+                        f"Requested: {item.quantity}"
+                    )
+                
+                inventory_validations.append({
+                    'item': item,
+                    'inventory': inventory_item
+                })
+        
+        # Step 2: Generate order number
         order_number = OrderService._generate_order_number(db, organization_id)
         
+        # Step 3: Create the order
         order = RoomOrder(
             id=uuid.uuid4(),
             organization_id=organization_id,
             order_number=order_number,
-            **order_data.dict(exclude={'assigned_to'}),
+            property_id=uuid.UUID(order_data.property_id),
+            order_type=order_data.order_type,
+            title=order_data.title,
+            description=order_data.description,
+            items=OrderService._serialize_order_items(order_data.items),
+            total_amount=order_data.total_amount,
+            special_instructions=order_data.special_instructions,
             status=OrderStatus.PENDING
         )
         
-        # Назначаем исполнителя если указан
+        # Set optional fields
+        if order_data.client_id:
+            order.client_id = uuid.UUID(order_data.client_id)
+        if order_data.rental_id:
+            order.rental_id = uuid.UUID(order_data.rental_id)
         if order_data.assigned_to:
             order.assigned_to = uuid.UUID(order_data.assigned_to)
             order.status = OrderStatus.CONFIRMED
-        else:
-            # Автоматически назначаем исполнителя по типу заказа
-            assigned_user = OrderService._auto_assign_executor(db, organization_id, order_data.order_type)
-            if assigned_user:
-                order.assigned_to = assigned_user.id
-                order.status = OrderStatus.CONFIRMED
         
         db.add(order)
-        db.commit()
-        db.refresh(order)
+        db.flush()  # Get order ID for inventory movements
         
-        return order
-    
-    @staticmethod
-    def _generate_order_number(db: Session, organization_id: uuid.UUID) -> str:
-        """Генерировать номер заказа"""
-        today = datetime.now(timezone.utc).date()
-        date_prefix = today.strftime("%Y%m%d")
-        
-        # Считаем заказы за сегодня
-        today_orders = db.query(RoomOrder).filter(
-            and_(
-                RoomOrder.organization_id == organization_id,
-                func.date(RoomOrder.requested_at) == today
+        # Step 4: Reserve inventory items (optional - can be done at completion)
+        # For now, we'll reserve immediately to prevent overselling
+        for validation in inventory_validations:
+            OrderService._reserve_inventory_item(
+                db=db,
+                order=order,
+                item=validation['item'],
+                inventory=validation['inventory']
             )
-        ).count()
-        
-        return f"{date_prefix}-{today_orders + 1:04d}"
-    
-    @staticmethod
-    def _auto_assign_executor(db: Session, organization_id: uuid.UUID, order_type: str) -> Optional[User]:
-        """Автоматически назначить исполнителя по типу заказа"""
-        
-        # Определяем подходящие роли для типа заказа
-        role_mapping = {
-            "food": [UserRole.STOREKEEPER],
-            "delivery": [UserRole.STOREKEEPER, UserRole.TECHNICAL_STAFF],
-            "service": [UserRole.TECHNICAL_STAFF, UserRole.CLEANER],
-            "laundry": [UserRole.CLEANER],
-            "maintenance": [UserRole.TECHNICAL_STAFF]
-        }
-        
-        suitable_roles = role_mapping.get(order_type, [UserRole.TECHNICAL_STAFF])
-        
-        # Находим наименее загруженного сотрудника
-        min_workload = float('inf')
-        selected_user = None
-        
-        for role in suitable_roles:
-            users = db.query(User).filter(
-                and_(
-                    User.organization_id == organization_id,
-                    User.role == role,
-                    User.status == "active"
-                )
-            ).all()
-            
-            for user in users:
-                # Считаем активные заказы
-                active_orders = db.query(RoomOrder).filter(
-                    and_(
-                        RoomOrder.assigned_to == user.id,
-                        RoomOrder.status.in_([OrderStatus.CONFIRMED, OrderStatus.IN_PROGRESS])
-                    )
-                ).count()
-                
-                if active_orders < min_workload:
-                    min_workload = active_orders
-                    selected_user = user
-        
-        return selected_user
-    
-    @staticmethod
-    def update_order(
-        db: Session,
-        order: RoomOrder,
-        order_data: RoomOrderUpdate,
-        user_id: uuid.UUID
-    ) -> RoomOrder:
-        """Обновить заказ"""
-        
-        update_data = order_data.dict(exclude_unset=True)
-        old_status = order.status
-        
-        for field, value in update_data.items():
-            setattr(order, field, value)
-        
-        order.updated_at = datetime.now(timezone.utc)
-        
-        # Обрабатываем изменение статуса
-        if 'status' in update_data and order.status != old_status:
-            if order.status == OrderStatus.IN_PROGRESS and old_status == OrderStatus.CONFIRMED:
-                # Заказ взят в работу
-                pass
-            elif order.status == OrderStatus.DELIVERED and old_status == OrderStatus.IN_PROGRESS:
-                # Заказ выполнен
-                order.completed_at = datetime.now(timezone.utc)
-                OrderService._process_order_payment(db, order)
         
         db.commit()
         db.refresh(order)
@@ -149,38 +96,101 @@ class OrderService:
         return order
     
     @staticmethod
-    def assign_order(
-        db: Session,
-        order: RoomOrder,
-        assigned_to: uuid.UUID,
-        assigned_by: uuid.UUID
-    ):
-        """Назначить заказ исполнителю"""
-        
-        order.assigned_to = assigned_to
-        if order.status == OrderStatus.PENDING:
-            order.status = OrderStatus.CONFIRMED
-        order.updated_at = datetime.now(timezone.utc)
-        
-        db.commit()
+    def _serialize_order_items(items: List[OrderItemBase]) -> List[Dict[str, Any]]:
+        """Convert order items to JSON-serializable format"""
+        return [
+            {
+                "inventory_id": item.inventory_id,
+                "name": item.name,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "total_price": item.total_price,
+                "notes": item.notes,
+                "is_inventory_item": item.is_inventory_item
+            }
+            for item in items
+        ]
     
     @staticmethod
-    def complete_order(
+    def _reserve_inventory_item(
+        db: Session,
+        order: RoomOrder,
+        item: OrderItemBase,
+        inventory: Inventory
+    ):
+        """Reserve inventory item for the order (optional feature)"""
+        # This creates a pending reservation movement
+        # Alternative: only deduct when order is completed
+        
+        reservation_movement = InventoryMovement(
+            id=uuid.uuid4(),
+            organization_id=order.organization_id,
+            inventory_id=inventory.id,
+            movement_type="reservation",  # Custom type for reservations
+            quantity=item.quantity,
+            unit_cost=inventory.cost_per_unit,
+            total_cost=item.quantity * (inventory.cost_per_unit or 0),
+            reason=f"Reserved for order #{order.order_number}",
+            notes=f"Item: {item.name}",
+            stock_after=inventory.current_stock,  # Stock unchanged for reservations
+            created_at=datetime.now(timezone.utc),
+            # Link to order
+            task_id=None  # Could add order_id field to movements table
+        )
+        
+        db.add(reservation_movement)
+    
+    @staticmethod
+    def complete_order_with_inventory_deduction(
         db: Session,
         order: RoomOrder,
         completed_by: uuid.UUID,
         completion_notes: Optional[str] = None
     ) -> RoomOrder:
-        """Завершить заказ"""
+        """Complete order with automatic inventory deduction"""
         
+        if order.status != OrderStatus.IN_PROGRESS:
+            raise ValueError("Order must be in progress to complete")
+        
+        # Step 1: Process inventory deductions
+        for item_data in order.items:
+            if item_data.get('is_inventory_item', True) and item_data.get('inventory_id'):
+                inventory_item = db.query(Inventory).filter(
+                    Inventory.id == uuid.UUID(item_data['inventory_id'])
+                ).first()
+                
+                if inventory_item:
+                    # Create deduction movement
+                    movement = InventoryMovement(
+                        id=uuid.uuid4(),
+                        organization_id=order.organization_id,
+                        inventory_id=inventory_item.id,
+                        movement_type="out",
+                        quantity=item_data['quantity'],
+                        unit_cost=inventory_item.cost_per_unit,
+                        total_cost=item_data['quantity'] * (inventory_item.cost_per_unit or 0),
+                        reason=f"Order delivery #{order.order_number}",
+                        notes=f"Item: {item_data['name']} | Property: {order.property.name if order.property else 'N/A'}",
+                        stock_after=inventory_item.current_stock - item_data['quantity'],
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    
+                    # Update inventory stock
+                    inventory_item.current_stock -= item_data['quantity']
+                    inventory_item.total_value = inventory_item.current_stock * (inventory_item.cost_per_unit or 0)
+                    inventory_item.updated_at = datetime.now(timezone.utc)
+                    
+                    db.add(movement)
+        
+        # Step 2: Complete the order
         order.status = OrderStatus.DELIVERED
         order.completed_at = datetime.now(timezone.utc)
         order.updated_at = datetime.now(timezone.utc)
         
         if completion_notes:
-            order.special_instructions = (order.special_instructions or "") + f"\nВыполнено: {completion_notes}"
+            order.special_instructions = (order.special_instructions or "") + f"\nCompleted: {completion_notes}"
         
-        # Обрабатываем оплату исполнителю
+        # Step 3: Process payment to executor
         OrderService._process_order_payment(db, order)
         
         db.commit()
@@ -190,7 +200,7 @@ class OrderService:
     
     @staticmethod
     def _process_order_payment(db: Session, order: RoomOrder):
-        """Обработать оплату за выполненный заказ"""
+        """Process payment for completed order"""
         
         if order.payment_type == "none" or order.payment_to_executor <= 0:
             return
@@ -198,22 +208,18 @@ class OrderService:
         if not order.assigned_to:
             return
         
-        # Получаем исполнителя
-        assignee = db.query(User).filter(User.id == order.assigned_to).first()
-        if not assignee:
-            return
+        # Add to payroll (same as existing implementation)
+        from models.extended_models import Payroll, PayrollType
         
-        # Добавляем к зарплате (аналогично задачам)
-        from models.extended_models import Payroll
-        
-        current_period_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        current_period_start = datetime.now(timezone.utc).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
         next_month = current_period_start.replace(month=current_period_start.month + 1)
         current_period_end = next_month - timedelta(seconds=1)
         
-        # Ищем существующую запись о зарплате
         payroll = db.query(Payroll).filter(
             and_(
-                Payroll.user_id == assignee.id,
+                Payroll.user_id == order.assigned_to,
                 Payroll.period_start == current_period_start,
                 Payroll.period_end == current_period_end
             )
@@ -223,7 +229,7 @@ class OrderService:
             payroll = Payroll(
                 id=uuid.uuid4(),
                 organization_id=order.organization_id,
-                user_id=assignee.id,
+                user_id=order.assigned_to,
                 period_start=current_period_start,
                 period_end=current_period_end,
                 payroll_type=PayrollType.PIECE_WORK,
@@ -235,10 +241,10 @@ class OrderService:
             )
             db.add(payroll)
         
-        # Добавляем доход от заказа
+        # Add order income
         payroll.other_income += order.payment_to_executor
         
-        # Пересчитываем общую сумму
+        # Recalculate totals
         payroll.gross_amount = (
             (payroll.base_rate or 0) + 
             payroll.tasks_payment + 
@@ -249,84 +255,114 @@ class OrderService:
         payroll.net_amount = payroll.gross_amount - payroll.deductions - payroll.taxes
         payroll.updated_at = datetime.now(timezone.utc)
         
-        # Отмечаем заказ как оплаченный
+        # Mark order as paid
         order.is_paid = True
     
     @staticmethod
-    def get_orders_statistics(
+    def get_available_inventory_for_orders(
         db: Session,
         organization_id: uuid.UUID,
-        period_days: int = 30
+        category: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get inventory items available for room orders"""
+        
+        query = db.query(Inventory).filter(
+            and_(
+                Inventory.organization_id == organization_id,
+                Inventory.is_active == True,
+                Inventory.current_stock > 0
+            )
+        )
+        
+        if category:
+            query = query.filter(Inventory.category == category)
+        
+        items = query.order_by(Inventory.name).all()
+        
+        return [
+            {
+                "id": str(item.id),
+                "name": item.name,
+                "description": item.description,
+                "category": item.category,
+                "unit": item.unit,
+                "current_stock": item.current_stock,
+                "cost_per_unit": item.cost_per_unit,
+                "available_for_order": item.current_stock > item.min_stock  # Safety buffer
+            }
+            for item in items
+        ]
+    
+    @staticmethod
+    def get_inventory_impact_report(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
     ) -> Dict[str, Any]:
-        """Получить статистику по заказам"""
+        """Generate report on inventory usage through orders"""
         
-        end_date = datetime.now(timezone.utc)
-        start_date = end_date - timedelta(days=period_days)
-        
-        # Заказы за период
+        # Get completed orders in period
         orders = db.query(RoomOrder).filter(
             and_(
                 RoomOrder.organization_id == organization_id,
-                RoomOrder.requested_at >= start_date
+                RoomOrder.status == OrderStatus.DELIVERED,
+                RoomOrder.completed_at >= start_date,
+                RoomOrder.completed_at <= end_date
             )
         ).all()
         
-        # Группируем по статусам
-        status_counts = {}
-        for status in OrderStatus:
-            status_counts[status.value] = len([o for o in orders if o.status == status])
+        # Get related inventory movements
+        movements = db.query(InventoryMovement).filter(
+            and_(
+                InventoryMovement.organization_id == organization_id,
+                InventoryMovement.movement_type == "out",
+                InventoryMovement.reason.like("Order delivery%"),
+                InventoryMovement.created_at >= start_date,
+                InventoryMovement.created_at <= end_date
+            )
+        ).all()
         
-        # Группируем по типам
-        type_stats = {}
-        order_types = set(o.order_type for o in orders)
+        # Aggregate data
+        inventory_usage = {}
+        total_value_consumed = 0
         
-        for order_type in order_types:
-            type_orders = [o for o in orders if o.order_type == order_type]
-            type_stats[order_type] = {
-                "count": len(type_orders),
-                "revenue": sum(o.total_amount for o in type_orders),
-                "avg_amount": sum(o.total_amount for o in type_orders) / len(type_orders) if type_orders else 0
-            }
-        
-        # Выполненные заказы
-        completed_orders = [o for o in orders if o.status == OrderStatus.DELIVERED]
-        
-        # Средние времена
-        avg_completion_time = None
-        if completed_orders:
-            completion_times = []
-            for order in completed_orders:
-                if order.completed_at and order.requested_at:
-                    completion_time = (order.completed_at - order.requested_at).total_seconds() / 3600  # в часах
-                    completion_times.append(completion_time)
+        for movement in movements:
+            item_id = str(movement.inventory_id)
+            if item_id not in inventory_usage:
+                inventory_usage[item_id] = {
+                    "inventory_name": movement.inventory_item.name if movement.inventory_item else "Unknown",
+                    "total_quantity": 0,
+                    "total_value": 0,
+                    "order_count": 0
+                }
             
-            if completion_times:
-                avg_completion_time = sum(completion_times) / len(completion_times)
+            inventory_usage[item_id]["total_quantity"] += movement.quantity
+            inventory_usage[item_id]["total_value"] += movement.total_cost or 0
+            total_value_consumed += movement.total_cost or 0
         
-        # Финансовые метрики
-        total_revenue = sum(o.total_amount for o in orders)
-        paid_revenue = sum(o.total_amount for o in orders if o.is_paid)
+        # Count orders per item
+        for order in orders:
+            for item in order.items:
+                if item.get('inventory_id'):
+                    item_id = item['inventory_id']
+                    if item_id in inventory_usage:
+                        inventory_usage[item_id]["order_count"] += 1
         
         return {
             "period": {
                 "start_date": start_date,
-                "end_date": end_date,
-                "days": period_days
+                "end_date": end_date
             },
-            "totals": {
+            "summary": {
                 "total_orders": len(orders),
-                "completed_orders": len(completed_orders),
-                "completion_rate": (len(completed_orders) / len(orders) * 100) if orders else 0
+                "total_inventory_value_consumed": total_value_consumed,
+                "unique_items_used": len(inventory_usage)
             },
-            "by_status": status_counts,
-            "by_type": type_stats,
-            "financial": {
-                "total_revenue": total_revenue,
-                "paid_revenue": paid_revenue,
-                "outstanding_revenue": total_revenue - paid_revenue,
-                "avg_order_value": total_revenue / len(orders) if orders else 0
-            },
-            "performance": {
-                "avg_completion_time_hours": avg_completion_time
-            }
+            "inventory_breakdown": inventory_usage,
+            "top_consumed_items": sorted(
+                inventory_usage.items(),
+                key=lambda x: x[1]["total_value"],
+                reverse=True
+            )[:10]
         }

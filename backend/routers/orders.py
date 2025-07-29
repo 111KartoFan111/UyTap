@@ -53,58 +53,6 @@ async def get_orders(
     return orders
 
 
-@router.post("", response_model=RoomOrderResponse)
-async def create_order(
-    order_data: RoomOrderCreate,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Создать заказ в номер"""
-    
-    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to create orders"
-        )
-    
-    # Проверяем существование помещения
-    property_obj = db.query(Property).filter(
-        and_(
-            Property.id == uuid.UUID(order_data.property_id),
-            Property.organization_id == current_user.organization_id
-        )
-    ).first()
-    
-    if not property_obj:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Property not found"
-        )
-    
-    # Создаем заказ
-    order = OrderService.create_order(
-        db=db,
-        order_data=order_data,
-        organization_id=current_user.organization_id
-    )
-    
-    # Логируем действие
-    AuthService.log_user_action(
-        db=db,
-        user_id=current_user.id,
-        action="order_created",
-        organization_id=current_user.organization_id,
-        resource_type="order",
-        resource_id=order.id,
-        details={
-            "property_id": order_data.property_id,
-            "order_type": order_data.order_type,
-            "total_amount": order_data.total_amount
-        }
-    )
-    
-    return order
-
 
 @router.get("/{order_id}", response_model=RoomOrderResponse)
 async def get_order(
@@ -208,46 +156,6 @@ async def assign_order(
     return {"message": "Order assigned successfully"}
 
 
-@router.post("/{order_id}/complete")
-async def complete_order(
-    order_id: uuid.UUID,
-    completion_notes: Optional[str] = None,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Завершить заказ"""
-    
-    order = OrderService.get_order_by_id(db, order_id, current_user.organization_id)
-    if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found"
-        )
-    
-    # Проверяем права на завершение
-    can_complete = (
-        current_user.role in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER] or
-        order.assigned_to == current_user.id
-    )
-    
-    if not can_complete:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to complete this order"
-        )
-    
-    if order.status != OrderStatus.IN_PROGRESS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Order must be in progress to complete"
-        )
-    
-    # Завершаем заказ
-    completed_order = OrderService.complete_order(db, order, current_user.id, completion_notes)
-    
-    return {"message": "Order completed successfully", "completed_at": completed_order.completed_at}
-
-
 @router.get("/statistics/overview")
 async def get_orders_statistics(
     period_days: int = Query(30, ge=1, le=365),
@@ -269,3 +177,116 @@ async def get_orders_statistics(
     )
     
     return stats
+
+
+@router.post("", response_model=RoomOrderResponse)
+async def create_order(
+    order_data: RoomOrderCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Создать заказ с проверкой наличия на складе"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to create orders"
+        )
+    
+    try:
+        # Use enhanced order creation with inventory checking
+        order = OrderService.create_order_with_inventory_check(
+            db=db,
+            order_data=order_data,
+            organization_id=current_user.organization_id
+        )
+        
+        # Log action
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="order_created_with_inventory",
+            organization_id=current_user.organization_id,
+            resource_type="order",
+            resource_id=order.id,
+            details={
+                "property_id": order_data.property_id,
+                "order_type": order_data.order_type,
+                "total_amount": order_data.total_amount,
+                "inventory_items": [
+                    item.inventory_id for item in order_data.items 
+                    if item.is_inventory_item and item.inventory_id
+                ]
+            }
+        )
+        
+        return order
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.post("/{order_id}/complete")
+async def complete_order_with_inventory(
+    order_id: uuid.UUID,
+    completion_notes: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Complete order with automatic inventory deduction"""
+    
+    order = OrderService.get_order_by_id(db, order_id, current_user.organization_id)
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+    
+    # Check permissions
+    can_complete = (
+        current_user.role in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER] or
+        order.assigned_to == current_user.id
+    )
+    
+    if not can_complete:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to complete this order"
+        )
+    
+    try:
+        # Use enhanced completion with inventory deduction
+        completed_order = OrderService.complete_order_with_inventory_deduction(
+            db=db,
+            order=order,
+            completed_by=current_user.id,
+            completion_notes=completion_notes
+        )
+        
+        # Log action
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="order_completed_with_inventory",
+            organization_id=current_user.organization_id,
+            resource_type="order",
+            resource_id=order.id,
+            details={
+                "completed_at": completed_order.completed_at.isoformat(),
+                "inventory_deducted": True
+            }
+        )
+        
+        return {
+            "message": "Order completed successfully with inventory deduction",
+            "completed_at": completed_order.completed_at,
+            "order_id": str(order_id)
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )

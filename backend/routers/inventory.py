@@ -15,6 +15,9 @@ from schemas.inventory import (
 from models.models import User, UserRole
 from services.auth_service import AuthService
 from utils.dependencies import get_current_active_user
+from services.order_service import OrderService
+from typing import Dict, Any
+
 
 router = APIRouter(prefix="/api/inventory", tags=["Inventory"])
 
@@ -34,7 +37,6 @@ async def get_inventory_items(
     
     query = db.query(Inventory).filter(Inventory.organization_id == current_user.organization_id)
     
-    # Фильтры
     if category:
         query = query.filter(Inventory.category == category)
     
@@ -53,8 +55,7 @@ async def get_inventory_items(
     
     items = query.order_by(Inventory.name).offset(skip).limit(limit).all()
     
-    return {"message": "Inventory item deleted successfully"}
-
+    return items  # ✅ возвращаем список, как и ожидается
 
 @router.post("/{item_id}/movement", response_model=InventoryMovementResponse)
 async def create_inventory_movement(
@@ -231,6 +232,91 @@ async def get_low_stock_items(
         ]
     }
 
+@router.post("/bulk", response_model=List[InventoryResponse])
+async def create_inventory_items_bulk(
+    items_data: List[InventoryCreate],
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Массовое создание товаров инвентаря"""
+
+    if current_user.role not in [UserRole.ADMIN, UserRole.STOREKEEPER, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав для создания товаров"
+        )
+
+    created_items = []
+
+    for item_data in items_data:
+        # Проверка уникальности SKU
+        if item_data.sku:
+            existing_item = db.query(Inventory).filter(
+                Inventory.organization_id == current_user.organization_id,
+                Inventory.sku == item_data.sku
+            ).first()
+
+            if existing_item:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Товар с SKU '{item_data.sku}' уже существует"
+                )
+
+        total_value = item_data.current_stock * (item_data.cost_per_unit or 0)
+
+        # Создаем товар
+        item = Inventory(
+            id=uuid.uuid4(),
+            organization_id=current_user.organization_id,
+            **item_data.dict(),
+            total_value=total_value,
+            last_restock_date=datetime.now(timezone.utc) if item_data.current_stock > 0 else None
+        )
+
+        db.add(item)
+        db.flush()  # Для получения ID до коммита
+
+        # Движение, если есть остаток
+        if item_data.current_stock > 0:
+            movement = InventoryMovement(
+                id=uuid.uuid4(),
+                organization_id=current_user.organization_id,
+                inventory_id=item.id,
+                user_id=current_user.id,
+                movement_type="in",
+                quantity=item_data.current_stock,
+                unit_cost=item_data.cost_per_unit,
+                total_cost=total_value,
+                reason="initial_stock",
+                notes="Начальный остаток",
+                stock_after=item_data.current_stock
+            )
+            db.add(movement)
+
+        # Логируем создание
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="inventory_item_created_bulk",
+            organization_id=current_user.organization_id,
+            resource_type="inventory",
+            resource_id=item.id,
+            details={
+                "item_name": item.name,
+                "sku": item.sku,
+                "initial_stock": item_data.current_stock
+            }
+        )
+
+        created_items.append(item)
+
+    db.commit()
+
+    # Обновляем объекты
+    for item in created_items:
+        db.refresh(item)
+
+    return created_items
 
 @router.get("/statistics/overview")
 async def get_inventory_statistics(
@@ -761,3 +847,43 @@ async def delete_inventory_item(
     db.commit()
     
     return
+
+@router.get("/available-for-orders", response_model=List[Dict[str, Any]])
+async def get_available_inventory_for_orders(
+    category: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get inventory items available for room orders"""
+    
+    items = OrderService.get_available_inventory_for_orders(
+        db=db,
+        organization_id=current_user.organization_id,
+        category=category
+    )
+    
+    return items
+
+@router.get("/orders-impact-report")
+async def get_inventory_orders_impact_report(
+    start_date: datetime = Query(...),
+    end_date: datetime = Query(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get report on inventory usage through orders"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.STOREKEEPER, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to view inventory reports"
+        )
+    
+    report = OrderService.get_inventory_impact_report(
+        db=db,
+        organization_id=current_user.organization_id,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    return report
