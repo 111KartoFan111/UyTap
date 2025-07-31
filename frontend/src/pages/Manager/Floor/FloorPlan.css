@@ -206,7 +206,6 @@
 }
 
 .room-card.maintenance {
-  background: #f39c12;
   border-color: #f39c12;
 }
 
@@ -274,10 +273,6 @@
 
 .room-card.occupied .room-status-indicator {
   background: #e74c3c;
-}
-
-.room-card.maintenance .room-status-indicator {
-  background: #f39c12;
 }
 
 .room-card.cleaning .room-status-indicator {
@@ -657,7 +652,6 @@
 }
 
 .room-card.maintenance {
-  background: #f39c12;
   border-color: #f39c12;
 }
 
@@ -725,10 +719,6 @@
 
 .room-card.occupied .room-status-indicator {
   background: #e74c3c;
-}
-
-.room-card.maintenance .room-status-indicator {
-  background: #f39c12;
 }
 
 .room-card.cleaning .room-status-indicator {

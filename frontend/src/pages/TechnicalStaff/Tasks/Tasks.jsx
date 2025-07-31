@@ -1,9 +1,10 @@
 // frontend/src/pages/TechnicalStaff/Tasks/Tasks.jsx
 import { useState, useEffect } from 'react';
-import { FiSearch, FiFilter, FiPlus, FiGrid, FiList, FiUser } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiPlus, FiGrid, FiList, FiUser, FiCheck, FiPlay, FiPause, FiX } from 'react-icons/fi';
 import { useTranslation } from '../../../contexts/LanguageContext';
 import { useData } from '../../../contexts/DataContext';
 import { useAuth } from '../../../contexts/AuthContext';
+import Modal from '../../../components/Common/Modal';
 import './Tasks.css';
 
 const Tasks = () => {
@@ -25,10 +26,20 @@ const Tasks = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [availableProperties, setAvailableProperties] = useState([]);
+  const [completionData, setCompletionData] = useState({
+    notes: '',
+    rating: 5,
+    duration: null
+  });
 
   useEffect(() => {
     loadTasks();
-  }, [showCompleted, searchTerm, filterPriority]);
+    loadProperties();
+  }, [showCompleted, searchTerm, filterPriority, filterType]);
 
   const loadTasks = async () => {
     try {
@@ -37,23 +48,17 @@ const Tasks = () => {
       // Параметры для загрузки задач
       const params = {};
       
-      // Если не показываем завершенные, исключаем их
-      if (!showCompleted) {
-        // Загружаем все статусы кроме completed
-        params.status = null; // Получим все и отфильтруем локально
-      }
-      
       // Фильтр по приоритету
       if (filterPriority) {
         params.priority = filterPriority;
       }
       
-      // Поиск
-      if (searchTerm) {
-        params.search = searchTerm;
+      // Фильтр по типу
+      if (filterType) {
+        params.task_type = filterType;
       }
       
-      // Получаем задачи (для technical_staff - все назначенные задачи)
+      // Получаем задачи
       let allTasks = [];
       
       if (user.role === 'technical_staff') {
@@ -62,6 +67,14 @@ const Tasks = () => {
       } else {
         // Для других ролей получаем все задачи
         allTasks = await tasks.getAll(params);
+      }
+      
+      // Фильтр по поиску
+      if (searchTerm) {
+        allTasks = allTasks.filter(task => 
+          task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          task.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
       }
       
       // Обогащаем задачи информацией о свойствах
@@ -95,7 +108,7 @@ const Tasks = () => {
       
       enrichedTasks.forEach(task => {
         // Исключаем завершенные задачи если флаг не установлен
-        if (!showCompleted && task.status === 'completed') {
+        if (!showCompleted && ['completed', 'cancelled', 'failed'].includes(task.status)) {
           return;
         }
         
@@ -110,6 +123,15 @@ const Tasks = () => {
       utils.showError('Ошибка загрузки задач');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProperties = async () => {
+    try {
+      const propertiesList = await properties.getAll();
+      setAvailableProperties(propertiesList || []);
+    } catch (error) {
+      console.error('Error loading properties:', error);
     }
   };
 
@@ -146,6 +168,27 @@ const Tasks = () => {
       console.error(`Error ${action} task:`, error);
       utils.showError(`Ошибка выполнения действия: ${action}`);
     }
+  };
+
+  const openCompleteModal = (task) => {
+    setSelectedTask(task);
+    setCompletionData({
+      notes: '',
+      rating: 5,
+      duration: null
+    });
+    setShowTaskModal(true);
+  };
+
+  const handleCompleteTask = async () => {
+    if (!selectedTask || !completionData.notes.trim()) {
+      utils.showError('Заполните отчет о выполнении');
+      return;
+    }
+
+    await handleTaskAction(selectedTask.id, 'complete', completionData);
+    setShowTaskModal(false);
+    setSelectedTask(null);
   };
 
   const getPriorityColor = (priority) => {
@@ -192,8 +235,16 @@ const Tasks = () => {
     return labels[priority] || priority;
   };
 
+  const canStartTask = (task) => {
+    return task.status === 'assigned' && (user.role !== 'technical_staff' || user.id === task.assigned_to);
+  };
+
+  const canCompleteTask = (task) => {
+    return task.status === 'in_progress' && (user.role !== 'technical_staff' || user.id === task.assigned_to);
+  };
+
   const renderTask = (task) => (
-    <div key={task.id} className="task-card">
+    <div key={task.id} className="task-card" onClick={() => openCompleteModal(task)}>
       <div className="task-header">
         <h4>{task.title}</h4>
         <div 
@@ -236,22 +287,22 @@ const Tasks = () => {
       </div>
       
       {/* Действия для задач */}
-      <div className="task-actions">
-        {task.status === 'assigned' && user.id === task.assigned_to && (
+      <div className="task-actions" onClick={(e) => e.stopPropagation()}>
+        {canStartTask(task) && (
           <button 
             className="btn-start"
             onClick={() => handleTaskAction(task.id, 'start')}
           >
-            Начать
+            <FiPlay /> Начать
           </button>
         )}
         
-        {task.status === 'in_progress' && user.id === task.assigned_to && (
+        {canCompleteTask(task) && (
           <button 
             className="btn-complete"
-            onClick={() => handleTaskAction(task.id, 'complete')}
+            onClick={() => openCompleteModal(task)}
           >
-            Завершить
+            <FiCheck /> Завершить
           </button>
         )}
         
@@ -260,7 +311,7 @@ const Tasks = () => {
             className="btn-cancel"
             onClick={() => handleTaskAction(task.id, 'cancel', { reason: 'Отменено пользователем' })}
           >
-            Отменить
+            <FiX /> Отмена
           </button>
         )}
       </div>
@@ -281,6 +332,76 @@ const Tasks = () => {
     </div>
   );
 
+  const renderListView = () => (
+    <div className="tasks-list-view">
+      <div className="tasks-table">
+        <div className="table-header">
+          <div>Задача</div>
+          <div>Тип</div>
+          <div>Приоритет</div>
+          <div>Статус</div>
+          <div>Исполнитель</div>
+          <div>Срок</div>
+          <div>Действия</div>
+        </div>
+        
+        {Object.values(tasksByStatus).flat().map(task => (
+          <div key={task.id} className="table-row">
+            <div className="task-info">
+              <strong>{task.title}</strong>
+              <small>{task.property?.name || `Объект ${task.property_id}`}</small>
+            </div>
+            <div>{getTaskTypeLabel(task.task_type)}</div>
+            <div>
+              <span 
+                className="priority-badge"
+                style={{ backgroundColor: getPriorityColor(task.priority) }}
+              >
+                {getPriorityLabel(task.priority)}
+              </span>
+            </div>
+            <div>
+              <span className={`status-badge status-${task.status}`}>
+                {getStatusLabel(task.status)}
+              </span>
+            </div>
+            <div>
+              {task.assignee ? 
+                `${task.assignee.first_name} ${task.assignee.last_name}` : 
+                'Не назначено'
+              }
+            </div>
+            <div>
+              {task.due_date ? 
+                new Date(task.due_date).toLocaleDateString() : 
+                '—'
+              }
+            </div>
+            <div className="table-actions">
+              {canStartTask(task) && (
+                <button 
+                  className="btn-start-small"
+                  onClick={() => handleTaskAction(task.id, 'start')}
+                >
+                  <FiPlay /> Начать
+                </button>
+              )}
+              
+              {canCompleteTask(task) && (
+                <button 
+                  className="btn-complete-small"
+                  onClick={() => openCompleteModal(task)}
+                >
+                  <FiCheck /> Завершить
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="tasks">
@@ -295,13 +416,13 @@ const Tasks = () => {
   return (
     <div className="tasks">
       <div className="tasks-header">
-        <h1>{t('tasks.title')}</h1>
+        <h1>Управление задачами</h1>
         <div className="header-controls">
           <div className="search-box">
             <FiSearch />
             <input 
               type="text" 
-              placeholder={t('common.search')}
+              placeholder="Поиск задач..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -319,28 +440,42 @@ const Tasks = () => {
             <option value="urgent">Срочный</option>
           </select>
           
+          <select 
+            className="filter-btn"
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+          >
+            <option value="">Все типы</option>
+            <option value="cleaning">Уборка</option>
+            <option value="maintenance">Обслуживание</option>
+            <option value="check_in">Заселение</option>
+            <option value="check_out">Выселение</option>
+            <option value="delivery">Доставка</option>
+            <option value="laundry">Стирка</option>
+          </select>
+          
           <label className="checkbox-label">
             <input 
               type="checkbox" 
               checked={showCompleted}
               onChange={(e) => setShowCompleted(e.target.checked)}
             />
-            {t('tasks.showCompleted')}
+            Показать завершенные
           </label>
           
           <div className="view-toggle">
-            <span>{t('common.view')}:</span>
+            <span>Вид:</span>
             <button 
               className={viewMode === 'board' ? 'active' : ''}
               onClick={() => setViewMode('board')}
             >
-              <FiGrid /> {t('tasks.board')}
+              <FiGrid /> Доска
             </button>
             <button 
               className={viewMode === 'list' ? 'active' : ''}
               onClick={() => setViewMode('list')}
             >
-              <FiList /> {t('tasks.list')}
+              <FiList /> Список
             </button>
           </div>
         </div>
@@ -357,74 +492,111 @@ const Tasks = () => {
           })}
         </div>
       ) : (
-        <div className="tasks-list-view">
-          <div className="tasks-table">
-            <div className="table-header">
-              <div>Задача</div>
-              <div>Тип</div>
-              <div>Приоритет</div>
-              <div>Статус</div>
-              <div>Исполнитель</div>
-              <div>Срок</div>
-              <div>Действия</div>
+        renderListView()
+      )}
+
+      {/* Модальное окно завершения задачи */}
+      <Modal 
+        isOpen={showTaskModal} 
+        onClose={() => {
+          setShowTaskModal(false);
+          setSelectedTask(null);
+        }}
+        title={`Завершение задачи: ${selectedTask?.title || ''}`}
+        size="medium"
+      >
+        {selectedTask && (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ padding: '12px', background: '#f8f9fa', borderRadius: '8px' }}>
+              <div><strong>Задача:</strong> {selectedTask.title}</div>
+              <div><strong>Тип:</strong> {getTaskTypeLabel(selectedTask.task_type)}</div>
+              <div><strong>Приоритет:</strong> {getPriorityLabel(selectedTask.priority)}</div>
+              <div><strong>Объект:</strong> {selectedTask.property?.name || `Объект ${selectedTask.property_id}`}</div>
+              {selectedTask.estimated_duration && (
+                <div><strong>Планируемое время:</strong> {selectedTask.estimated_duration} мин</div>
+              )}
             </div>
             
-            {Object.values(tasksByStatus).flat().map(task => (
-              <div key={task.id} className="table-row">
-                <div className="task-info">
-                  <strong>{task.title}</strong>
-                  <small>{task.property?.name || `Объект ${task.property_id}`}</small>
-                </div>
-                <div>{getTaskTypeLabel(task.task_type)}</div>
-                <div>
-                  <span 
-                    className="priority-badge"
-                    style={{ backgroundColor: getPriorityColor(task.priority) }}
+            <div>
+              <label>Отчет о выполнении *</label>
+              <textarea
+                value={completionData.notes}
+                onChange={(e) => setCompletionData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Опишите что было сделано, какие проблемы решены, использованные материалы..."
+                rows={4}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px', 
+                  border: '1px solid #ddd', 
+                  borderRadius: '4px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label>Фактическое время выполнения (минуты)</label>
+              <input
+                type="number"
+                value={completionData.duration || ''}
+                onChange={(e) => setCompletionData(prev => ({ ...prev, duration: e.target.value ? Number(e.target.value) : null }))}
+                placeholder="Введите время в минутах"
+                min="1"
+                style={{ 
+                  width: '100%', 
+                  padding: '8px', 
+                  border: '1px solid #ddd', 
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label>Оценка качества выполнения</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
+                {[1, 2, 3, 4, 5].map(rating => (
+                  <button
+                    key={rating}
+                    onClick={() => setCompletionData(prev => ({ ...prev, rating }))}
+                    style={{
+                      padding: '8px 12px',
+                      border: completionData.rating === rating ? '2px solid #3498db' : '1px solid #ddd',
+                      background: completionData.rating === rating ? '#e8f4fd' : 'white',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: completionData.rating === rating ? '600' : 'normal'
+                    }}
                   >
-                    {getPriorityLabel(task.priority)}
-                  </span>
-                </div>
-                <div>
-                  <span className={`status-badge status-${task.status}`}>
-                    {getStatusLabel(task.status)}
-                  </span>
-                </div>
-                <div>
-                  {task.assignee ? 
-                    `${task.assignee.first_name} ${task.assignee.last_name}` : 
-                    'Не назначено'
-                  }
-                </div>
-                <div>
-                  {task.due_date ? 
-                    new Date(task.due_date).toLocaleDateString() : 
-                    '—'
-                  }
-                </div>
-                <div className="table-actions">
-                  {task.status === 'assigned' && user.id === task.assigned_to && (
-                    <button 
-                      className="btn-start-small"
-                      onClick={() => handleTaskAction(task.id, 'start')}
-                    >
-                      Начать
-                    </button>
-                  )}
-                  
-                  {task.status === 'in_progress' && user.id === task.assigned_to && (
-                    <button 
-                      className="btn-complete-small"
-                      onClick={() => handleTaskAction(task.id, 'complete')}
-                    >
-                      Завершить
-                    </button>
-                  )}
-                </div>
+                    {rating} ⭐
+                  </button>
+                ))}
               </div>
-            ))}
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                1 - Плохо, 2 - Удовлетворительно, 3 - Хорошо, 4 - Отлично, 5 - Превосходно
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button 
+                onClick={() => {
+                  setShowTaskModal(false);
+                  setSelectedTask(null);
+                }}
+                className="modal-btn modal-btn-secondary"
+              >
+                Отмена
+              </button>
+              <button 
+                onClick={handleCompleteTask}
+                className="modal-btn modal-btn-success"
+                disabled={!completionData.notes.trim()}
+              >
+                <FiCheck /> Завершить задачу
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

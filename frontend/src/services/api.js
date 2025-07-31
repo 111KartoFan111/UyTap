@@ -1,4 +1,4 @@
-// services/api.js - Обновленная версия с недостающими методами
+// frontend/src/services/api.js - Исправленная версия
 const API_BASE_URL = 'http://localhost:8000';
 
 // API Request helper with auth token
@@ -42,17 +42,45 @@ const apiRequest = async (endpoint, options = {}) => {
 
 const handleResponse = async (response) => {
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    
+    try {
+      const errorData = await response.json();
+      if (errorData.detail) {
+        if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          errorMessage = errorData.detail.map(err => err.msg || err).join(', ');
+        }
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      }
+    } catch (jsonError) {
+      // Если ответ не JSON, используем статус
+      console.warn('Could not parse error response as JSON:', jsonError);
+    }
+    
+    throw new Error(errorMessage);
   }
   
   // Для файловых загрузок возвращаем blob
-  if (response.headers.get('content-type')?.includes('application/') && 
-      !response.headers.get('content-type')?.includes('application/json')) {
+  const contentType = response.headers.get('content-type');
+  if (contentType && !contentType.includes('application/json')) {
     return response.blob();
   }
   
-  return response.json();
+  // Проверяем, есть ли контент для парсинга
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+  
+  try {
+    return JSON.parse(text);
+  } catch (parseError) {
+    console.warn('Could not parse response as JSON:', parseError);
+    return text;
+  }
 };
 
 const refreshToken = async () => {
@@ -110,8 +138,14 @@ export const authAPI = {
   },
 
   async checkSystemStatus() {
-    return fetch(`${API_BASE_URL}/api/auth/system/status`)
-      .then(response => response.json());
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/system/status`);
+      const data = await response.json();
+      return { initialized: data.initialized || false };
+    } catch (error) {
+      console.error('System status check failed:', error);
+      return { initialized: false };
+    }
   },
 
   async initializeSystem(initData) {
@@ -130,13 +164,11 @@ export const organizationAPI = {
 
   async getLimits() {
     try {
-      // Получаем статистику дашборда, которая содержит лимиты
       const dashboardStats = await this.getDashboardStatistics();
       
-      if (dashboardStats.admin_specific?.organization_health) {
+      if (dashboardStats?.admin_specific?.organization_health) {
         const health = dashboardStats.admin_specific.organization_health;
         
-        // Парсим строки лимитов "2/10"
         const parseLimitUsage = (limitString) => {
           if (!limitString || typeof limitString !== 'string') return { current: 0, max: 0 };
           const [current, max] = limitString.split('/').map(num => parseInt(num) || 0);
@@ -154,7 +186,6 @@ export const organizationAPI = {
         };
       }
       
-      // Fallback на значения по умолчанию
       return {
         max_users: 10,
         max_properties: 50,
@@ -177,14 +208,14 @@ export const organizationAPI = {
       const dashboardStats = await this.getDashboardStatistics();
       
       return {
-        properties_count: dashboardStats.organization_stats?.total_properties || 0,
-        active_rentals: dashboardStats.organization_stats?.active_rentals || 0,
-        monthly_tasks: dashboardStats.today_stats?.completed_tasks || 0,
-        revenue_this_month: dashboardStats.month_stats?.revenue || 0,
-        total_clients: dashboardStats.organization_stats?.total_clients || 0,
-        total_staff: dashboardStats.organization_stats?.total_staff || 0,
-        occupancy_rate: dashboardStats.month_stats?.occupancy_rate || 0,
-        new_clients: dashboardStats.month_stats?.new_clients || 0
+        properties_count: dashboardStats?.organization_stats?.total_properties || 0,
+        active_rentals: dashboardStats?.organization_stats?.active_rentals || 0,
+        monthly_tasks: dashboardStats?.today_stats?.completed_tasks || 0,
+        revenue_this_month: dashboardStats?.month_stats?.revenue || 0,
+        total_clients: dashboardStats?.organization_stats?.total_clients || 0,
+        total_staff: dashboardStats?.organization_stats?.total_staff || 0,
+        occupancy_rate: dashboardStats?.month_stats?.occupancy_rate || 0,
+        new_clients: dashboardStats?.month_stats?.new_clients || 0
       };
     } catch (error) {
       console.warn('Failed to get usage stats, using defaults:', error);
@@ -244,7 +275,19 @@ export const organizationAPI = {
   },
 
   async getAvailableRoles() {
-    return apiRequest('/api/organization/users/roles/available');
+    try {
+      return await apiRequest('/api/organization/users/roles/available');
+    } catch (error) {
+      // Fallback роли если API не доступен
+      return [
+        { code: 'admin', name: 'Администратор' },
+        { code: 'manager', name: 'Менеджер' },
+        { code: 'technical_staff', name: 'Технический персонал' },
+        { code: 'accountant', name: 'Бухгалтер' },
+        { code: 'cleaner', name: 'Уборщик' },
+        { code: 'storekeeper', name: 'Кладовщик' }
+      ];
+    }
   },
 
   async resetUserPassword(userId) {
@@ -266,7 +309,7 @@ export const organizationAPI = {
   }
 };
 
-// Properties API - ОБНОВЛЕН
+// Properties API
 export const propertiesAPI = {
   async getProperties(params = {}) {
     const searchParams = new URLSearchParams();
@@ -279,7 +322,6 @@ export const propertiesAPI = {
   },
 
   async getPropertiesWithLimits(params = {}) {
-    // Получаем свойства и лимиты одновременно
     const [properties, limits] = await Promise.all([
       this.getProperties(params),
       organizationAPI.getLimits()
@@ -345,7 +387,7 @@ export const propertiesAPI = {
   }
 };
 
-// Rentals API - ОБНОВЛЕН
+// Rentals API
 export const rentalsAPI = {
   async getRentals(params = {}) {
     const searchParams = new URLSearchParams();
@@ -391,15 +433,10 @@ export const rentalsAPI = {
     return apiRequest(`/api/rentals/${id}?reason=${encodeURIComponent(reason)}`, {
       method: 'DELETE'
     });
-  },
-  async postUpdateAllStatuses() {
-    return apiRequest(`/api/properties/bulk-release-from-cleaning`, {
-      method: 'POST'
-    })
-  },
+  }
 };
 
-// Clients API - ОБНОВЛЕН
+// Clients API
 export const clientsAPI = {
   async getClients(params = {}) {
     const searchParams = new URLSearchParams();
@@ -451,7 +488,7 @@ export const clientsAPI = {
   }
 };
 
-// Tasks API - ОБНОВЛЕН
+// Tasks API
 export const tasksAPI = {
   async getTasks(params = {}) {
     const searchParams = new URLSearchParams();
@@ -524,7 +561,19 @@ export const tasksAPI = {
   async getTaskStatistics(periodDays = 30, userId = null) {
     const params = new URLSearchParams({ period_days: periodDays });
     if (userId) params.append('user_id', userId);
-    return apiRequest(`/api/tasks/statistics/overview?${params}`);
+    
+    try {
+      return await apiRequest(`/api/tasks/statistics/overview?${params}`);
+    } catch (error) {
+      console.warn('Task statistics not available, using defaults:', error);
+      return {
+        completed_tasks: 0,
+        active_tasks: 0,
+        urgent_tasks: 0,
+        total_hours: 0,
+        avg_completion_time: 0
+      };
+    }
   },
 
   async getEmployeeWorkload(role = null) {
@@ -550,7 +599,7 @@ export const tasksAPI = {
   }
 };
 
-// Reports API - ОБНОВЛЕН (добавлены реальные эндпоинты)
+// Reports API
 export const reportsAPI = {
   async getFinancialSummary(startDate, endDate) {
     return apiRequest(`/api/reports/financial-summary?start_date=${startDate}&end_date=${endDate}`);
@@ -764,11 +813,26 @@ export const inventoryAPI = {
   },
 
   async getLowStockItems() {
-    return apiRequest('/api/inventory/low-stock/alert');
+    try {
+      return await apiRequest('/api/inventory/low-stock/alert');
+    } catch (error) {
+      console.warn('Low stock API not available:', error);
+      return [];
+    }
   },
 
   async getStatistics() {
-    return apiRequest('/api/inventory/statistics/overview');
+    try {
+      return await apiRequest('/api/inventory/statistics/overview');
+    } catch (error) {
+      console.warn('Inventory statistics not available, using defaults:', error);
+      return {
+        total_items: 0,
+        low_stock_count: 0,
+        total_value: 0,
+        recent_movements: 0
+      };
+    }
   },
 
   async bulkUpdateStock(updates) {
@@ -856,6 +920,78 @@ export const payrollAPI = {
   }
 };
 
+// Универсальные методы для всех API
+const createCRUDAPI = (basePath) => ({
+  async getAll(params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
+    return apiRequest(`${basePath}?${searchParams}`);
+  },
+
+  async getById(id) {
+    return apiRequest(`${basePath}/${id}`);
+  },
+
+  async create(data) {
+    return apiRequest(basePath, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async update(id, data) {
+    return apiRequest(`${basePath}/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async delete(id) {
+    return apiRequest(`${basePath}/${id}`, {
+      method: 'DELETE'
+    });
+  }
+});
+
+// Добавляем алиасы для обратной совместимости
+export const inventory = {
+  ...inventoryAPI,
+  getAll: inventoryAPI.getItems,
+  getById: inventoryAPI.getItem,
+  create: inventoryAPI.createItem
+};
+
+export const tasks = {
+  ...tasksAPI,
+  getAll: tasksAPI.getTasks,
+  getById: tasksAPI.getTask,
+  create: tasksAPI.createTask,
+  getMy: tasksAPI.getMyTasks,
+  start: tasksAPI.startTask,
+  complete: tasksAPI.completeTask,
+  assign: tasksAPI.assignTask,
+  cancel: tasksAPI.cancelTask,
+  getStatistics: tasksAPI.getTaskStatistics
+};
+
+export const properties = {
+  ...propertiesAPI,
+  getAll: propertiesAPI.getProperties,
+  getById: propertiesAPI.getProperty,
+  create: propertiesAPI.createProperty
+};
+
+export const clients = {
+  ...clientsAPI,
+  getAll: clientsAPI.getClients,
+  getById: clientsAPI.getClient,
+  create: clientsAPI.createClient
+};
+
 // Export all APIs
 export default {
   authAPI,
@@ -868,5 +1004,9 @@ export default {
   inventoryAPI,
   documentsAPI,
   payrollAPI,
-  reportsAPI
+  reportsAPI,
+  inventory,
+  tasks,
+  properties,
+  clients
 };
