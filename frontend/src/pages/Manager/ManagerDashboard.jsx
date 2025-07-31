@@ -281,7 +281,7 @@ const ManagerDashboard = () => {
 
       {/* Stats Overview */}
       <div className="stats-overview">
-        <div className="stat-card">
+        <div className="stats-card">
           <div className="stat-icon rooms-icon">
             <FiHome />
           </div>
@@ -292,7 +292,7 @@ const ManagerDashboard = () => {
           </div>
         </div>
         
-        <div className="stat-card">
+        <div className="stats-card">
           <div className="stat-icon clients-icon">
             <FiUsers />
           </div>
@@ -303,7 +303,7 @@ const ManagerDashboard = () => {
           </div>
         </div>
         
-        <div className="stat-card">
+        <div className="stats-card">
           <div className="stat-icon revenue-icon">
             <FiDollarSign />
           </div>
@@ -314,7 +314,7 @@ const ManagerDashboard = () => {
           </div>
         </div>
         
-        <div className="stat-card">
+        <div className="stats-card">
           <div className="stat-icon occupancy-icon">
             <FiBarChart2 />
           </div>

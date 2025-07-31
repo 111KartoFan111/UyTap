@@ -4,9 +4,13 @@
 .rentals-page,
 .clients-page,
 .reports-page,
-.settings-page {
+.settings-page,
+.staff-page {
   padding: 24px;
   max-width: 1400px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   margin: 0 auto;
   background: #f8f9fa;
   min-height: 100vh;
@@ -16,7 +20,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 32px;
   flex-wrap: wrap;
   gap: 16px;
 }
@@ -140,11 +143,12 @@
 }
 
 /* Clients Page */
-.clients-stats {
+.clients-stats,
+.rentals-stats,
+.staff-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 20px;
-  margin-bottom: 32px;
 }
 
 .stat-card {
@@ -152,13 +156,28 @@
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  justify-content: space-between;
+}
+
+.stats-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .stat-card h3 {
   font-size: 14px;
   color: #666;
-  margin: 0 0 8px 0;
+  margin: 0 0 0px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }

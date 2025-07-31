@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FiSearch, FiFilter, FiPlus, FiGrid, FiList, FiUser } from 'react-icons/fi';
-import { useTranslation } from '../../contexts/LanguageContext';
+import { useTranslation } from '../../../contexts/LanguageContext';
 import './Tasks.css';
 
 const Tasks = () => {
@@ -17,7 +17,7 @@ const Tasks = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const tasksData = await import('../../mockData/tasks.json');
+      const tasksData = await import('../../../mockData/tasks.json');
       
       const groupedTasks = {
         inbox: [],
