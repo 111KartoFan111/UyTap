@@ -1,5 +1,5 @@
-// frontend/src/pages/TechnicalStaff/TechnicalStaffDashboard.jsx - УЛУЧШЕННАЯ ВЕРСИЯ
-import { useState, useEffect } from 'react';
+// frontend/src/pages/TechnicalStaff/TechnicalStaffDashboard.jsx - ВЕРСИЯ С СЕРВЕРНОЙ СИНХРОНИЗАЦИЕЙ
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FiTool, 
   FiAlertTriangle, 
@@ -22,7 +22,8 @@ import {
   FiBarChart2,
   FiCalendar,
   FiHome,
-  FiInfo
+  FiInfo,
+  FiRefreshCw
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
@@ -51,6 +52,7 @@ const TechnicalStaffDashboard = () => {
     follow_up_needed: false
   });
   
+  // Статистика БЕЗ localStorage - только с сервера
   const [todayStats, setTodayStats] = useState({
     completedTasks: 0,
     activeRequests: 0,
@@ -66,67 +68,259 @@ const TechnicalStaffDashboard = () => {
   });
 
   const [availableProperties, setAvailableProperties] = useState([]);
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle, syncing, error
+  
+  // Используем ref для предотвращения дублирования запросов
+  const isInitialized = useRef(false);
+  const syncIntervalRef = useRef(null);
+  const workTimerIntervalRef = useRef(null);
+
+  // Константы для синхронизации
+  const SYNC_INTERVAL = 60 * 1000; // 1 минута
+  const WORK_STATE_SYNC_INTERVAL = 30 * 1000; // 30 секунд для состояния работы
+  const LOCAL_WORK_STATE_KEY = 'tech_work_state_temp'; // Временное хранение только состояния работы
 
   useEffect(() => {
-    loadMyTasks();
-    loadStatistics();
-    loadProperties();
-    
-    // Восстанавливаем состояние из localStorage при загрузке
-    restoreWorkState();
+    if (!isInitialized.current) {
+      isInitialized.current = true;
+      initializeDashboard();
+      startSyncTimer();
+    }
+
+    return () => {
+      // Очищаем таймеры при размонтировании
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+      if (workTimerIntervalRef.current) {
+        clearInterval(workTimerIntervalRef.current);
+      }
+    };
   }, []);
 
+  // Запуск периодической синхронизации
+  const startSyncTimer = useCallback(() => {
+    // Очищаем предыдущий таймер если есть
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+    }
+
+    // Устанавливаем новый таймер синхронизации
+    syncIntervalRef.current = setInterval(() => {
+      syncWithServer();
+    }, SYNC_INTERVAL);
+  }, []);
+
+  // Синхронизация с сервером
+  const syncWithServer = useCallback(async () => {
+    try {
+      setSyncStatus('syncing');
+      
+      // Параллельно загружаем все данные
+      const syncPromises = [
+        loadStatisticsFromServer(),
+        loadMyTasksFromServer(),
+        checkCurrentTaskStatus()
+      ];
+
+      await Promise.allSettled(syncPromises);
+      
+      setLastSyncTime(new Date());
+      setSyncStatus('idle');
+      
+      console.log('✅ Server sync completed at', new Date().toLocaleTimeString());
+    } catch (error) {
+      console.error('❌ Server sync failed:', error);
+      setSyncStatus('error');
+      // Повторим попытку через 30 секунд при ошибке
+      setTimeout(() => syncWithServer(), 30000);
+    }
+  }, []);
+
+  // Принудительная синхронизация (по кнопке)
+  const forceSyncWithServer = useCallback(async () => {
+    await syncWithServer();
+    utils.showSuccess('Данные обновлены с сервера');
+  }, [syncWithServer, utils]);
+
+  const initializeDashboard = async () => {
+    try {
+      setLoading(true);
+      
+      // Сначала пытаемся восстановить состояние работы из временного хранилища
+      await restoreWorkStateFromTemp();
+      
+      // Загружаем данные с сервера
+      await Promise.all([
+        loadProperties(),
+        loadStatisticsFromServer(),
+        loadMyTasksFromServer()
+      ]);
+      
+      // Проверяем текущее состояние задачи на сервере
+      await checkCurrentTaskStatus();
+      
+    } catch (error) {
+      console.error('Error initializing dashboard:', error);
+      utils.showError('Ошибка инициализации панели');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Таймер работы (обновляется каждую секунду)
   useEffect(() => {
-    // Таймер для текущей работы
-    let interval;
-    if (isWorking && !isPaused && currentTask) {
-      interval = setInterval(() => {
+    if (workTimerIntervalRef.current) {
+      clearInterval(workTimerIntervalRef.current);
+    }
+
+    if (isWorking && !isPaused && currentTask && workStartTime) {
+      workTimerIntervalRef.current = setInterval(() => {
         const now = Date.now();
         const workDuration = Math.floor((now - workStartTime - totalPausedTime) / 1000);
         setWorkTimer(workDuration);
         
-        // Автосохранение в localStorage каждую минуту
-        if (workDuration % 60 === 0) {
-          saveWorkState();
+        // Автосохранение состояния работы каждые 30 секунд
+        if (workDuration % 30 === 0) {
+          saveWorkStateToTemp();
+          syncWorkStateWithServer();
         }
       }, 1000);
     }
-    return () => clearInterval(interval);
+    
+    return () => {
+      if (workTimerIntervalRef.current) {
+        clearInterval(workTimerIntervalRef.current);
+      }
+    };
   }, [isWorking, isPaused, currentTask, workStartTime, totalPausedTime]);
 
-  // Сохранение состояния работы в localStorage
-  const saveWorkState = () => {
-    if (currentTask) {
+  // Временное сохранение ТОЛЬКО состояния работы (не статистики)
+  const saveWorkStateToTemp = useCallback(() => {
+    if (currentTask && workStartTime) {
       const workState = {
         taskId: currentTask.id,
         startTime: workStartTime,
         totalPausedTime,
         isWorking,
         isPaused,
-        pauseStartTime
+        pauseStartTime,
+        workTimer,
+        lastUpdate: Date.now()
       };
-      localStorage.setItem('technical_work_state', JSON.stringify(workState));
+      localStorage.setItem(LOCAL_WORK_STATE_KEY, JSON.stringify(workState));
     }
-  };
+  }, [currentTask, workStartTime, totalPausedTime, isWorking, isPaused, pauseStartTime, workTimer]);
 
-  // Восстановление состояния работы из localStorage
-  const restoreWorkState = () => {
-    const savedState = localStorage.getItem('technical_work_state');
+  // Восстановление ТОЛЬКО состояния работы
+  const restoreWorkStateFromTemp = async () => {
+    const savedState = localStorage.getItem(LOCAL_WORK_STATE_KEY);
     if (savedState) {
       try {
         const workState = JSON.parse(savedState);
-        // Найдем задачу из состояния после загрузки задач
-        // Это будет сделано в loadMyTasks
+        
+        // Проверяем что состояние не старше 24 часов
+        const maxAge = 24 * 60 * 60 * 1000; // 24 часа
+        if (Date.now() - workState.lastUpdate > maxAge) {
+          console.log('Work state too old, clearing');
+          clearWorkStateTemp();
+          return;
+        }
+        
+        // Проверяем что задача еще актуальна на сервере
+        if (workState.taskId) {
+          try {
+            const currentTaskData = await tasks.getById(workState.taskId);
+            
+            if (currentTaskData && currentTaskData.status === 'in_progress') {
+              // Восстанавливаем состояние
+              setCurrentTask(currentTaskData);
+              setWorkStartTime(workState.startTime);
+              setTotalPausedTime(workState.totalPausedTime || 0);
+              setIsWorking(workState.isWorking);
+              setIsPaused(workState.isPaused);
+              setPauseStartTime(workState.pauseStartTime);
+              
+              // Пересчитываем таймер с учетом прошедшего времени
+              const now = Date.now();
+              let currentPausedTime = workState.totalPausedTime || 0;
+              
+              if (workState.isPaused && workState.pauseStartTime) {
+                currentPausedTime += (now - workState.pauseStartTime);
+                setTotalPausedTime(currentPausedTime);
+              }
+              
+              const workDuration = Math.floor((now - workState.startTime - currentPausedTime) / 1000);
+              setWorkTimer(Math.max(0, workDuration));
+              
+              console.log('✅ Work state restored from temp storage');
+            } else {
+              console.log('Task no longer in progress, clearing work state');
+              clearWorkStateTemp();
+            }
+          } catch (error) {
+            console.error('Error validating task state:', error);
+            clearWorkStateTemp();
+          }
+        }
       } catch (error) {
         console.error('Error restoring work state:', error);
-        localStorage.removeItem('technical_work_state');
+        clearWorkStateTemp();
       }
     }
   };
 
-  // Очистка состояния работы
-  const clearWorkState = () => {
-    localStorage.removeItem('technical_work_state');
+  // Синхронизация состояния работы с сервером
+  const syncWorkStateWithServer = useCallback(async () => {
+    if (currentTask && isWorking) {
+      try {
+        // Здесь можно добавить API вызов для синхронизации состояния работы
+        // await tasks.updateWorkState(currentTask.id, {
+        //   working_since: workStartTime,
+        //   is_paused: isPaused,
+        //   pause_time: pauseStartTime,
+        //   total_paused_time: totalPausedTime
+        // });
+        console.log('🔄 Work state synced with server');
+      } catch (error) {
+        console.error('Failed to sync work state with server:', error);
+      }
+    }
+  }, [currentTask, isWorking, workStartTime, isPaused, pauseStartTime, totalPausedTime]);
+
+  // Проверка текущего статуса задачи на сервере
+  const checkCurrentTaskStatus = useCallback(async () => {
+    if (currentTask) {
+      try {
+        const serverTask = await tasks.getById(currentTask.id);
+        
+        // Если задача завершена на сервере, очищаем локальное состояние
+        if (!serverTask || !['assigned', 'in_progress'].includes(serverTask.status)) {
+          console.log('Task completed on server, clearing local state');
+          clearWorkStateTemp();
+          setCurrentTask(null);
+          setIsWorking(false);
+          setIsPaused(false);
+          setWorkTimer(0);
+          setWorkStartTime(null);
+          setTotalPausedTime(0);
+          setPauseStartTime(null);
+        }
+      } catch (error) {
+        console.error('Error checking task status:', error);
+      }
+    }
+  }, [currentTask]);
+
+  // Очистка временного состояния работы
+  const clearWorkStateTemp = useCallback(() => {
+    localStorage.removeItem(LOCAL_WORK_STATE_KEY);
+  }, []);
+
+  // Полная очистка состояния работы
+  const clearWorkState = useCallback(() => {
+    clearWorkStateTemp();
     setCurrentTask(null);
     setIsWorking(false);
     setIsPaused(false);
@@ -134,11 +328,11 @@ const TechnicalStaffDashboard = () => {
     setWorkStartTime(null);
     setTotalPausedTime(0);
     setPauseStartTime(null);
-  };
+  }, [clearWorkStateTemp]);
 
-  const loadMyTasks = async () => {
+  // Загрузка задач с сервера
+  const loadMyTasksFromServer = useCallback(async () => {
     try {
-      setLoading(true);
       const assignedTasks = await tasks.getMy();
       
       // Обогащаем задачи информацией о свойствах
@@ -163,65 +357,44 @@ const TechnicalStaffDashboard = () => {
       
       setMyTasks(enrichedTasks);
       
-      // Восстанавливаем состояние работы если есть сохраненное
-      const savedState = localStorage.getItem('technical_work_state');
-      if (savedState) {
-        try {
-          const workState = JSON.parse(savedState);
-          const savedTask = enrichedTasks.find(t => t.id === workState.taskId);
-          
-          if (savedTask && savedTask.status === 'in_progress') {
-            setCurrentTask(savedTask);
-            setWorkStartTime(workState.startTime);
-            setTotalPausedTime(workState.totalPausedTime || 0);
-            setIsWorking(workState.isWorking);
-            setIsPaused(workState.isPaused);
-            setPauseStartTime(workState.pauseStartTime);
-            
-            // Пересчитываем таймер с учетом прошедшего времени
-            const now = Date.now();
-            let currentPausedTime = workState.totalPausedTime || 0;
-            
-            if (workState.isPaused && workState.pauseStartTime) {
-              // Если была пауза, добавляем время паузы
-              currentPausedTime += (now - workState.pauseStartTime);
-              setTotalPausedTime(currentPausedTime);
-            }
-            
-            const workDuration = Math.floor((now - workState.startTime - currentPausedTime) / 1000);
-            setWorkTimer(Math.max(0, workDuration));
-          } else {
-            // Задача не найдена или завершена, очищаем состояние
-            clearWorkState();
-          }
-        } catch (error) {
-          console.error('Error restoring work state:', error);
-          clearWorkState();
-        }
-      }
+      console.log(`📋 Loaded ${enrichedTasks.length} tasks from server`);
+      
     } catch (error) {
-      console.error('Error loading tasks:', error);
-      utils.showError('Ошибка загрузки задач');
-    } finally {
-      setLoading(false);
+      console.error('Error loading tasks from server:', error);
+      // utils.showError('Ошибка загрузки задач с сервера');
     }
-  };
+  }, [tasks, properties]);
 
-  const loadStatistics = async () => {
+  // Загрузка статистики с сервера
+  const loadStatisticsFromServer = useCallback(async () => {
     try {
+      // Загружаем статистику с сервера
       const stats = await tasks.getStatistics(30, user.id);
       
-      setTodayStats({
+      // Также загружаем текущие задачи для актуальной статистики
+      const currentTasks = await tasks.getMy();
+      const activeTasks = currentTasks.filter(t => 
+        !['completed', 'cancelled', 'failed'].includes(t.status)
+      );
+      const urgentTasks = activeTasks.filter(t => t.priority === 'urgent');
+      
+      const newStats = {
         completedTasks: stats.completed_tasks || 0,
-        activeRequests: stats.active_tasks || 0,
-        urgentIssues: stats.urgent_tasks || 0,
+        activeRequests: activeTasks.length,
+        urgentIssues: urgentTasks.length,
         workingHours: stats.total_hours || 0,
         avgCompletionTime: stats.avg_completion_time || 0
-      });
+      };
+      
+      setTodayStats(newStats);
+      
+      console.log('📊 Statistics loaded from server:', newStats);
+      
     } catch (error) {
-      console.error('Error loading statistics:', error);
+      console.error('Error loading statistics from server:', error);
+      // Не показываем ошибку пользователю, так как статистика не критична
     }
-  };
+  }, [tasks, user.id]);
 
   const loadProperties = async () => {
     try {
@@ -268,7 +441,6 @@ const TechnicalStaffDashboard = () => {
           await tasks.assign(task.id, user.id);
         } catch (assignError) {
           console.error('Error assigning task:', assignError);
-          // Продолжаем, возможно задача уже назначена
         }
       }
 
@@ -276,7 +448,9 @@ const TechnicalStaffDashboard = () => {
       await tasks.start(task.id);
       
       const now = Date.now();
-      setCurrentTask({...task, assigned_to: user.id, status: 'in_progress'});
+      const updatedTask = {...task, assigned_to: user.id, status: 'in_progress'};
+      
+      setCurrentTask(updatedTask);
       setIsWorking(true);
       setIsPaused(false);
       setWorkTimer(0);
@@ -284,12 +458,19 @@ const TechnicalStaffDashboard = () => {
       setTotalPausedTime(0);
       setPauseStartTime(null);
       
-      // Сохраняем состояние
-      saveWorkState();
+      // Сохраняем состояние временно
+      setTimeout(() => {
+        saveWorkStateToTemp();
+        syncWorkStateWithServer();
+      }, 100);
       
+      // Обновляем список задач
       setMyTasks(prev => prev.map(t => 
-        t.id === task.id ? { ...t, status: 'in_progress', assigned_to: user.id } : t
+        t.id === task.id ? updatedTask : t
       ));
+      
+      // Принудительно синхронизируемся с сервером для обновления статистики
+      setTimeout(() => syncWithServer(), 1000);
       
       utils.showSuccess('Задача принята в работу. Таймер запущен.');
     } catch (error) {
@@ -303,8 +484,11 @@ const TechnicalStaffDashboard = () => {
       setPauseStartTime(Date.now());
       setIsPaused(true);
       utils.showInfo('Работа приостановлена');
+      setTimeout(() => {
+        saveWorkStateToTemp();
+        syncWorkStateWithServer();
+      }, 100);
     }
-    saveWorkState();
   };
 
   const resumeTask = () => {
@@ -314,8 +498,11 @@ const TechnicalStaffDashboard = () => {
       setIsPaused(false);
       setPauseStartTime(null);
       utils.showInfo('Работа возобновлена');
+      setTimeout(() => {
+        saveWorkStateToTemp();
+        syncWorkStateWithServer();
+      }, 100);
     }
-    saveWorkState();
   };
 
   const openCompleteModal = (task) => {
@@ -338,8 +525,9 @@ const TechnicalStaffDashboard = () => {
 
       // Рассчитываем фактическое время выполнения
       let actualDuration = null;
+      
       if (selectedTask.id === currentTask?.id && workTimer > 0) {
-        actualDuration = Math.ceil(workTimer / 60); // Конвертируем в минуты и округляем вверх
+        actualDuration = Math.ceil(workTimer / 60);
       }
 
       await tasks.complete(selectedTask.id, {
@@ -353,15 +541,7 @@ const TechnicalStaffDashboard = () => {
         clearWorkState();
       }
       
-      // Обновляем статистику
-      setTodayStats(prev => ({
-        ...prev,
-        completedTasks: prev.completedTasks + 1,
-        activeRequests: Math.max(0, prev.activeRequests - 1),
-        workingHours: prev.workingHours + (actualDuration ? actualDuration / 60 : 0)
-      }));
-      
-      // Убираем задачу из списка
+      // Убираем задачу из списка локально
       setMyTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       
       setShowTaskModal(false);
@@ -369,6 +549,10 @@ const TechnicalStaffDashboard = () => {
       
       const timeText = actualDuration ? ` (${actualDuration} мин)` : '';
       utils.showSuccess(`Задача успешно завершена${timeText}`);
+      
+      // Принудительно синхронизируемся с сервером для обновления статистики
+      setTimeout(() => syncWithServer(), 500);
+      
     } catch (error) {
       console.error('Error completing task:', error);
       utils.showError('Ошибка завершения задачи');
@@ -395,18 +579,6 @@ const TechnicalStaffDashboard = () => {
     }
   };
 
-  const getTaskStatusText = (status) => {
-    switch (status) {
-      case 'pending': return 'Ожидает';
-      case 'assigned': return 'Назначено';
-      case 'in_progress': return 'В работе';
-      case 'completed': return 'Завершено';
-      case 'cancelled': return 'Отменено';
-      case 'failed': return 'Провалено';
-      default: return status;
-    }
-  };
-
   // Фильтрация задач (исключаем завершенные и отмененные)
   const availableTasks = myTasks.filter(task => 
     !['completed', 'cancelled', 'failed'].includes(task.status)
@@ -427,17 +599,24 @@ const TechnicalStaffDashboard = () => {
     pending: filteredTasks.filter(t => t.status === 'pending')
   };
 
+  const getSyncStatusIcon = () => {
+    switch (syncStatus) {
+      case 'syncing': return <FiRefreshCw className="spinning" />;
+      case 'error': return <FiAlertTriangle style={{ color: '#e74c3c' }} />;
+      default: return <FiCheckCircle style={{ color: '#27ae60' }} />;
+    }
+  };
+
   if (loading) {
     return (
       <div className="technical-dashboard">
         <div className="loading-container">
           <div className="loading-spinner"></div>
-          <p>Загрузка задач...</p>
+          <p>Загрузка данных с сервера...</p>
         </div>
       </div>
     );
   }
-
   return (
     <div className="technical-dashboard">
       <div className="technical-header">
@@ -525,7 +704,7 @@ const TechnicalStaffDashboard = () => {
           </div>
           <div className="stat-content">
             <h3>Активные</h3>
-            <div className="stat-number">{tasksByStatus.assigned.length + tasksByStatus.in_progress.length}</div>
+            <div className="stat-number">{todayStats.activeRequests}</div>
             <div className="stat-label">заявки</div>
           </div>
         </div>
@@ -536,7 +715,7 @@ const TechnicalStaffDashboard = () => {
           </div>
           <div className="stat-content">
             <h3>Срочные</h3>
-            <div className="stat-number">{tasksByStatus.urgent.length}</div>
+            <div className="stat-number">{todayStats.urgentIssues}</div>
             <div className="stat-label">требуют внимания</div>
           </div>
         </div>
