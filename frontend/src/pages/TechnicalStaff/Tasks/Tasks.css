@@ -132,25 +132,6 @@
   font-weight: normal;
 }
 
-.add-task-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: transparent;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #666;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.task-column:hover .add-task-btn {
-  opacity: 1;
-}
-
 .task-list {
   flex: 1;
   overflow-y: auto;
@@ -363,12 +344,7 @@
   .task-count {
     font-size: 12px;
   }
-  
-  .add-task-btn {
-    opacity: 1;
-    font-size: 11px;
-    padding: 4px 8px;
-  }
+
   
   .task-card {
     padding: 10px;
@@ -447,10 +423,6 @@
     font-size: 11px;
   }
   
-  .add-task-btn {
-    font-size: 10px;
-    padding: 3px 6px;
-  }
   
   .task-card {
     padding: 8px;

@@ -1,135 +1,140 @@
+// frontend/src/pages/Cleaner/CleanerDashboard.jsx
 import { useState, useEffect } from 'react';
 import { 
-  FiCheckSquare, 
+  FiCheckCircle, 
   FiClock, 
-  FiMapPin, 
-  FiList,
-  FiCheck,
-  FiX,
+  FiAlertTriangle,
   FiPlay,
-  FiPause,
-  FiDollarSign
+  FiCheck,
+  FiMapPin,
+  FiUser,
+  FiList
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
-import './CleanerDashboard.css';
+import { useData } from '../../contexts/DataContext';
+import '../TechnicalStaff/TechnicalStaffDashboard.css';
+
 
 const CleanerDashboard = () => {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState([]);
-  const [workingTask, setWorkingTask] = useState(null);
-  const [workTimer, setWorkTimer] = useState(0);
-  const [isWorking, setIsWorking] = useState(false);
+  const { tasks, properties, utils } = useData();
   
-  const [todayStats, setTodayStats] = useState({
-    completedTasks: 0,
-    workingHours: 0,
-    earnings: 0,
-    pendingTasks: 0
+  const [myTasks, setMyTasks] = useState([]);
+  const [currentTask, setCurrentTask] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    todayCompleted: 0,
+    todayRemaining: 0,
+    avgTimePerRoom: 0,
+    qualityRating: 0
   });
 
   useEffect(() => {
-    // Генерируем задачи для уборщика
-    const generateTasks = () => {
-      const taskTypes = [
-        'Уборка после выезда',
-        'Ежедневная уборка',
-        'Смена белья',
-        'Генеральная уборка',
-        'Мытье окон',
-        'Уборка ванной комнаты'
-      ];
+    loadMyTasks();
+    loadStats();
+  }, []);
 
-      const priorities = ['urgent', 'high', 'medium'];
-      const statuses = ['assigned', 'in_progress', 'completed'];
-
-      const tasksData = [];
-      for (let i = 1; i <= 15; i++) {
-        const roomNumber = `${Math.floor(Math.random() * 3) + 1}-${String(Math.floor(Math.random() * 20) + 1).padStart(2, '0')}`;
-        const taskType = taskTypes[Math.floor(Math.random() * taskTypes.length)];
-        const priority = priorities[Math.floor(Math.random() * priorities.length)];
-        const status = i <= 5 ? 'assigned' : i <= 8 ? 'in_progress' : 'completed';
-        
-        tasksData.push({
-          id: i,
-          roomNumber,
-          type: taskType,
-          priority,
-          status,
-          estimatedTime: Math.floor(Math.random() * 120) + 30, // 30-150 минут
-          assignedAt: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toISOString(),
-          notes: Math.random() > 0.7 ? 'Особое внимание к ванной комнате' : '',
-          payment: Math.floor(Math.random() * 2000) + 1000 // 1000-3000 тенге за задачу
-        });
-      }
+  const loadMyTasks = async () => {
+    try {
+      setLoading(true);
       
-      setTasks(tasksData);
-    };
-
-    generateTasks();
-
-    // Таймер для рабочего времени
-    let interval;
-    if (isWorking) {
-      interval = setInterval(() => {
-        setWorkTimer(prev => prev + 1);
-      }, 1000);
+      // Получаем задачи уборки для текущего пользователя
+      const assignedTasks = await tasks.getMy();
+      
+      // Фильтруем только задачи уборки
+      const cleaningTasks = assignedTasks.filter(task => task.task_type === 'cleaning');
+      
+      // Обогащаем информацией о свойствах
+      const enrichedTasks = await Promise.all(
+        cleaningTasks.map(async (task) => {
+          let property = null;
+          if (task.property_id) {
+            try {
+              property = await properties.getById(task.property_id);
+            } catch (error) {
+              console.error('Error loading property:', error);
+            }
+          }
+          
+          return { ...task, property };
+        })
+      );
+      
+      setMyTasks(enrichedTasks);
+      
+      // Найдем текущую активную задачу
+      const activeTask = enrichedTasks.find(t => t.status === 'in_progress');
+      if (activeTask) {
+        setCurrentTask(activeTask);
+      }
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      utils.showError('Ошибка загрузки задач');
+    } finally {
+      setLoading(false);
     }
-
-    return () => clearInterval(interval);
-  }, [isWorking]);
-
-  const formatTime = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const startTask = (task) => {
-    setWorkingTask(task);
-    setIsWorking(true);
-    setWorkTimer(0);
-    
-    // Обновляем статус задачи
-    setTasks(prev => prev.map(t => 
-      t.id === task.id ? { ...t, status: 'in_progress' } : t
-    ));
+  const loadStats = async () => {
+    try {
+      const statistics = await tasks.getStatistics(1, user.id); // За сегодня
+      
+      setStats({
+        todayCompleted: statistics.completed_tasks || 0,
+        todayRemaining: statistics.active_tasks || 0,
+        avgTimePerRoom: statistics.avg_completion_time || 0,
+        qualityRating: statistics.avg_quality_rating || 0
+      });
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
   };
 
-  const pauseTask = () => {
-    setIsWorking(false);
+  const startTask = async (task) => {
+    try {
+      if (currentTask) {
+        utils.showWarning('Завершите текущую уборку перед началом новой');
+        return;
+      }
+
+      await tasks.start(task.id);
+      setCurrentTask(task);
+      
+      // Обновляем локальный статус
+      setMyTasks(prev => prev.map(t => 
+        t.id === task.id ? { ...t, status: 'in_progress' } : t
+      ));
+      
+      utils.showSuccess('Уборка начата');
+    } catch (error) {
+      console.error('Error starting task:', error);
+      utils.showError('Ошибка начала уборки');
+    }
   };
 
-  const resumeTask = () => {
-    setIsWorking(true);
-  };
-
-  const completeTask = (taskId, quality = 'good') => {
-    const completedTime = new Date().toISOString();
-    
-    setTasks(prev => prev.map(t => 
-      t.id === taskId 
-        ? { 
-            ...t, 
-            status: 'completed', 
-            completedAt: completedTime,
-            workTime: workTimer,
-            quality
-          } 
-        : t
-    ));
-    
-    // Обновляем статистику
-    setTodayStats(prev => ({
-      ...prev,
-      completedTasks: prev.completedTasks + 1,
-      earnings: prev.earnings + (workingTask?.payment || 0),
-      workingHours: prev.workingHours + (workTimer / 3600)
-    }));
-    
-    setWorkingTask(null);
-    setIsWorking(false);
-    setWorkTimer(0);
+  const completeTask = async (taskId, quality = 5) => {
+    try {
+      await tasks.complete(taskId, {
+        completion_notes: 'Уборка завершена',
+        quality_rating: quality
+      });
+      
+      // Обновляем статистику
+      setStats(prev => ({
+        ...prev,
+        todayCompleted: prev.todayCompleted + 1,
+        todayRemaining: Math.max(0, prev.todayRemaining - 1)
+      }));
+      
+      // Убираем задачу из списка
+      setMyTasks(prev => prev.filter(t => t.id !== taskId));
+      setCurrentTask(null);
+      
+      utils.showSuccess('Уборка завершена');
+    } catch (error) {
+      console.error('Error completing task:', error);
+      utils.showError('Ошибка завершения уборки');
+    }
   };
 
   const getPriorityColor = (priority) => {
@@ -137,166 +142,210 @@ const CleanerDashboard = () => {
       case 'urgent': return '#e74c3c';
       case 'high': return '#f39c12';
       case 'medium': return '#3498db';
+      case 'low': return '#27ae60';
       default: return '#95a5a6';
     }
   };
 
-  const getStatusText = (status) => {
+  const getStatusColor = (status) => {
     switch (status) {
-      case 'assigned': return 'Назначена';
-      case 'in_progress': return 'В работе';
-      case 'completed': return 'Выполнена';
-      default: return status;
+      case 'completed': return '#27ae60';
+      case 'in_progress': return '#f39c12';
+      case 'assigned': return '#3498db';
+      default: return '#95a5a6';
     }
   };
 
-  const assignedTasks = tasks.filter(t => t.status === 'assigned');
-  const inProgressTasks = tasks.filter(t => t.status === 'in_progress');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
+  if (loading) {
+    return (
+      <div className="cleaner-dashboard">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Загрузка задач уборки...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const pendingTasks = myTasks.filter(t => t.status === 'assigned');
+  const urgentTasks = myTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed');
 
   return (
     <div className="cleaner-dashboard">
-      <div className="cleaner-header">
-        <h1>Панель уборщика</h1>
+      <div className="dashboard-header">
+        <h1>Уборка помещений</h1>
         <div className="user-greeting">
-          Привет, {user.first_name}! Хорошего рабочего дня!
+          Привет, {user.first_name}! Делаем мир чище!
         </div>
       </div>
 
-      {/* Статистика дня */}
-      <div className="daily-stats">
+      {/* Статистика */}
+      <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon completed">
-            <FiCheckSquare />
+            <FiCheckCircle />
           </div>
           <div className="stat-content">
-            <h3>Выполнено</h3>
-            <div className="stat-number">{todayStats.completedTasks}</div>
-            <div className="stat-label">задач сегодня</div>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon hours">
-            <FiClock />
-          </div>
-          <div className="stat-content">
-            <h3>Время работы</h3>
-            <div className="stat-number">{todayStats.workingHours.toFixed(1)}</div>
-            <div className="stat-label">часов</div>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon earnings">
-            <FiDollarSign />
-          </div>
-          <div className="stat-content">
-            <h3>Заработано</h3>
-            <div className="stat-number">₸ {todayStats.earnings.toLocaleString()}</div>
-            <div className="stat-label">сегодня</div>
+            <h3>Выполнено сегодня</h3>
+            <div className="stat-number">{stats.todayCompleted}</div>
+            <div className="stat-label">помещений</div>
           </div>
         </div>
         
         <div className="stat-card">
           <div className="stat-icon pending">
-            <FiList />
+            <FiClock />
           </div>
           <div className="stat-content">
             <h3>Осталось</h3>
-            <div className="stat-number">{assignedTasks.length}</div>
-            <div className="stat-label">задач</div>
+            <div className="stat-number">{pendingTasks.length}</div>
+            <div className="stat-label">помещений</div>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon urgent">
+            <FiAlertTriangle />
+          </div>
+          <div className="stat-content">
+            <h3>Срочно</h3>
+            <div className="stat-number">{urgentTasks.length}</div>
+            <div className="stat-label">требуют внимания</div>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon time">
+            <FiClock />
+          </div>
+          <div className="stat-content">
+            <h3>Среднее время</h3>
+            <div className="stat-number">{stats.avgTimePerRoom}</div>
+            <div className="stat-label">мин/помещение</div>
           </div>
         </div>
       </div>
 
-      {/* Текущая работа */}
-      {workingTask && (
-        <div className="current-work">
-          <div className="work-header">
-            <h2>Текущая задача</h2>
-            <div className="work-timer">
-              <FiClock />
-              {formatTime(workTimer)}
+      {/* Текущая уборка */}
+      {currentTask && (
+        <div className="current-cleaning">
+          <div className="cleaning-header">
+            <h2>Текущая уборка</h2>
+            <div className="room-info">
+              <FiMapPin />
+              {currentTask.property?.name || `Объект ${currentTask.property_id}`}
             </div>
           </div>
           
-          <div className="work-content">
-            <div className="work-info">
-              <h3>{workingTask.type}</h3>
-              <div className="work-room">
-                <FiMapPin />
-                Комната {workingTask.roomNumber}
-              </div>
-              {workingTask.notes && (
-                <div className="work-notes">
-                  <strong>Примечания:</strong> {workingTask.notes}
-                </div>
-              )}
-            </div>
-            
-            <div className="work-controls">
-              {isWorking ? (
-                <button className="btn-pause" onClick={pauseTask}>
-                  <FiPause /> Пауза
-                </button>
-              ) : (
-                <button className="btn-resume" onClick={resumeTask}>
-                  <FiPlay /> Продолжить
-                </button>
+          <div className="cleaning-content">
+            <div className="cleaning-details">
+              <h3>{currentTask.title}</h3>
+              {currentTask.description && (
+                <p className="cleaning-description">{currentTask.description}</p>
               )}
               
+              <div className="cleaning-checklist">
+                <h4>Чек-лист уборки:</h4>
+                <ul>
+                  <li>Пропылесосить ковры и мебель</li>
+                  <li>Протереть пыль с поверхностей</li>
+                  <li>Убрать в ванной комнате</li>
+                  <li>Сменить постельное белье</li>
+                  <li>Проверить наличие расходных материалов</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="cleaning-controls">
               <button 
-                className="btn-complete" 
-                onClick={() => completeTask(workingTask.id)}
+                className="btn-complete-cleaning"
+                onClick={() => completeTask(currentTask.id)}
               >
-                <FiCheck /> Завершить
+                <FiCheck /> Завершить уборку
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Список задач */}
-      <div className="tasks-sections">
-        {/* Назначенные задачи */}
-        <div className="tasks-section">
-          <h2>Новые задачи ({assignedTasks.length})</h2>
-          <div className="tasks-list">
-            {assignedTasks.map(task => (
-              <div key={task.id} className="task-card assigned">
-                <div className="task-header">
-                  <span className="task-type">{task.type}</span>
-                  <div 
+      {/* Срочные задачи */}
+      {urgentTasks.length > 0 && (
+        <div className="urgent-cleanings">
+          <h2>
+            <FiAlertTriangle />
+            Срочная уборка ({urgentTasks.length})
+          </h2>
+          <div className="cleanings-grid">
+            {urgentTasks.map(task => (
+              <div key={task.id} className="cleaning-card urgent">
+                <div className="card-header">
+                  <h4>{task.property?.name || `Объект ${task.property_id}`}</h4>
+                  <span className="priority-badge urgent">СРОЧНО</span>
+                </div>
+                
+                <p className="room-number">
+                  Помещение: {task.property?.number || task.property_id}
+                </p>
+                
+                {task.description && (
+                  <p className="task-description">{task.description}</p>
+                )}
+                
+                <div className="card-footer">
+                  <div className="task-time">
+                    <FiClock />
+                    ~{task.estimated_duration || 60} мин
+                  </div>
+                  
+                  <button 
+                    className="btn-start-urgent"
+                    onClick={() => startTask(task)}
+                    disabled={!!currentTask}
+                  >
+                    <FiPlay /> Начать уборку
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Плановые задачи */}
+      <div className="scheduled-cleanings">
+        <h2>
+          <FiList />
+          Плановая уборка ({pendingTasks.length})
+        </h2>
+        
+        {pendingTasks.length > 0 ? (
+          <div className="cleanings-list">
+            {pendingTasks.map(task => (
+              <div key={task.id} className="cleaning-item">
+                <div className="item-info">
+                  <h4>{task.property?.name || `Объект ${task.property_id}`}</h4>
+                  <p>Помещение: {task.property?.number || task.property_id}</p>
+                  {task.description && (
+                    <p className="item-description">{task.description}</p>
+                  )}
+                </div>
+                
+                <div className="item-meta">
+                  <span 
                     className="priority-indicator"
                     style={{ backgroundColor: getPriorityColor(task.priority) }}
                   />
-                </div>
-                
-                <div className="task-room">
-                  <FiMapPin />
-                  Комната {task.roomNumber}
-                </div>
-                
-                <div className="task-meta">
-                  <div className="task-time">
+                  <div className="estimated-time">
                     <FiClock />
-                    ~{task.estimatedTime} мин
-                  </div>
-                  <div className="task-payment">
-                    ₸ {task.payment}
+                    ~{task.estimated_duration || 60} мин
                   </div>
                 </div>
                 
-                {task.notes && (
-                  <div className="task-notes">{task.notes}</div>
-                )}
-                
-                <div className="task-actions">
+                <div className="item-actions">
                   <button 
-                    className="btn-start"
+                    className="btn-start-cleaning"
                     onClick={() => startTask(task)}
-                    disabled={!!workingTask}
+                    disabled={!!currentTask}
                   >
                     <FiPlay /> Начать
                   </button>
@@ -304,62 +353,13 @@ const CleanerDashboard = () => {
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Выполненные задачи */}
-        <div className="tasks-section">
-          <h2>Выполнено сегодня ({completedTasks.length})</h2>
-          <div className="tasks-list">
-            {completedTasks.slice(0, 5).map(task => (
-              <div key={task.id} className="task-card completed">
-                <div className="task-header">
-                  <span className="task-type">{task.type}</span>
-                  <FiCheck className="completed-icon" />
-                </div>
-                
-                <div className="task-room">
-                  <FiMapPin />
-                  Комната {task.roomNumber}
-                </div>
-                
-                <div className="task-meta">
-                  <div className="task-time">
-                    Время: {Math.floor(task.workTime / 60)} мин
-                  </div>
-                  <div className="task-payment earned">
-                    + ₸ {task.payment}
-                  </div>
-                </div>
-                
-                <div className="completion-time">
-                  Выполнено: {new Date(task.completedAt).toLocaleTimeString('ru-RU', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </div>
-              </div>
-            ))}
+        ) : (
+          <div className="no-tasks">
+            <FiCheckCircle size={48} />
+            <h3>Все задачи уборки выполнены!</h3>
+            <p>Отличная работа! Новые задачи появятся здесь.</p>
           </div>
-        </div>
-      </div>
-
-      {/* Быстрые действия */}
-      <div className="quick-action1">
-        <h3>Быстрые действия</h3>
-        <div className="action-buttons">
-          <button className="action-btn">
-            <FiList />
-            Запросить материалы
-          </button>
-          <button className="action-btn">
-            <FiMapPin />
-            Сообщить о проблеме
-          </button>
-          <button className="action-btn">
-            <FiClock />
-            История работы
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

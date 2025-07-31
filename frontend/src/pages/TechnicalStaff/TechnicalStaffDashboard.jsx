@@ -23,7 +23,7 @@ import './TechnicalStaffDashboard.css';
 
 const TechnicalStaffDashboard = () => {
   const { user } = useAuth();
-  const { tasks, properties, organization } = useData();
+  const { tasks, properties, utils } = useData();
   
   const [myTasks, setMyTasks] = useState([]);
   const [currentTask, setCurrentTask] = useState(null);
@@ -57,7 +57,11 @@ const TechnicalStaffDashboard = () => {
 
   const loadMyTasks = async () => {
     try {
+      setLoading(true);
+      // Получаем назначенные мне задачи
       const assignedTasks = await tasks.getMy();
+      
+      // Обогащаем задачи информацией о свойствах
       const enrichedTasks = await Promise.all(
         assignedTasks.map(async (task) => {
           let property = null;
@@ -72,15 +76,29 @@ const TechnicalStaffDashboard = () => {
           return {
             ...task,
             property,
-            typeData: getTaskTypeData(task.task_type),
-            clientName: generateRandomClient()
+            typeData: getTaskTypeData(task.task_type)
           };
         })
       );
       
       setMyTasks(enrichedTasks);
+      
+      // Найдем текущую активную задачу, если есть
+      const activeTask = enrichedTasks.find(t => t.status === 'in_progress');
+      if (activeTask) {
+        setCurrentTask(activeTask);
+        setIsWorking(true);
+        // Рассчитаем время работы, если задача была начата
+        if (activeTask.started_at) {
+          const startTime = new Date(activeTask.started_at);
+          const now = new Date();
+          const diffInSeconds = Math.floor((now - startTime) / 1000);
+          setWorkTimer(diffInSeconds);
+        }
+      }
     } catch (error) {
       console.error('Error loading tasks:', error);
+      utils.showError('Ошибка загрузки задач');
     } finally {
       setLoading(false);
     }
@@ -88,7 +106,9 @@ const TechnicalStaffDashboard = () => {
 
   const loadStatistics = async () => {
     try {
+      // Получаем статистику за последние 30 дней для текущего пользователя
       const stats = await tasks.getStatistics(30, user.id);
+      
       setTodayStats({
         completedTasks: stats.completed_tasks || 0,
         activeRequests: stats.active_tasks || 0,
@@ -98,6 +118,7 @@ const TechnicalStaffDashboard = () => {
       });
     } catch (error) {
       console.error('Error loading statistics:', error);
+      // Не показываем ошибку пользователю для статистики
     }
   };
 
@@ -107,17 +128,14 @@ const TechnicalStaffDashboard = () => {
       electrical: { icon: FiZap, name: 'Электрика', color: '#f39c12' },
       plumbing: { icon: FiDroplet, name: 'Сантехника', color: '#3498db' },
       hvac: { icon: FiThermometer, name: 'Отопление/Кондиционер', color: '#e74c3c' },
-      internet: { icon: FiWifi, name: 'Интернет/ТВ', color: '#9b59b6' }
+      internet: { icon: FiWifi, name: 'Интернет/ТВ', color: '#9b59b6' },
+      cleaning: { icon: FiTool, name: 'Уборка', color: '#27ae60' },
+      check_in: { icon: FiUser, name: 'Заселение', color: '#3498db' },
+      check_out: { icon: FiUser, name: 'Выселение', color: '#e67e22' },
+      delivery: { icon: FiTool, name: 'Доставка', color: '#9b59b6' },
+      laundry: { icon: FiTool, name: 'Стирка', color: '#f39c12' }
     };
     return types[taskType] || types.maintenance;
-  };
-
-  const generateRandomClient = () => {
-    const clients = [
-      'Анна Петрова', 'Марат Саметов', 'Дмитрий Ким', 'Света Жанова',
-      'Алексей Иванов', 'Мария Казакова', 'Даулет Мурат', 'Нина Сергеева'
-    ];
-    return clients[Math.floor(Math.random() * clients.length)];
   };
 
   const formatTime = (seconds) => {
@@ -129,6 +147,11 @@ const TechnicalStaffDashboard = () => {
 
   const startTask = async (task) => {
     try {
+      if (currentTask) {
+        utils.showWarning('Завершите текущую задачу перед началом новой');
+        return;
+      }
+
       await tasks.start(task.id);
       setCurrentTask(task);
       setIsWorking(true);
@@ -138,31 +161,37 @@ const TechnicalStaffDashboard = () => {
       setMyTasks(prev => prev.map(t => 
         t.id === task.id ? { ...t, status: 'in_progress' } : t
       ));
+      
+      utils.showSuccess('Задача начата');
     } catch (error) {
       console.error('Error starting task:', error);
+      utils.showError('Ошибка начала задачи');
     }
   };
 
   const pauseTask = () => {
     setIsWorking(false);
+    utils.showInfo('Задача приостановлена');
   };
 
   const resumeTask = () => {
     setIsWorking(true);
+    utils.showInfo('Работа возобновлена');
   };
 
   const completeTask = async (taskId, resolution = 'Проблема решена') => {
     try {
       await tasks.complete(taskId, {
         completion_notes: resolution,
-        actual_duration: workTimer
+        actual_duration: workTimer,
+        quality_rating: 5 // По умолчанию высокое качество
       });
       
       // Обновляем статистику
       setTodayStats(prev => ({
         ...prev,
         completedTasks: prev.completedTasks + 1,
-        activeRequests: prev.activeRequests - 1,
+        activeRequests: Math.max(0, prev.activeRequests - 1),
         workingHours: prev.workingHours + (workTimer / 3600)
       }));
       
@@ -172,8 +201,11 @@ const TechnicalStaffDashboard = () => {
       setCurrentTask(null);
       setIsWorking(false);
       setWorkTimer(0);
+      
+      utils.showSuccess('Задача успешно завершена');
     } catch (error) {
       console.error('Error completing task:', error);
+      utils.showError('Ошибка завершения задачи');
     }
   };
 
@@ -197,11 +229,11 @@ const TechnicalStaffDashboard = () => {
     }
   };
 
-  // Фильтруем задачи
+  // Фильтруем задачи по статусам
   const newTasks = myTasks.filter(t => t.status === 'pending');
   const assignedTasks = myTasks.filter(t => t.status === 'assigned');
   const inProgressTasks = myTasks.filter(t => t.status === 'in_progress');
-  const urgentTasks = myTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed');
+  const urgentTasks = myTasks.filter(t => t.priority === 'urgent' && !['completed', 'cancelled'].includes(t.status));
 
   if (loading) {
     return (
@@ -232,7 +264,7 @@ const TechnicalStaffDashboard = () => {
           <div className="stat-content">
             <h3>Выполнено</h3>
             <div className="stat-number">{todayStats.completedTasks}</div>
-            <div className="stat-label">заявок сегодня</div>
+            <div className="stat-label">заявок за месяц</div>
           </div>
         </div>
         
@@ -242,7 +274,7 @@ const TechnicalStaffDashboard = () => {
           </div>
           <div className="stat-content">
             <h3>Активные</h3>
-            <div className="stat-number">{todayStats.activeRequests}</div>
+            <div className="stat-number">{assignedTasks.length + inProgressTasks.length}</div>
             <div className="stat-label">заявки</div>
           </div>
         </div>
@@ -265,7 +297,7 @@ const TechnicalStaffDashboard = () => {
           <div className="stat-content">
             <h3>Время работы</h3>
             <div className="stat-number">{todayStats.workingHours.toFixed(1)}</div>
-            <div className="stat-label">часов</div>
+            <div className="stat-label">часов за месяц</div>
           </div>
         </div>
       </div>
@@ -295,7 +327,7 @@ const TechnicalStaffDashboard = () => {
                 </div>
                 <div className="task-client">
                   <FiUser />
-                  {currentTask.created_by}
+                  Создал: {currentTask.created_by || 'Система'}
                 </div>
               </div>
               {currentTask.description && (
@@ -351,9 +383,13 @@ const TechnicalStaffDashboard = () => {
                   </div>
                   <div className="request-client">
                     <FiUser />
-                    {task.clientName}
+                    {task.created_by || 'Система'}
                   </div>
                 </div>
+                
+                {task.description && (
+                  <div className="request-description">{task.description}</div>
+                )}
                 
                 <div className="request-meta">
                   <div className="request-time">
@@ -371,7 +407,7 @@ const TechnicalStaffDashboard = () => {
                     onClick={() => startTask(task)}
                     disabled={!!currentTask}
                   >
-                    Взять в работу
+                    <FiPlay /> Взять в работу
                   </button>
                 </div>
               </div>
@@ -403,10 +439,12 @@ const TechnicalStaffDashboard = () => {
                 <h4>{task.title}</h4>
                 <div className="request-details">
                   <div className="request-room">
-                    <FiMapPin /> Адрес: {task.property?.name || `Объект ${task.property_id}`} {task.property.address }
+                    <FiMapPin />
+                    {task.property?.name || `Объект ${task.property_id}`}
                   </div>
                   <div className="request-client">
-                    <FiUser /> Назначил: {task.creator.first_name}
+                    <FiUser />
+                    Создал: {task.created_by || 'Система'}
                   </div>
                 </div>
                 
@@ -417,7 +455,7 @@ const TechnicalStaffDashboard = () => {
                 <div className="request-meta">
                   <div className="request-time">
                     <FiClock />
-                    ~{task.estimated_duration} мин
+                    ~{task.estimated_duration || 60} мин
                   </div>
                   <div className="request-created">
                     {new Date(task.created_at).toLocaleDateString('ru-RU')}
