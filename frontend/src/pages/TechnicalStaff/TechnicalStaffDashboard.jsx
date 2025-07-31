@@ -1,4 +1,4 @@
-// frontend/src/pages/TechnicalStaff/TechnicalStaffDashboard.jsx
+// frontend/src/pages/TechnicalStaff/TechnicalStaffDashboard.jsx - УЛУЧШЕННАЯ ВЕРСИЯ
 import { useState, useEffect } from 'react';
 import { 
   FiTool, 
@@ -21,7 +21,8 @@ import {
   FiFilter,
   FiBarChart2,
   FiCalendar,
-  FiHome
+  FiHome,
+  FiInfo
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
@@ -35,7 +36,11 @@ const TechnicalStaffDashboard = () => {
   const [myTasks, setMyTasks] = useState([]);
   const [currentTask, setCurrentTask] = useState(null);
   const [isWorking, setIsWorking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [workTimer, setWorkTimer] = useState(0);
+  const [workStartTime, setWorkStartTime] = useState(null);
+  const [totalPausedTime, setTotalPausedTime] = useState(0);
+  const [pauseStartTime, setPauseStartTime] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -66,26 +71,70 @@ const TechnicalStaffDashboard = () => {
     loadMyTasks();
     loadStatistics();
     loadProperties();
+    
+    // Восстанавливаем состояние из localStorage при загрузке
+    restoreWorkState();
   }, []);
 
   useEffect(() => {
     // Таймер для текущей работы
     let interval;
-    if (isWorking && currentTask) {
+    if (isWorking && !isPaused && currentTask) {
       interval = setInterval(() => {
-        setWorkTimer(prev => prev + 1);
+        const now = Date.now();
+        const workDuration = Math.floor((now - workStartTime - totalPausedTime) / 1000);
+        setWorkTimer(workDuration);
+        
+        // Автосохранение в localStorage каждую минуту
+        if (workDuration % 60 === 0) {
+          saveWorkState();
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isWorking, currentTask]);
+  }, [isWorking, isPaused, currentTask, workStartTime, totalPausedTime]);
 
-  useEffect(() => {
-    // Автосохранение времени работы в localStorage
-    if (currentTask && workTimer > 0) {
-      localStorage.setItem(`task_${currentTask.id}_timer`, workTimer.toString());
-      localStorage.setItem(`task_${currentTask.id}_start`, Date.now().toString());
+  // Сохранение состояния работы в localStorage
+  const saveWorkState = () => {
+    if (currentTask) {
+      const workState = {
+        taskId: currentTask.id,
+        startTime: workStartTime,
+        totalPausedTime,
+        isWorking,
+        isPaused,
+        pauseStartTime
+      };
+      localStorage.setItem('technical_work_state', JSON.stringify(workState));
     }
-  }, [currentTask, workTimer]);
+  };
+
+  // Восстановление состояния работы из localStorage
+  const restoreWorkState = () => {
+    const savedState = localStorage.getItem('technical_work_state');
+    if (savedState) {
+      try {
+        const workState = JSON.parse(savedState);
+        // Найдем задачу из состояния после загрузки задач
+        // Это будет сделано в loadMyTasks
+      } catch (error) {
+        console.error('Error restoring work state:', error);
+        localStorage.removeItem('technical_work_state');
+      }
+    }
+  };
+
+  // Очистка состояния работы
+  const clearWorkState = () => {
+    localStorage.removeItem('technical_work_state');
+    setCurrentTask(null);
+    setIsWorking(false);
+    setIsPaused(false);
+    setWorkTimer(0);
+    setWorkStartTime(null);
+    setTotalPausedTime(0);
+    setPauseStartTime(null);
+  };
 
   const loadMyTasks = async () => {
     try {
@@ -114,24 +163,40 @@ const TechnicalStaffDashboard = () => {
       
       setMyTasks(enrichedTasks);
       
-      // Найдем текущую активную задачу
-      const activeTask = enrichedTasks.find(t => t.status === 'in_progress');
-      if (activeTask) {
-        setCurrentTask(activeTask);
-        setIsWorking(true);
-        
-        // Восстанавливаем таймер из localStorage
-        const savedTimer = localStorage.getItem(`task_${activeTask.id}_timer`);
-        const savedStart = localStorage.getItem(`task_${activeTask.id}_start`);
-        
-        if (savedTimer && savedStart) {
-          const elapsed = Math.floor((Date.now() - parseInt(savedStart)) / 1000);
-          setWorkTimer(parseInt(savedTimer) + elapsed);
-        } else if (activeTask.started_at) {
-          const startTime = new Date(activeTask.started_at);
-          const now = new Date();
-          const diffInSeconds = Math.floor((now - startTime) / 1000);
-          setWorkTimer(diffInSeconds);
+      // Восстанавливаем состояние работы если есть сохраненное
+      const savedState = localStorage.getItem('technical_work_state');
+      if (savedState) {
+        try {
+          const workState = JSON.parse(savedState);
+          const savedTask = enrichedTasks.find(t => t.id === workState.taskId);
+          
+          if (savedTask && savedTask.status === 'in_progress') {
+            setCurrentTask(savedTask);
+            setWorkStartTime(workState.startTime);
+            setTotalPausedTime(workState.totalPausedTime || 0);
+            setIsWorking(workState.isWorking);
+            setIsPaused(workState.isPaused);
+            setPauseStartTime(workState.pauseStartTime);
+            
+            // Пересчитываем таймер с учетом прошедшего времени
+            const now = Date.now();
+            let currentPausedTime = workState.totalPausedTime || 0;
+            
+            if (workState.isPaused && workState.pauseStartTime) {
+              // Если была пауза, добавляем время паузы
+              currentPausedTime += (now - workState.pauseStartTime);
+              setTotalPausedTime(currentPausedTime);
+            }
+            
+            const workDuration = Math.floor((now - workState.startTime - currentPausedTime) / 1000);
+            setWorkTimer(Math.max(0, workDuration));
+          } else {
+            // Задача не найдена или завершена, очищаем состояние
+            clearWorkState();
+          }
+        } catch (error) {
+          console.error('Error restoring work state:', error);
+          clearWorkState();
         }
       }
     } catch (error) {
@@ -197,34 +262,60 @@ const TechnicalStaffDashboard = () => {
         return;
       }
 
+      // Если задача не назначена, сначала назначаем её на себя
+      if (task.status === 'pending' || !task.assigned_to) {
+        try {
+          await tasks.assign(task.id, user.id);
+        } catch (assignError) {
+          console.error('Error assigning task:', assignError);
+          // Продолжаем, возможно задача уже назначена
+        }
+      }
+
+      // Начинаем выполнение задачи
       await tasks.start(task.id);
-      setCurrentTask(task);
-      setIsWorking(true);
-      setWorkTimer(0);
       
-      // Сохраняем время старта
-      localStorage.setItem(`task_${task.id}_start`, Date.now().toString());
-      localStorage.setItem(`task_${task.id}_timer`, '0');
+      const now = Date.now();
+      setCurrentTask({...task, assigned_to: user.id, status: 'in_progress'});
+      setIsWorking(true);
+      setIsPaused(false);
+      setWorkTimer(0);
+      setWorkStartTime(now);
+      setTotalPausedTime(0);
+      setPauseStartTime(null);
+      
+      // Сохраняем состояние
+      saveWorkState();
       
       setMyTasks(prev => prev.map(t => 
-        t.id === task.id ? { ...t, status: 'in_progress' } : t
+        t.id === task.id ? { ...t, status: 'in_progress', assigned_to: user.id } : t
       ));
       
-      utils.showSuccess('Задача начата');
+      utils.showSuccess('Задача принята в работу. Таймер запущен.');
     } catch (error) {
       console.error('Error starting task:', error);
-      utils.showError('Ошибка начала задачи');
+      utils.showError('Ошибка принятия задачи в работу');
     }
   };
 
   const pauseTask = () => {
-    setIsWorking(false);
-    utils.showInfo('Задача приостановлена');
+    if (!isPaused) {
+      setPauseStartTime(Date.now());
+      setIsPaused(true);
+      utils.showInfo('Работа приостановлена');
+    }
+    saveWorkState();
   };
 
   const resumeTask = () => {
-    setIsWorking(true);
-    utils.showInfo('Работа возобновлена');
+    if (isPaused && pauseStartTime) {
+      const pauseDuration = Date.now() - pauseStartTime;
+      setTotalPausedTime(prev => prev + pauseDuration);
+      setIsPaused(false);
+      setPauseStartTime(null);
+      utils.showInfo('Работа возобновлена');
+    }
+    saveWorkState();
   };
 
   const openCompleteModal = (task) => {
@@ -240,65 +331,47 @@ const TechnicalStaffDashboard = () => {
 
   const completeTask = async () => {
     try {
-      if (!selectedTask) return;
+      if (!selectedTask || !completionData.notes.trim()) {
+        utils.showError('Заполните отчет о выполнении');
+        return;
+      }
+
+      // Рассчитываем фактическое время выполнения
+      let actualDuration = null;
+      if (selectedTask.id === currentTask?.id && workTimer > 0) {
+        actualDuration = Math.ceil(workTimer / 60); // Конвертируем в минуты и округляем вверх
+      }
 
       await tasks.complete(selectedTask.id, {
-        completion_notes: completionData.notes || 'Задача выполнена',
-        actual_duration: selectedTask.id === currentTask?.id ? workTimer : undefined,
+        completion_notes: completionData.notes,
+        actual_duration: actualDuration,
         quality_rating: completionData.rating
       });
       
-      // Очищаем localStorage для задачи
-      localStorage.removeItem(`task_${selectedTask.id}_timer`);
-      localStorage.removeItem(`task_${selectedTask.id}_start`);
+      // Очищаем состояние работы если это текущая задача
+      if (selectedTask.id === currentTask?.id) {
+        clearWorkState();
+      }
       
       // Обновляем статистику
       setTodayStats(prev => ({
         ...prev,
         completedTasks: prev.completedTasks + 1,
         activeRequests: Math.max(0, prev.activeRequests - 1),
-        workingHours: prev.workingHours + (workTimer / 3600)
+        workingHours: prev.workingHours + (actualDuration ? actualDuration / 60 : 0)
       }));
       
       // Убираем задачу из списка
       setMyTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       
-      if (selectedTask.id === currentTask?.id) {
-        setCurrentTask(null);
-        setIsWorking(false);
-        setWorkTimer(0);
-      }
-      
       setShowTaskModal(false);
       setSelectedTask(null);
       
-      utils.showSuccess('Задача успешно завершена');
+      const timeText = actualDuration ? ` (${actualDuration} мин)` : '';
+      utils.showSuccess(`Задача успешно завершена${timeText}`);
     } catch (error) {
       console.error('Error completing task:', error);
       utils.showError('Ошибка завершения задачи');
-    }
-  };
-
-  const cancelTask = async (taskId, reason = 'Отменено пользователем') => {
-    try {
-      await tasks.cancel(taskId, reason);
-      
-      // Очищаем localStorage
-      localStorage.removeItem(`task_${taskId}_timer`);
-      localStorage.removeItem(`task_${taskId}_start`);
-      
-      setMyTasks(prev => prev.filter(t => t.id !== taskId));
-      
-      if (taskId === currentTask?.id) {
-        setCurrentTask(null);
-        setIsWorking(false);
-        setWorkTimer(0);
-      }
-      
-      utils.showSuccess('Задача отменена');
-    } catch (error) {
-      console.error('Error canceling task:', error);
-      utils.showError('Ошибка отмены задачи');
     }
   };
 
@@ -334,8 +407,12 @@ const TechnicalStaffDashboard = () => {
     }
   };
 
-  // Фильтрация задач
-  const filteredTasks = myTasks.filter(task => {
+  // Фильтрация задач (исключаем завершенные и отмененные)
+  const availableTasks = myTasks.filter(task => 
+    !['completed', 'cancelled', 'failed'].includes(task.status)
+  );
+
+  const filteredTasks = availableTasks.filter(task => {
     if (filters.taskType && task.task_type !== filters.taskType) return false;
     if (filters.priority && task.priority !== filters.priority) return false;
     if (filters.property && task.property_id !== filters.property) return false;
@@ -344,7 +421,7 @@ const TechnicalStaffDashboard = () => {
 
   // Группировка задач по статусам
   const tasksByStatus = {
-    urgent: filteredTasks.filter(t => t.priority === 'urgent' && !['completed', 'cancelled'].includes(t.status)),
+    urgent: filteredTasks.filter(t => t.priority === 'urgent'),
     assigned: filteredTasks.filter(t => t.status === 'assigned'),
     in_progress: filteredTasks.filter(t => t.status === 'in_progress'),
     pending: filteredTasks.filter(t => t.status === 'pending')
@@ -484,6 +561,7 @@ const TechnicalStaffDashboard = () => {
             <div className="task-timer">
               <FiClock />
               {formatTime(workTimer)}
+              {isPaused && <span style={{ marginLeft: '8px', color: '#f39c12' }}>⏸️ ПАУЗА</span>}
             </div>
           </div>
           
@@ -532,10 +610,23 @@ const TechnicalStaffDashboard = () => {
                   <FiClock /> Планируемое время: {currentTask.estimated_duration} мин
                 </div>
               )}
+              
+              {/* Индикатор статуса работы */}
+              <div style={{ 
+                marginTop: '12px', 
+                padding: '8px 12px', 
+                background: isPaused ? '#fff3cd' : '#d4edda',
+                borderRadius: '6px',
+                fontSize: '14px',
+                color: isPaused ? '#856404' : '#155724'
+              }}>
+                <FiInfo style={{ marginRight: '6px' }} />
+                {isPaused ? 'Работа приостановлена' : 'Работа выполняется'}
+              </div>
             </div>
             
             <div className="task-controls">
-              {isWorking ? (
+              {!isPaused ? (
                 <button className="btn-pause" onClick={pauseTask}>
                   <FiPause /> Пауза
                 </button>
@@ -609,7 +700,17 @@ const TechnicalStaffDashboard = () => {
                       disabled={!!currentTask}
                       style={{ marginRight: '8px' }}
                     >
-                      <FiPlay /> Взять в работу
+                      <FiPlay /> Приступить к задаче
+                    </button>
+                  )}
+                  {task.status === 'pending' && (
+                    <button 
+                      className="btn-start urgent"
+                      onClick={() => startTask(task)}
+                      disabled={!!currentTask}
+                      style={{ marginRight: '8px' }}
+                    >
+                      <FiPlay /> Приступить к задаче
                     </button>
                   )}
                   {task.status === 'in_progress' && (
@@ -621,13 +722,6 @@ const TechnicalStaffDashboard = () => {
                       <FiCheck /> Завершить
                     </button>
                   )}
-                  <button 
-                    className="btn-start"
-                    onClick={() => cancelTask(task.id)}
-                    style={{ background: '#95a5a6' }}
-                  >
-                    Отменить
-                  </button>
                 </div>
               </div>
             ))}
@@ -654,49 +748,6 @@ const TechnicalStaffDashboard = () => {
                     currentTask={currentTask}
                     onStart={startTask}
                     onComplete={openCompleteModal}
-                    onCancel={cancelTask}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-          
-          {/* Назначенные задачи */}
-          {tasksByStatus.assigned.length > 0 && (
-            <>
-              <h3 style={{ marginTop: '24px', marginBottom: '16px', color: '#3498db' }}>
-                <FiUser /> Назначенные задачи ({tasksByStatus.assigned.length})
-              </h3>
-              <div className="requests-list">
-                {tasksByStatus.assigned.map(task => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    currentTask={currentTask}
-                    onStart={startTask}
-                    onComplete={openCompleteModal}
-                    onCancel={cancelTask}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-          
-          {/* Задачи в работе */}
-          {tasksByStatus.in_progress.length > 0 && (
-            <>
-              <h3 style={{ marginTop: '24px', marginBottom: '16px', color: '#27ae60' }}>
-                <FiTool /> В работе ({tasksByStatus.in_progress.length})
-              </h3>
-              <div className="requests-list">
-                {tasksByStatus.in_progress.map(task => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    currentTask={currentTask}
-                    onStart={startTask}
-                    onComplete={openCompleteModal}
-                    onCancel={cancelTask}
                   />
                 ))}
               </div>
@@ -729,7 +780,10 @@ const TechnicalStaffDashboard = () => {
               <div><strong>Тип:</strong> {selectedTask.typeData.name}</div>
               <div><strong>Объект:</strong> {selectedTask.property?.name || `Объект ${selectedTask.property_id}`}</div>
               {selectedTask.id === currentTask?.id && (
-                <div><strong>Время выполнения:</strong> {formatTime(workTimer)}</div>
+                <div><strong>Время выполнения:</strong> {formatTime(workTimer)} ({Math.ceil(workTimer / 60)} мин)</div>
+              )}
+              {selectedTask.estimated_duration && (
+                <div><strong>Планируемое время:</strong> {selectedTask.estimated_duration} мин</div>
               )}
             </div>
             
@@ -738,7 +792,7 @@ const TechnicalStaffDashboard = () => {
               <textarea
                 value={completionData.notes}
                 onChange={(e) => setCompletionData(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder="Опишите что было сделано, какие проблемы решены..."
+                placeholder="Опишите что было сделано, какие проблемы решены, использованные материалы..."
                 rows={4}
                 style={{ 
                   width: '100%', 
@@ -819,7 +873,7 @@ const TechnicalStaffDashboard = () => {
 };
 
 // Компонент карточки задачи
-const TaskCard = ({ task, currentTask, onStart, onComplete, onCancel }) => {
+const TaskCard = ({ task, currentTask, onStart, onComplete }) => {
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'urgent': return '#e74c3c';
@@ -861,6 +915,9 @@ const TaskCard = ({ task, currentTask, onStart, onComplete, onCancel }) => {
       default: return status;
     }
   };
+
+  const canStartTask = (task.status === 'assigned' || task.status === 'pending') && !currentTask;
+  const canCompleteTask = task.status === 'in_progress';
 
   return (
     <div className="request-card">
@@ -939,17 +996,16 @@ const TaskCard = ({ task, currentTask, onStart, onComplete, onCancel }) => {
       )}
       
       <div className="request-actions">
-        {task.status === 'assigned' && (
+        {canStartTask && (
           <button 
             className="btn-start"
             onClick={() => onStart(task)}
-            disabled={!!currentTask}
             style={{ marginRight: '8px' }}
           >
-            <FiPlay /> Начать
+            <FiPlay /> Приступить к задаче
           </button>
         )}
-        {task.status === 'in_progress' && (
+        {canCompleteTask && (
           <button 
             className="btn-start"
             onClick={() => onComplete(task)}
@@ -958,14 +1014,30 @@ const TaskCard = ({ task, currentTask, onStart, onComplete, onCancel }) => {
             <FiCheck /> Завершить
           </button>
         )}
-        {['pending', 'assigned', 'in_progress'].includes(task.status) && (
-          <button 
-            className="btn-start"
-            onClick={() => onCancel(task.id)}
-            style={{ background: '#95a5a6' }}
-          >
-            Отменить
-          </button>
+        {currentTask && task.id !== currentTask.id && (
+          <div style={{ 
+            padding: '6px 12px', 
+            background: '#f8f9fa', 
+            borderRadius: '4px', 
+            fontSize: '12px', 
+            color: '#666',
+            textAlign: 'center'
+          }}>
+            Завершите текущую задачу
+          </div>
+        )}
+        {!currentTask && task.status === 'pending' && (
+          <div style={{ 
+            padding: '4px 8px', 
+            background: '#e8f5e8', 
+            borderRadius: '4px', 
+            fontSize: '11px', 
+            color: '#2d5a2d',
+            textAlign: 'center',
+            marginTop: '8px'
+          }}>
+            💡 При нажатии "Приступить" задача автоматически назначится на вас
+          </div>
         )}
       </div>
     </div>

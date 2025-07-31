@@ -1,6 +1,6 @@
-// frontend/src/pages/TechnicalStaff/Tasks/Tasks.jsx
+// frontend/src/pages/TechnicalStaff/Tasks/Tasks.jsx - УЛУЧШЕННАЯ ВЕРСИЯ
 import { useState, useEffect } from 'react';
-import { FiSearch, FiFilter, FiPlus, FiGrid, FiList, FiUser, FiCheck, FiPlay, FiPause, FiX } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiPlus, FiGrid, FiList, FiUser, FiCheck, FiPlay, FiPause, FiX, FiClock, FiHome, FiCalendar } from 'react-icons/fi';
 import { useTranslation } from '../../../contexts/LanguageContext';
 import { useData } from '../../../contexts/DataContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -21,15 +21,23 @@ const Tasks = () => {
     failed: []
   });
   
+  const [allTasks, setAllTasks] = useState([]);
   const [showCompleted, setShowCompleted] = useState(false);
   const [viewMode, setViewMode] = useState('board');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [availableProperties, setAvailableProperties] = useState([]);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [assignmentData, setAssignmentData] = useState({
+    assignedTo: '',
+    notes: ''
+  });
   const [completionData, setCompletionData] = useState({
     notes: '',
     rating: 5,
@@ -39,7 +47,8 @@ const Tasks = () => {
   useEffect(() => {
     loadTasks();
     loadProperties();
-  }, [showCompleted, searchTerm, filterPriority, filterType]);
+    loadUsers();
+  }, [showCompleted, searchTerm, filterPriority, filterType, filterAssignee]);
 
   const loadTasks = async () => {
     try {
@@ -58,20 +67,25 @@ const Tasks = () => {
         params.task_type = filterType;
       }
       
+      // Фильтр по исполнителю
+      if (filterAssignee) {
+        params.assigned_to = filterAssignee;
+      }
+      
       // Получаем задачи
-      let allTasks = [];
+      let allTasksData = [];
       
       if (user.role === 'technical_staff') {
         // Для технического персонала получаем только свои задачи
-        allTasks = await tasks.getMy();
+        allTasksData = await tasks.getMy();
       } else {
         // Для других ролей получаем все задачи
-        allTasks = await tasks.getAll(params);
+        allTasksData = await tasks.getAll(params);
       }
       
       // Фильтр по поиску
       if (searchTerm) {
-        allTasks = allTasks.filter(task => 
+        allTasksData = allTasksData.filter(task => 
           task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           task.description?.toLowerCase().includes(searchTerm.toLowerCase())
         );
@@ -79,7 +93,7 @@ const Tasks = () => {
       
       // Обогащаем задачи информацией о свойствах
       const enrichedTasks = await Promise.all(
-        allTasks.map(async (task) => {
+        allTasksData.map(async (task) => {
           let property = null;
           if (task.property_id) {
             try {
@@ -95,6 +109,8 @@ const Tasks = () => {
           };
         })
       );
+      
+      setAllTasks(enrichedTasks);
       
       // Группируем по статусам
       const grouped = {
@@ -135,14 +151,37 @@ const Tasks = () => {
     }
   };
 
+  const loadUsers = async () => {
+    try {
+      // Загружаем пользователей организации для назначения задач
+      const { organization } = useData();
+      const usersList = await organization.getUsers({ role: 'technical_staff' });
+      setAvailableUsers(usersList || []);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
   const handleTaskAction = async (taskId, action, additionalData = {}) => {
     try {
       switch (action) {
         case 'start':
-          await tasks.start(taskId);
-          utils.showSuccess('Задача начата');
+          // Только технический персонал может начать свою задачу
+          if (user.role === 'technical_staff') {
+            await tasks.start(taskId);
+            utils.showSuccess('Задача начата');
+          } else {
+            utils.showError('Только исполнитель может начать задачу');
+            return;
+          }
           break;
         case 'complete':
+          // Только исполнитель может завершить задачу
+          const taskToComplete = allTasks.find(t => t.id === taskId);
+          if (user.role === 'technical_staff' && taskToComplete?.assigned_to !== user.id) {
+            utils.showError('Только назначенный исполнитель может завершить задачу');
+            return;
+          }
           await tasks.complete(taskId, {
             completion_notes: additionalData.notes || 'Задача выполнена',
             quality_rating: additionalData.rating || 5,
@@ -151,10 +190,20 @@ const Tasks = () => {
           utils.showSuccess('Задача завершена');
           break;
         case 'assign':
+          // Только менеджеры и админы могут назначать задачи
+          if (!['admin', 'manager', 'system_owner'].includes(user.role)) {
+            utils.showError('Недостаточно прав для назначения задач');
+            return;
+          }
           await tasks.assign(taskId, additionalData.assignedTo);
           utils.showSuccess('Задача назначена');
           break;
         case 'cancel':
+          // Только менеджеры и админы могут отменять задачи
+          if (!['admin', 'manager', 'system_owner'].includes(user.role)) {
+            utils.showError('Недостаточно прав для отмены задач');
+            return;
+          }
           await tasks.cancel(taskId, additionalData.reason || 'Отменено пользователем');
           utils.showSuccess('Задача отменена');
           break;
@@ -171,6 +220,12 @@ const Tasks = () => {
   };
 
   const openCompleteModal = (task) => {
+    // Проверяем права на завершение задачи
+    if (user.role === 'technical_staff' && task.assigned_to !== user.id) {
+      utils.showError('Только назначенный исполнитель может завершить задачу');
+      return;
+    }
+    
     setSelectedTask(task);
     setCompletionData({
       notes: '',
@@ -178,6 +233,21 @@ const Tasks = () => {
       duration: null
     });
     setShowTaskModal(true);
+  };
+
+  const openAssignModal = (task) => {
+    // Проверяем права на назначение задач
+    if (!['admin', 'manager', 'system_owner'].includes(user.role)) {
+      utils.showError('Недостаточно прав для назначения задач');
+      return;
+    }
+    
+    setSelectedTask(task);
+    setAssignmentData({
+      assignedTo: task.assigned_to || '',
+      notes: ''
+    });
+    setShowAssignModal(true);
   };
 
   const handleCompleteTask = async () => {
@@ -188,6 +258,19 @@ const Tasks = () => {
 
     await handleTaskAction(selectedTask.id, 'complete', completionData);
     setShowTaskModal(false);
+    setSelectedTask(null);
+  };
+
+  const handleAssignTask = async () => {
+    if (!selectedTask || !assignmentData.assignedTo) {
+      utils.showError('Выберите исполнителя');
+      return;
+    }
+
+    await handleTaskAction(selectedTask.id, 'assign', { 
+      assignedTo: assignmentData.assignedTo 
+    });
+    setShowAssignModal(false);
     setSelectedTask(null);
   };
 
@@ -236,15 +319,28 @@ const Tasks = () => {
   };
 
   const canStartTask = (task) => {
-    return task.status === 'assigned' && (user.role !== 'technical_staff' || user.id === task.assigned_to);
+    return task.status === 'assigned' && 
+           user.role === 'technical_staff' && 
+           user.id === task.assigned_to;
   };
 
   const canCompleteTask = (task) => {
-    return task.status === 'in_progress' && (user.role !== 'technical_staff' || user.id === task.assigned_to);
+    return task.status === 'in_progress' && 
+           (user.role === 'technical_staff' ? user.id === task.assigned_to : true);
+  };
+
+  const canAssignTask = (task) => {
+    return ['admin', 'manager', 'system_owner'].includes(user.role) &&
+           ['pending', 'assigned'].includes(task.status);
+  };
+
+  const canCancelTask = (task) => {
+    return ['admin', 'manager', 'system_owner'].includes(user.role) &&
+           !['completed', 'cancelled', 'failed'].includes(task.status);
   };
 
   const renderTask = (task) => (
-    <div key={task.id} className="task-card" onClick={() => openCompleteModal(task)}>
+    <div key={task.id} className="task-card">
       <div className="task-header">
         <h4>{task.title}</h4>
         <div 
@@ -270,7 +366,7 @@ const Tasks = () => {
         {task.assignee ? (
           <>
             <img 
-              src={`https://i.pravatar.cc/32?img=${task.id + 80}`} 
+              src={`https://i.pravatar.cc/32?img=${task.id.slice(-2)}`} 
               alt={task.assignee.first_name} 
             />
             <span>{task.assignee.first_name} {task.assignee.last_name}</span>
@@ -285,6 +381,12 @@ const Tasks = () => {
           </span>
         )}
       </div>
+      
+      {task.estimated_duration && (
+        <div style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+          <FiClock /> ~{task.estimated_duration} мин
+        </div>
+      )}
       
       {/* Действия для задач */}
       <div className="task-actions" onClick={(e) => e.stopPropagation()}>
@@ -306,7 +408,16 @@ const Tasks = () => {
           </button>
         )}
         
-        {['pending', 'assigned', 'in_progress'].includes(task.status) && (
+        {canAssignTask(task) && (
+          <button 
+            className="btn-assign"
+            onClick={() => openAssignModal(task)}
+          >
+            <FiUser /> Назначить
+          </button>
+        )}
+        
+        {canCancelTask(task) && (
           <button 
             className="btn-cancel"
             onClick={() => handleTaskAction(task.id, 'cancel', { reason: 'Отменено пользователем' })}
@@ -395,6 +506,15 @@ const Tasks = () => {
                   <FiCheck /> Завершить
                 </button>
               )}
+              
+              {canAssignTask(task) && (
+                <button 
+                  className="btn-assign-small"
+                  onClick={() => openAssignModal(task)}
+                >
+                  <FiUser /> Назначить
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -453,6 +573,21 @@ const Tasks = () => {
             <option value="delivery">Доставка</option>
             <option value="laundry">Стирка</option>
           </select>
+          
+          {user.role !== 'technical_staff' && (
+            <select 
+              className="filter-btn"
+              value={filterAssignee}
+              onChange={(e) => setFilterAssignee(e.target.value)}
+            >
+              <option value="">Все исполнители</option>
+              {availableUsers.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.first_name} {u.last_name}
+                </option>
+              ))}
+            </select>
+          )}
           
           <label className="checkbox-label">
             <input 
@@ -592,6 +727,86 @@ const Tasks = () => {
                 disabled={!completionData.notes.trim()}
               >
                 <FiCheck /> Завершить задачу
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Модальное окно назначения задачи */}
+      <Modal 
+        isOpen={showAssignModal} 
+        onClose={() => {
+          setShowAssignModal(false);
+          setSelectedTask(null);
+        }}
+        title={`Назначение задачи: ${selectedTask?.title || ''}`}
+        size="medium"
+      >
+        {selectedTask && (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ padding: '12px', background: '#f8f9fa', borderRadius: '8px' }}>
+              <div><strong>Задача:</strong> {selectedTask.title}</div>
+              <div><strong>Тип:</strong> {getTaskTypeLabel(selectedTask.task_type)}</div>
+              <div><strong>Приоритет:</strong> {getPriorityLabel(selectedTask.priority)}</div>
+              <div><strong>Объект:</strong> {selectedTask.property?.name || `Объект ${selectedTask.property_id}`}</div>
+              <div><strong>Текущий исполнитель:</strong> {selectedTask.assignee ? `${selectedTask.assignee.first_name} ${selectedTask.assignee.last_name}` : 'Не назначено'}</div>
+            </div>
+            
+            <div>
+              <label>Назначить исполнителя *</label>
+              <select
+                value={assignmentData.assignedTo}
+                onChange={(e) => setAssignmentData(prev => ({ ...prev, assignedTo: e.target.value }))}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px', 
+                  border: '1px solid #ddd', 
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="">Выберите исполнителя</option>
+                {availableUsers.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.first_name} {user.last_name} ({user.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label>Комментарий к назначению</label>
+              <textarea
+                value={assignmentData.notes}
+                onChange={(e) => setAssignmentData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Дополнительные инструкции для исполнителя..."
+                rows={3}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px', 
+                  border: '1px solid #ddd', 
+                  borderRadius: '4px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button 
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedTask(null);
+                }}
+                className="modal-btn modal-btn-secondary"
+              >
+                Отмена
+              </button>
+              <button 
+                onClick={handleAssignTask}
+                className="modal-btn modal-btn-primary"
+                disabled={!assignmentData.assignedTo}
+              >
+                <FiUser /> Назначить задачу
               </button>
             </div>
           </div>

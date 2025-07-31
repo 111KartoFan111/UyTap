@@ -506,6 +506,10 @@ const PropertyDetailsModal = ({
                             <span className="task-due">
                               {task.due_date ? formatDate(task.due_date) : 'Без срока'}
                             </span>
+                            <span className="task-due">
+                              Завершено за : {task.actual_duration ? `${task.actual_duration} мин.` : 'Без срока'}
+                            </span>
+                            
                           </div>
                           <div className={`task-status ${task.status}`}>
                             {getTaskStatusText(task.status)}
