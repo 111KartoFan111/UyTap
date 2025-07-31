@@ -29,7 +29,7 @@ import StorekeeperDashboard from './pages/Storekeeper/StorekeeperDashboard.jsx';
 import Dashboard from './components/Dashboard/Dashboard.jsx';
 import Conversations from './components/Conversations/Conversations.jsx';
 import Guests from './components/Guests/Guests.jsx';
-import Tasks from './components/Tasks/Tasks.jsx';
+import Tasks from './pages/TechnicalStaff/Tasks/Tasks.jsx';
 import Rooms from './components/Rooms/Rooms.jsx';
 import Employees from './components/Employees/Employees.jsx';
 
