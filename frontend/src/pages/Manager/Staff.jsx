@@ -369,8 +369,8 @@ const Staff = () => {
                       <button 
                         className="btn-icon view"
                         onClick={() => {
-                          // Показать детали пользователя
-                          console.log('View user:', user);
+                          setSelectedUser(user);
+                          setShowUserModal(true);
                         }}
                         title="Просмотр"
                       >

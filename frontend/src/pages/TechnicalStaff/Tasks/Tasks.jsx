@@ -606,12 +606,6 @@ const Tasks = () => {
             >
               <FiGrid /> Доска
             </button>
-            <button 
-              className={viewMode === 'list' ? 'active' : ''}
-              onClick={() => setViewMode('list')}
-            >
-              <FiList /> Список
-            </button>
           </div>
         </div>
       </div>

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { FiPlus, FiSearch, FiFilter, FiEdit2, FiTrash2, FiEye, FiPhone, FiMail, FiX, FiDownload } from 'react-icons/fi';
 import { useData } from '../../../contexts/DataContext';
 import ClientModal from './ClientModal';
+import ClientDetailModal from './ClientDetailModal.jsx'; // Новый импорт
 import '../Pages.css';
 
 const Clients = () => {
-  const { clients, utils } = useData();
+  const { clients, rentals, utils } = useData();
   const [showClientModal, setShowClientModal] = useState(false);
+  const [showClientDetail, setShowClientDetail] = useState(false); // Новое состояние
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientsList, setClientsList] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
@@ -169,16 +171,17 @@ const Clients = () => {
     setShowClientModal(true);
   };
 
-  const handleViewClient = async (client) => {
-    try {
-      // Загрузить полную информацию о клиенте
-      const fullClientData = await clients.getById(client.id);
-      // Здесь можно открыть модальное окно с подробной информацией
-      console.log('Full client data:', fullClientData);
-    } catch (error) {
-      console.error('Failed to load client details:', error);
-      utils.showError('Не удалось загрузить детали клиента');
-    }
+  // Обновленная функция для просмотра деталей клиента
+  const handleViewClient = (client) => {
+    setSelectedClient(client);
+    setShowClientDetail(true);
+  };
+
+  // Функция для редактирования из детального просмотра
+  const handleEditFromDetail = (client) => {
+    setShowClientDetail(false);
+    setSelectedClient(client);
+    setShowClientModal(true);
   };
 
   const handleBulkImport = async () => {
@@ -416,7 +419,7 @@ const Clients = () => {
                         <button 
                           className="btn-icon view"
                           onClick={() => handleViewClient(client)}
-                          title="Просмотр"
+                          title="Подробная информация"
                         >
                           <FiEye />
                         </button>
@@ -498,6 +501,7 @@ const Clients = () => {
         )}
       </div>
 
+      {/* Модальное окно создания/редактирования клиента */}
       {showClientModal && (
         <ClientModal
           client={selectedClient}
@@ -506,6 +510,20 @@ const Clients = () => {
             setSelectedClient(null);
           }}
           onSubmit={selectedClient ? handleUpdateClient : handleCreateClient}
+        />
+      )}
+
+      {/* Модальное окно детальной информации о клиенте */}
+      {showClientDetail && selectedClient && (
+        <ClientDetailModal
+          client={selectedClient}
+          onClose={() => {
+            setShowClientDetail(false);
+            setSelectedClient(null);
+          }}
+          onEdit={handleEditFromDetail}
+          clientsAPI={clients}
+          rentalsAPI={rentals}
         />
       )}
     </div>

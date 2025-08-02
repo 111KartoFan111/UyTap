@@ -1,4 +1,4 @@
-// frontend/src/pages/TechnicalStaff/TechnicalStaffDashboard.jsx - ВЕРСИЯ С СЕРВЕРНОЙ СИНХРОНИЗАЦИЕЙ
+// frontend/src/pages/TechnicalStaff/TechnicalStaffDashboard.jsx - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FiTool, 
@@ -81,23 +81,123 @@ const TechnicalStaffDashboard = () => {
   const WORK_STATE_SYNC_INTERVAL = 30 * 1000; // 30 секунд для состояния работы
   const LOCAL_WORK_STATE_KEY = 'tech_work_state_temp'; // Временное хранение только состояния работы
 
-  useEffect(() => {
-    if (!isInitialized.current) {
-      isInitialized.current = true;
-      initializeDashboard();
-      startSyncTimer();
+  // Загрузка статистики с сервера - ИСПРАВЛЕННАЯ ВЕРСИЯ
+  const loadStatisticsFromServer = useCallback(async () => {
+    try {
+      // Загружаем статистику так же как в Tasks.jsx
+      console.log('📊 Loading statistics from server...');
+      
+      // 1. Получаем все мои задачи
+      const myTasksData = await tasks.getMy();
+      console.log('Tasks loaded for stats:', myTasksData.length);
+      
+      // 2. Получаем задачи за сегодня/месяц
+      const today = new Date();
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+      // Фильтруем завершенные задачи за текущий месяц
+      const completedThisMonth = myTasksData.filter(task => {
+        if (task.status !== 'completed' || !task.completed_at) return false;
+        const completedDate = new Date(task.completed_at);
+        return completedDate >= startOfMonth;
+      });
+      
+      // 3. Текущие активные задачи (не завершенные)
+      const activeTasks = myTasksData.filter(task => 
+        !['completed', 'cancelled', 'failed'].includes(task.status)
+      );
+      
+      // 4. Срочные задачи среди активных
+      const urgentTasks = activeTasks.filter(task => task.priority === 'urgent');
+      
+      // 5. Рассчитываем рабочие часы (из завершенных задач с actual_duration)
+      const totalMinutes = completedThisMonth.reduce((sum, task) => {
+        return sum + (task.actual_duration || 0);
+      }, 0);
+      const workingHours = totalMinutes / 60;
+      
+      // 6. Средний время выполнения
+      const tasksWithDuration = completedThisMonth.filter(task => task.actual_duration > 0);
+      const avgCompletionTime = tasksWithDuration.length > 0 
+        ? tasksWithDuration.reduce((sum, task) => sum + task.actual_duration, 0) / tasksWithDuration.length
+        : 0;
+      
+      // 7. Формируем статистику
+      const newStats = {
+        completedTasks: completedThisMonth.length,
+        activeRequests: activeTasks.length,
+        urgentIssues: urgentTasks.length,
+        workingHours: Math.round(workingHours * 10) / 10, // округляем до 1 знака
+        avgCompletionTime: Math.round(avgCompletionTime)
+      };
+      
+      console.log('📊 Statistics calculated:', newStats);
+      setTodayStats(newStats);
+      
+    } catch (error) {
+      console.error('Error loading statistics from server:', error);
+      // Не показываем ошибку пользователю, так как статистика не критична
+      // Устанавливаем базовые значения
+      setTodayStats({
+        completedTasks: 0,
+        activeRequests: 0,
+        urgentIssues: 0,
+        workingHours: 0,
+        avgCompletionTime: 0
+      });
     }
+  }, [tasks]);
 
-    return () => {
-      // Очищаем таймеры при размонтировании
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
+  // Также нужно обновить функцию loadMyTasksFromServer чтобы она правильно обновляла статистику
+  const loadMyTasksFromServer = useCallback(async () => {
+    try {
+      console.log('📋 Loading my tasks from server...');
+      const assignedTasks = await tasks.getMy();
+      
+      // Обогащаем задачи информацией о свойствах
+      const enrichedTasks = await Promise.all(
+        assignedTasks.map(async (task) => {
+          let property = null;
+          if (task.property_id) {
+            try {
+              property = await properties.getById(task.property_id);
+            } catch (error) {
+              console.error('Error loading property:', error);
+            }
+          }
+          
+          return {
+            ...task,
+            property,
+            typeData: getTaskTypeData(task.task_type)
+          };
+        })
+      );
+      
+      setMyTasks(enrichedTasks);
+      console.log(`📋 Loaded ${enrichedTasks.length} tasks from server`);
+      
+      // После загрузки задач обновляем статистику
+      await loadStatisticsFromServer();
+      
+    } catch (error) {
+      console.error('Error loading tasks from server:', error);
+      utils.showError('Ошибка загрузки задач с сервера');
+    }
+  }, [tasks, properties, loadStatisticsFromServer, utils]);
+
+  // Добавим функции для обновления статистики после действий с задачами
+  const updateStatsAfterTaskAction = useCallback(async () => {
+    // Небольшая задержка чтобы сервер успел обновить данные
+    setTimeout(async () => {
+      try {
+        await loadStatisticsFromServer();
+        console.log('📊 Statistics updated after task action');
+      } catch (error) {
+        console.error('Error updating statistics:', error);
       }
-      if (workTimerIntervalRef.current) {
-        clearInterval(workTimerIntervalRef.current);
-      }
-    };
-  }, []);
+    }, 500);
+  }, [loadStatisticsFromServer]);
 
   // Запуск периодической синхронизации
   const startSyncTimer = useCallback(() => {
@@ -112,15 +212,38 @@ const TechnicalStaffDashboard = () => {
     }, SYNC_INTERVAL);
   }, []);
 
-  // Синхронизация с сервером
+  // Проверка текущего статуса задачи на сервере
+  const checkCurrentTaskStatus = useCallback(async () => {
+    if (currentTask) {
+      try {
+        const serverTask = await tasks.getById(currentTask.id);
+        
+        // Если задача завершена на сервере, очищаем локальное состояние
+        if (!serverTask || !['assigned', 'in_progress'].includes(serverTask.status)) {
+          console.log('Task completed on server, clearing local state');
+          clearWorkStateTemp();
+          setCurrentTask(null);
+          setIsWorking(false);
+          setIsPaused(false);
+          setWorkTimer(0);
+          setWorkStartTime(null);
+          setTotalPausedTime(0);
+          setPauseStartTime(null);
+        }
+      } catch (error) {
+        console.error('Error checking task status:', error);
+      }
+    }
+  }, [currentTask, tasks]); // Добавил зависимость tasks
+
+  // Также обновим функцию syncWithServer
   const syncWithServer = useCallback(async () => {
     try {
       setSyncStatus('syncing');
       
       // Параллельно загружаем все данные
       const syncPromises = [
-        loadStatisticsFromServer(),
-        loadMyTasksFromServer(),
+        loadMyTasksFromServer(), // Это уже включает загрузку статистики
         checkCurrentTaskStatus()
       ];
 
@@ -136,65 +259,13 @@ const TechnicalStaffDashboard = () => {
       // Повторим попытку через 30 секунд при ошибке
       setTimeout(() => syncWithServer(), 30000);
     }
-  }, []);
+  }, [loadMyTasksFromServer, checkCurrentTaskStatus]); // Добавил зависимости
 
   // Принудительная синхронизация (по кнопке)
   const forceSyncWithServer = useCallback(async () => {
     await syncWithServer();
     utils.showSuccess('Данные обновлены с сервера');
   }, [syncWithServer, utils]);
-
-  const initializeDashboard = async () => {
-    try {
-      setLoading(true);
-      
-      // Сначала пытаемся восстановить состояние работы из временного хранилища
-      await restoreWorkStateFromTemp();
-      
-      // Загружаем данные с сервера
-      await Promise.all([
-        loadProperties(),
-        loadStatisticsFromServer(),
-        loadMyTasksFromServer()
-      ]);
-      
-      // Проверяем текущее состояние задачи на сервере
-      await checkCurrentTaskStatus();
-      
-    } catch (error) {
-      console.error('Error initializing dashboard:', error);
-      utils.showError('Ошибка инициализации панели');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Таймер работы (обновляется каждую секунду)
-  useEffect(() => {
-    if (workTimerIntervalRef.current) {
-      clearInterval(workTimerIntervalRef.current);
-    }
-
-    if (isWorking && !isPaused && currentTask && workStartTime) {
-      workTimerIntervalRef.current = setInterval(() => {
-        const now = Date.now();
-        const workDuration = Math.floor((now - workStartTime - totalPausedTime) / 1000);
-        setWorkTimer(workDuration);
-        
-        // Автосохранение состояния работы каждые 30 секунд
-        if (workDuration % 30 === 0) {
-          saveWorkStateToTemp();
-          syncWorkStateWithServer();
-        }
-      }, 1000);
-    }
-    
-    return () => {
-      if (workTimerIntervalRef.current) {
-        clearInterval(workTimerIntervalRef.current);
-      }
-    };
-  }, [isWorking, isPaused, currentTask, workStartTime, totalPausedTime]);
 
   // Временное сохранение ТОЛЬКО состояния работы (не статистики)
   const saveWorkStateToTemp = useCallback(() => {
@@ -214,7 +285,7 @@ const TechnicalStaffDashboard = () => {
   }, [currentTask, workStartTime, totalPausedTime, isWorking, isPaused, pauseStartTime, workTimer]);
 
   // Восстановление ТОЛЬКО состояния работы
-  const restoreWorkStateFromTemp = async () => {
+  const restoreWorkStateFromTemp = useCallback(async () => {
     const savedState = localStorage.getItem(LOCAL_WORK_STATE_KEY);
     if (savedState) {
       try {
@@ -269,7 +340,7 @@ const TechnicalStaffDashboard = () => {
         clearWorkStateTemp();
       }
     }
-  };
+  }, [tasks]); // Добавил зависимость tasks
 
   // Синхронизация состояния работы с сервером
   const syncWorkStateWithServer = useCallback(async () => {
@@ -289,30 +360,6 @@ const TechnicalStaffDashboard = () => {
     }
   }, [currentTask, isWorking, workStartTime, isPaused, pauseStartTime, totalPausedTime]);
 
-  // Проверка текущего статуса задачи на сервере
-  const checkCurrentTaskStatus = useCallback(async () => {
-    if (currentTask) {
-      try {
-        const serverTask = await tasks.getById(currentTask.id);
-        
-        // Если задача завершена на сервере, очищаем локальное состояние
-        if (!serverTask || !['assigned', 'in_progress'].includes(serverTask.status)) {
-          console.log('Task completed on server, clearing local state');
-          clearWorkStateTemp();
-          setCurrentTask(null);
-          setIsWorking(false);
-          setIsPaused(false);
-          setWorkTimer(0);
-          setWorkStartTime(null);
-          setTotalPausedTime(0);
-          setPauseStartTime(null);
-        }
-      } catch (error) {
-        console.error('Error checking task status:', error);
-      }
-    }
-  }, [currentTask]);
-
   // Очистка временного состояния работы
   const clearWorkStateTemp = useCallback(() => {
     localStorage.removeItem(LOCAL_WORK_STATE_KEY);
@@ -330,80 +377,85 @@ const TechnicalStaffDashboard = () => {
     setPauseStartTime(null);
   }, [clearWorkStateTemp]);
 
-  // Загрузка задач с сервера
-  const loadMyTasksFromServer = useCallback(async () => {
+  // И обновим функцию initializeDashboard чтобы статистика загружалась корректно
+  const initializeDashboard = useCallback(async () => {
     try {
-      const assignedTasks = await tasks.getMy();
+      setLoading(true);
       
-      // Обогащаем задачи информацией о свойствах
-      const enrichedTasks = await Promise.all(
-        assignedTasks.map(async (task) => {
-          let property = null;
-          if (task.property_id) {
-            try {
-              property = await properties.getById(task.property_id);
-            } catch (error) {
-              console.error('Error loading property:', error);
-            }
-          }
-          
-          return {
-            ...task,
-            property,
-            typeData: getTaskTypeData(task.task_type)
-          };
-        })
-      );
+      // Сначала пытаемся восстановить состояние работы из временного хранилища
+      await restoreWorkStateFromTemp();
       
-      setMyTasks(enrichedTasks);
+      // Загружаем данные с сервера
+      await Promise.all([
+        loadProperties(),
+        loadMyTasksFromServer() // Это уже включает загрузку статистики
+      ]);
       
-      console.log(`📋 Loaded ${enrichedTasks.length} tasks from server`);
+      // Проверяем текущее состояние задачи на сервере
+      await checkCurrentTaskStatus();
       
     } catch (error) {
-      console.error('Error loading tasks from server:', error);
-      // utils.showError('Ошибка загрузки задач с сервера');
+      console.error('Error initializing dashboard:', error);
+      utils.showError('Ошибка инициализации панели');
+    } finally {
+      setLoading(false);
     }
-  }, [tasks, properties]);
+  }, [restoreWorkStateFromTemp, loadMyTasksFromServer, checkCurrentTaskStatus, utils]); // Добавил зависимости
 
-  // Загрузка статистики с сервера
-  const loadStatisticsFromServer = useCallback(async () => {
-    try {
-      // Загружаем статистику с сервера
-      const stats = await tasks.getStatistics(30, user.id);
-      
-      // Также загружаем текущие задачи для актуальной статистики
-      const currentTasks = await tasks.getMy();
-      const activeTasks = currentTasks.filter(t => 
-        !['completed', 'cancelled', 'failed'].includes(t.status)
-      );
-      const urgentTasks = activeTasks.filter(t => t.priority === 'urgent');
-      
-      const newStats = {
-        completedTasks: stats.completed_tasks || 0,
-        activeRequests: activeTasks.length,
-        urgentIssues: urgentTasks.length,
-        workingHours: stats.total_hours || 0,
-        avgCompletionTime: stats.avg_completion_time || 0
-      };
-      
-      setTodayStats(newStats);
-      
-      console.log('📊 Statistics loaded from server:', newStats);
-      
-    } catch (error) {
-      console.error('Error loading statistics from server:', error);
-      // Не показываем ошибку пользователю, так как статистика не критична
-    }
-  }, [tasks, user.id]);
-
-  const loadProperties = async () => {
+  const loadProperties = useCallback(async () => {
     try {
       const propertiesList = await properties.getAll({ limit: 100 });
       setAvailableProperties(propertiesList || []);
     } catch (error) {
       console.error('Error loading properties:', error);
     }
-  };
+  }, [properties]);
+
+  // ОСНОВНОЙ useEffect с правильными зависимостями
+  useEffect(() => {
+    if (!isInitialized.current) {
+      isInitialized.current = true;
+      initializeDashboard();
+      startSyncTimer();
+    }
+
+    return () => {
+      // Очищаем таймеры при размонтировании
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+      if (workTimerIntervalRef.current) {
+        clearInterval(workTimerIntervalRef.current);
+      }
+    };
+  }, [initializeDashboard, startSyncTimer]); // Добавил зависимости
+
+  // Таймер работы (обновляется каждую секунду)
+  useEffect(() => {
+    if (workTimerIntervalRef.current) {
+      clearInterval(workTimerIntervalRef.current);
+    }
+
+    if (isWorking && !isPaused && currentTask && workStartTime) {
+      workTimerIntervalRef.current = setInterval(() => {
+        const now = Date.now();
+        const workDuration = Math.floor((now - workStartTime - totalPausedTime) / 1000);
+        setWorkTimer(workDuration);
+        
+        // Автосохранение состояния работы каждые 30 секунд
+        if (workDuration % 30 === 0) {
+          saveWorkStateToTemp();
+          syncWorkStateWithServer();
+        }
+      }, 1000);
+    }
+    
+    return () => {
+      if (workTimerIntervalRef.current) {
+        clearInterval(workTimerIntervalRef.current);
+      }
+    };
+  }, [isWorking, isPaused, currentTask, workStartTime, totalPausedTime, saveWorkStateToTemp, syncWorkStateWithServer]);
 
   const getTaskTypeData = (taskType) => {
     const types = {
@@ -469,8 +521,8 @@ const TechnicalStaffDashboard = () => {
         t.id === task.id ? updatedTask : t
       ));
       
-      // Принудительно синхронизируемся с сервером для обновления статистики
-      setTimeout(() => syncWithServer(), 1000);
+      // Обновляем статистику
+      updateStatsAfterTaskAction();
       
       utils.showSuccess('Задача принята в работу. Таймер запущен.');
     } catch (error) {
@@ -550,8 +602,8 @@ const TechnicalStaffDashboard = () => {
       const timeText = actualDuration ? ` (${actualDuration} мин)` : '';
       utils.showSuccess(`Задача успешно завершена${timeText}`);
       
-      // Принудительно синхронизируемся с сервером для обновления статистики
-      setTimeout(() => syncWithServer(), 500);
+      // Обновляем статистику
+      updateStatsAfterTaskAction();
       
     } catch (error) {
       console.error('Error completing task:', error);
@@ -610,19 +662,58 @@ const TechnicalStaffDashboard = () => {
   if (loading) {
     return (
       <div className="technical-dashboard">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>Загрузка данных с сервера...</p>
+        <div className="loading-container" style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '200px',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
+          <FiRefreshCw size={32} className="spinning" />
+          <div>Загрузка панели технического персонала...</div>
         </div>
       </div>
     );
   }
+
   return (
     <div className="technical-dashboard">
       <div className="technical-header">
         <h1>Техническое обслуживание</h1>
         <div className="user-greeting">
           Привет, {user.first_name}! Готов решать проблемы!
+        </div>
+        
+        {/* Статус синхронизации */}
+        <div style={{ 
+          marginTop: '8px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px',
+          fontSize: '12px',
+          color: '#666'
+        }}>
+          {getSyncStatusIcon()}
+          {syncStatus === 'syncing' && 'Синхронизация...'}
+          {syncStatus === 'error' && 'Ошибка синхронизации'}
+          {syncStatus === 'idle' && lastSyncTime && 
+            `Обновлено: ${lastSyncTime.toLocaleTimeString()}`
+          }
+          <button
+            onClick={forceSyncWithServer}
+            style={{
+              marginLeft: '12px',
+              padding: '4px 8px',
+              background: '#f8f9fa',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '11px'
+            }}
+          >
+            <FiRefreshCw /> Обновить
+          </button>
         </div>
         
         {/* Фильтры */}
@@ -726,7 +817,7 @@ const TechnicalStaffDashboard = () => {
           </div>
           <div className="stat-content">
             <h3>Время работы</h3>
-            <div className="stat-number">{todayStats.workingHours.toFixed(1)}</div>
+            <div className="stat-number">{todayStats.workingHours}</div>
             <div className="stat-label">часов за месяц</div>
           </div>
         </div>
@@ -747,7 +838,7 @@ const TechnicalStaffDashboard = () => {
           <div className="task-content">
             <div className="task-info">
               <div className="task-type">
-                <currentTask.typeData.icon style={{ color: currentTask.typeData.color }} />
+                {React.createElement(currentTask.typeData.icon, { style: { color: currentTask.typeData.color } })}
                 <span>{currentTask.typeData.name}</span>
                 <div 
                   style={{ 
@@ -838,7 +929,7 @@ const TechnicalStaffDashboard = () => {
               <div key={task.id} className="request-card urgent">
                 <div className="request-header">
                   <div className="request-type">
-                    <task.typeData.icon style={{ color: task.typeData.color }} />
+                    {React.createElement(task.typeData.icon, { style: { color: task.typeData.color } })}
                     <span>{task.typeData.name}</span>
                   </div>
                   <div className="priority urgent">СРОЧНО</div>
@@ -1102,7 +1193,7 @@ const TaskCard = ({ task, currentTask, onStart, onComplete }) => {
     <div className="request-card">
       <div className="request-header">
         <div className="request-type">
-          <task.typeData.icon style={{ color: task.typeData.color }} />
+          {React.createElement(task.typeData.icon, { style: { color: task.typeData.color } })}
           <span>{task.typeData.name}</span>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
