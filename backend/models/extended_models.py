@@ -466,6 +466,29 @@ class Payroll(Base):
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now())
     
+
+    template_id = Column(UUID(as_uuid=True), ForeignKey("payroll_templates.id"))
+    generated_from_template = Column(Boolean, default=False)
+
+    # Детализация операций
+    operations_summary = Column(JSONB, default=dict)  # Сводка по типам операций
+
+    # Дополнительные поля
+    overtime_hours = Column(Float, default=0)
+    overtime_payment = Column(Float, default=0)
+    allowances_total = Column(Float, default=0)
+    penalties_total = Column(Float, default=0)
+
+    # Добавить отношения:
+    template = relationship("PayrollTemplate", back_populates="payroll_entries")
+    operations = relationship("PayrollOperation", back_populates="payroll")
+
+    # Также нужно добавить в PayrollTemplate:
+    payroll_entries = relationship("Payroll", back_populates="template")
+
+    # А в PayrollOperation:
+    payroll = relationship("Payroll", back_populates="operations")
+
     # Отношения
     organization = relationship("Organization")
     user = relationship("User")

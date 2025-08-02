@@ -16,7 +16,8 @@ from models.models import Base
 # Импортируем все роутеры
 from routers import (
     auth, admin, properties, rentals, clients, 
-    orders, reports, documents, tasks, payroll, inventory,organization, payments
+    orders, reports, documents, tasks, payroll, inventory,organization, payments,
+    payroll_extended, admin_payroll, manager_payroll
 )
 from services.init_service import DatabaseInitService
 from utils.logging_config import setup_logging
@@ -204,6 +205,9 @@ app.include_router(reports.router)
 app.include_router(documents.router)
 app.include_router(tasks.router)
 app.include_router(payroll.router)
+app.include_router(payroll_extended.router)  # Расширенные роуты зарплат
+app.include_router(admin_payroll.router)     # Админские функции
+app.include_router(manager_payroll.router)   # Роуты менеджеров
 app.include_router(inventory.router)
 app.include_router(payments.router)
 
