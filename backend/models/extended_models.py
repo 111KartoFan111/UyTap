@@ -586,6 +586,47 @@ class InventoryMovement(Base):
         Index("idx_movement_date", "created_at"),
     )
 
+def update_payroll_relationships():
+    """Обновление отношений для модели Payroll"""
+    
+    # Добавляем новые поля в существующую модель Payroll
+    if not hasattr(Payroll, 'template_id'):
+        Payroll.template_id = Column(UUID(as_uuid=True), ForeignKey("payroll_templates.id"))
+    
+    if not hasattr(Payroll, 'generated_from_template'):
+        Payroll.generated_from_template = Column(Boolean, default=False)
+    
+    if not hasattr(Payroll, 'operations_summary'):
+        Payroll.operations_summary = Column(JSONB, default=dict)
+    
+    if not hasattr(Payroll, 'overtime_hours'):
+        Payroll.overtime_hours = Column(Float, default=0)
+    
+    if not hasattr(Payroll, 'overtime_payment'):
+        Payroll.overtime_payment = Column(Float, default=0)
+    
+    if not hasattr(Payroll, 'allowances_total'):
+        Payroll.allowances_total = Column(Float, default=0)
+    
+    if not hasattr(Payroll, 'penalties_total'):
+        Payroll.penalties_total = Column(Float, default=0)
+
+# Добавляем отношения (если их еще нет)
+if not hasattr(Payroll, 'template'):
+    Payroll.template = relationship("PayrollTemplate", back_populates="payroll_entries")
+
+if not hasattr(Payroll, 'operations'):
+    Payroll.operations = relationship("PayrollOperation", back_populates="payroll", cascade="all, delete-orphan")
+
+# Обновляем User с отношениями к зарплатам
+if not hasattr(User, 'payroll_templates'):
+    User.payroll_templates = relationship("PayrollTemplate", back_populates="user")
+
+if not hasattr(User, 'payroll_operations'):
+    User.payroll_operations = relationship("PayrollOperation", foreign_keys="PayrollOperation.user_id", back_populates="user")
+
+
+update_payroll_relationships()
 
 # Обновляем существующие модели
 # Добавляем отношения в Organization

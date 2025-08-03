@@ -1,4 +1,4 @@
-# models/payroll_operation.py
+# models/payroll_operation.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Enum, Text, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -53,8 +53,8 @@ class PayrollOperation(Base):
     is_applied = Column(Boolean, default=False)
     applied_at = Column(DateTime)
     
-    # Метаданные
-    metadata = Column(JSONB, default=dict)  # Дополнительная информация
+    # Метаданные - ИСПРАВЛЕНО НАЗВАНИЕ ПОЛЯ
+    operation_metadata = Column(JSONB, default=dict)  # Дополнительная информация
     
     # Даты
     created_at = Column(DateTime, default=func.now())

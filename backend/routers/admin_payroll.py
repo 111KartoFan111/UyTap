@@ -2,23 +2,23 @@
 
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query,Path
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 import uuid
+from models.extended_models import Payroll, Organization
 
 from models.database import get_db
 from models.extended_models import User, UserRole
 from schemas.payroll_extended import *
 from services.payroll_extended_service import PayrollExtendedService
 from utils.dependencies import get_current_active_user, require_role
-from schemas.payroll_operation import PayrollOperationCreate, PayrollOperationUpdate, BulkOperationCreate, BulkOperationResponse
+from schemas.payroll_extended import PayrollOperationCreate, PayrollOperationUpdate, BulkOperationResponse
+
 
 from models.payroll_template import PayrollTemplate, PayrollTemplateStatus
 from schemas.payroll_template import PayrollTemplateCreate, PayrollTemplateUpdate
 from models.payroll_operation import PayrollOperation, PayrollOperationType
-from schemas.payroll_operation import PayrollOperationResponse
-
 
 
 router = APIRouter(prefix="/api/admin/payroll", tags=["Admin Payroll"])
@@ -466,8 +466,8 @@ async def get_payroll_forecast(
 
 @router.post("/auto-generate/{year}/{month}")
 async def auto_generate_monthly_payrolls(
-    year: int = Query(..., ge=2020, le=2030),
-    month: int = Query(..., ge=1, le=12),
+    year: int = Path(..., ge=2020, le=2030),
+    month: int = Path(..., ge=1, le=12),
     force_recreate: bool = Query(False),
     current_user: User = Depends(admin_required),
     db: Session = Depends(get_db)
@@ -492,7 +492,6 @@ async def auto_generate_monthly_payrolls(
         ).all()
         
         for payroll in existing_payrolls:
-            # Сбрасываем операции как неприменённые
             for operation in payroll.operations:
                 operation.is_applied = False
                 operation.applied_at = None
@@ -501,7 +500,6 @@ async def auto_generate_monthly_payrolls(
         
         db.commit()
     
-    # Генерируем новые зарплаты
     payrolls = PayrollExtendedService.auto_generate_monthly_payrolls(
         db=db,
         organization_id=current_user.organization_id,
@@ -509,13 +507,11 @@ async def auto_generate_monthly_payrolls(
         month=month
     )
     
-    # Применяем повторяющиеся операции
     PayrollExtendedService.apply_recurring_operations(
         db=db,
         organization_id=current_user.organization_id
     )
     
-    # Логируем действие
     from services.auth_service import AuthService
     AuthService.log_user_action(
         db=db,
@@ -547,8 +543,6 @@ async def auto_generate_monthly_payrolls(
             for p in payrolls
         ]
     }
-
-
 # ========== УПРАВЛЕНИЕ НАСТРОЙКАМИ ==========
 
 @router.get("/settings")

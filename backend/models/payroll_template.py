@@ -1,4 +1,4 @@
-# models/payroll_template.py
+# models/payroll_template.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Enum, Text, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -58,5 +58,8 @@ class PayrollTemplate(Base):
     
     # Отношения
     organization = relationship("Organization")
-    user = relationship("User")
+    user = relationship("User", back_populates="payroll_templates")
     payroll_entries = relationship("Payroll", back_populates="template")
+    
+    def __repr__(self):
+        return f"<PayrollTemplate(name='{self.name}', user_id='{self.user_id}', status='{self.status}')>"
