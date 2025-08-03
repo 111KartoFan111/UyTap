@@ -373,6 +373,16 @@ const ManagerDashboard = () => {
               <FiArrowRight />
             </div>
           </Link>
+          <Link to="/manager/payroll" className="action-card">
+            <div className="action-icon">
+              <FiDollarSign />
+            </div>
+            <h3>Зарплаты</h3>
+            <p>Управление зарплатами сотрудников</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
 
           <Link to="/manager/staff" className="action-card">
             <div className="action-icon">

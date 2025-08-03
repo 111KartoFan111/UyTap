@@ -190,7 +190,6 @@ export const DataProvider = ({ children }) => {
   };
 
   // Enhanced payroll operations
-// Enhanced payroll operations
   const payroll = {
     getAll: (params) => withLoading(() => payrollAPI.getPayrolls(params), true),
     getById: (id) => withLoading(() => payrollAPI.getPayroll(id)),

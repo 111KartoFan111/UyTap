@@ -5,7 +5,8 @@
 .clients-page,
 .reports-page,
 .settings-page,
-.staff-page {
+.staff-page,
+.payroll-page {
   padding: 24px;
   max-width: 1400px;
   display: flex;
@@ -145,6 +146,7 @@
 /* Clients Page */
 .clients-stats,
 .rentals-stats,
+.payroll-stats,
 .staff-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

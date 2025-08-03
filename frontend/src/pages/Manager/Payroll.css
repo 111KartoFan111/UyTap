@@ -1,0 +1,906 @@
+/* Payroll Page Styles */
+.payroll-page {
+  padding: 24px;
+  max-width: 1400px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0 auto;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+/* Period Selector */
+.period-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.period-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.period-btn:hover {
+  background: #f0f0f0;
+  color: #3498db;
+}
+
+.current-period {
+  font-weight: 600;
+  color: #2c3e50;
+  min-width: 150px;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* Payroll Stats */
+.payroll-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.payroll-stats .stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.payroll-stats .stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.payroll-stats .stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: white;
+  background: #3498db;
+}
+
+/* Quick Actions */
+.payroll-quick-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.quick-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #495057;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.quick-action-btn:hover {
+  background: #f8f9fa;
+  border-color: #3498db;
+  color: #3498db;
+  transform: translateY(-1px);
+}
+
+.quick-action-btn span {
+  white-space: nowrap;
+}
+
+/* Payroll Table */
+.payroll-table-wrapper {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.payroll-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.payroll-table th {
+  text-align: left;
+  padding: 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.payroll-table td {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+  color: #2c3e50;
+  vertical-align: top;
+}
+
+.payroll-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+/* Employee Info */
+.employee-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.employee-avatar {
+  width: 40px;
+  height: 40px;
+  background: #e3f2fd;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3498db;
+  font-size: 16px;
+}
+
+.employee-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.employee-name {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.employee-email {
+  font-size: 12px;
+  color: #666;
+}
+
+/* Role Badge */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.role-badge.admin {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.role-badge.manager {
+  background: #d4edda;
+  color: #155724;
+}
+
+.role-badge.technical_staff {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.role-badge.accountant {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.role-badge.cleaner {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+.role-badge.storekeeper {
+  background: #ffeaa7;
+  color: #6c5ce7;
+}
+
+/* Period Info */
+.period-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.period-text {
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.work-days {
+  font-size: 12px;
+  color: #666;
+}
+
+/* Salary Amounts */
+.salary-amount {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 16px;
+}
+
+.bonuses-info,
+.deductions-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bonus-amount,
+.overtime-amount {
+  font-size: 12px;
+  color: #27ae60;
+  font-weight: 500;
+}
+
+.tax-amount,
+.pension-amount,
+.other-deductions {
+  font-size: 12px;
+  color: #e74c3c;
+  font-weight: 500;
+}
+
+.final-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.net-salary {
+  font-weight: 700;
+  color: #27ae60;
+  font-size: 16px;
+}
+
+.total-amount {
+  font-size: 12px;
+  color: #666;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+.status-badge.status-pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.status-paid {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.status-cancelled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status-badge.status-draft {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+.status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.inactive {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.paid-date {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.btn-icon:hover {
+  border-color: #3498db;
+  color: #3498db;
+  background: #f8fbff;
+}
+
+.btn-icon.view:hover {
+  border-color: #17a2b8;
+  color: #17a2b8;
+}
+
+.btn-icon.edit:hover {
+  border-color: #ffc107;
+  color: #ffc107;
+}
+
+.btn-icon.recalculate:hover {
+  border-color: #6f42c1;
+  color: #6f42c1;
+}
+
+.btn-icon.pay:hover {
+  border-color: #28a745;
+  color: #28a745;
+}
+
+.btn-icon.download:hover {
+  border-color: #6c757d;
+  color: #6c757d;
+}
+
+/* Empty State */
+.no-payrolls {
+  padding: 60px 20px;
+  text-align: center;
+  color: #666;
+}
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+.empty-actions {
+  display: flex !important;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  margin-top: 20px;
+}
+
+/* Modal Styles */
+.payroll-modal {
+  width: 90vw;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.payroll-form {
+  padding: 0 32px 32px 32px;
+}
+
+.template-modal {
+  width: 90vw;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.operation-modal {
+  width: 90vw;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Template Tabs */
+.template-tabs {
+  display: flex;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.template-tabs .tab {
+  padding: 16px 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.template-tabs .tab:hover {
+  background: #e9ecef;
+  color: #495057;
+}
+
+.template-tabs .tab.active {
+  color: #3498db;
+  border-bottom-color: #3498db;
+  background: white;
+}
+
+/* Templates List */
+.templates-list {
+  padding: 24px 32px;
+}
+
+.templates-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.templates-table th,
+.templates-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.templates-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #666;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.template-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.empty-templates {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+/* Template Form */
+.template-form {
+  padding: 24px 32px;
+}
+
+/* Operation Types */
+.operation-types {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.operation-type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border: 2px solid #e9ecef;
+  background: white;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #495057;
+  transition: all 0.2s;
+  min-width: 100px;
+}
+
+.operation-type-btn:hover {
+  border-color: #3498db;
+  background: #f8fbff;
+}
+
+.operation-type-btn.active {
+  border-color: #3498db;
+  background: #3498db;
+  color: white;
+}
+
+.operation-icon {
+  font-size: 24px;
+}
+
+/* Operation Form */
+.operation-form {
+  padding: 0 32px 32px 32px;
+}
+
+/* Form Sections */
+.form-section {
+  margin-bottom: 32px;
+}
+
+.form-section h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 20px 0;
+  color: #2c3e50;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-field label {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: #495057;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  padding: 12px 16px;
+  border: 1px solid #ced4da;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-field input.error,
+.form-field select.error,
+.form-field textarea.error {
+  border-color: #e74c3c;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+}
+
+.form-field textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.error-text {
+  color: #e74c3c;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e9ecef;
+}
+
+.btn-cancel,
+.btn-primary {
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  min-width: 120px;
+}
+
+.btn-cancel {
+  background: #f8f9fa;
+  color: #495057;
+  border: 1px solid #ced4da;
+}
+
+.btn-cancel:hover {
+  background: #e9ecef;
+}
+
+.btn-primary {
+  background: #3498db;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #2980b9;
+}
+
+.btn-primary:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .payroll-page {
+    padding: 16px;
+  }
+  
+  .payroll-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  
+  .payroll-quick-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .quick-action-btn {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .header-controls {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .search-box,
+  .filter-group,
+  .period-selector {
+    flex: 1;
+    min-width: 200px;
+  }
+  
+  .payroll-stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .payroll-stats .stat-card {
+    padding: 16px;
+  }
+  
+  .payroll-table-wrapper {
+    overflow-x: auto;
+  }
+  
+  .payroll-table {
+    min-width: 1000px;
+  }
+  
+  .payroll-table th,
+  .payroll-table td {
+    padding: 12px 8px;
+    font-size: 13px;
+  }
+  
+  .employee-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .employee-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .operation-types {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .operation-type-btn {
+    min-width: auto;
+    padding: 12px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .payroll-page {
+    padding: 12px;
+  }
+  
+  .page-header h1 {
+    font-size: 24px;
+  }
+  
+  .header-controls {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .search-box,
+  .filter-group,
+  .period-selector {
+    width: 100%;
+    min-width: auto;
+  }
+  
+  .btn-primary,
+  .btn-cancel {
+    width: 100%;
+  }
+  
+  .payroll-modal,
+  .template-modal,
+  .operation-modal {
+    width: 95vw;
+    max-height: 95vh;
+  }
+  
+  .payroll-form,
+  .template-form,
+  .operation-form {
+    padding: 0 16px 24px 16px;
+  }
+  
+  .templates-list {
+    padding: 16px;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .operation-types {
+    grid-template-columns: 1fr;
+  }
+  
+  .template-tabs .tab {
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+}
+
+/* Loading State */
+.payroll-page.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e9ecef;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Additional Utility Classes */
+.text-center {
+  text-align: center;
+}
+
+.text-success {
+  color: #28a745;
+}
+
+.text-danger {
+  color: #dc3545;
+}
+
+.text-warning {
+  color: #ffc107;
+}
+
+.text-info {
+  color: #17a2b8;
+}
+
+.mb-0 {
+  margin-bottom: 0;
+}
+
+.mb-1 {
+  margin-bottom: 8px;
+}
+
+.mb-2 {
+  margin-bottom: 16px;
+}
+
+.mb-3 {
+  margin-bottom: 24px;
+}
+
+.mt-0 {
+  margin-top: 0;
+}
+
+.mt-1 {
+  margin-top: 8px;
+}
+
+.mt-2 {
+  margin-top: 16px;
+}
+
+.mt-3 {
+  margin-top: 24px;
+}

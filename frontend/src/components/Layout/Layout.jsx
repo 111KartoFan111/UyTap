@@ -16,7 +16,7 @@ import {
   FiBarChart2,
   FiPackage,
   FiTool,
-  FiDollarSign
+  FiDollarSign,
 } from 'react-icons/fi';
 import { LuUserCog } from "react-icons/lu";
 import { FaUsersGear } from "react-icons/fa6";
@@ -46,6 +46,7 @@ const Layout = ({ children }) => {
           { path: '/manager/reports', icon: FiBarChart2, label: 'Отчеты' },
           { path: '/manager/staff', icon: FaUsersGear, label: 'Сотрудники' },
           { path: '/manager/settings', icon: LuUserCog, label: 'Настройки' },
+          { path: '/manager/payroll', icon: FiDollarSign, label: 'Зарплаты' },
         ];
       
       case 'cleaner':
