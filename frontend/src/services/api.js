@@ -917,6 +917,209 @@ export const payrollAPI = {
     
     if (!response.ok) throw new Error('Export failed');
     return response.blob();
+  },
+
+  // Enhanced Payroll Templates
+  async getTemplates(params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
+    return apiRequest(`/api/payroll/templates?${searchParams}`);
+  },
+
+  async createTemplate(templateData) {
+    return apiRequest('/api/payroll/templates', {
+      method: 'POST',
+      body: JSON.stringify(templateData)
+    });
+  },
+
+  async updateTemplate(templateId, templateData) {
+    return apiRequest(`/api/payroll/templates/${templateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(templateData)
+    });
+  },
+
+  async deactivateTemplate(templateId) {
+    return apiRequest(`/api/payroll/templates/${templateId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async autoGenerate(year, month, forceRecreate = false) {
+    const params = new URLSearchParams({ year, month });
+    if (forceRecreate) params.append('force_recreate', forceRecreate);
+    return apiRequest(`/api/payroll/auto-generate?${params}`, {
+      method: 'POST'
+    });
+  },
+
+  // Payroll Operations
+  async getOperations(params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value);
+      }
+    });
+    return apiRequest(`/api/payroll/operations?${searchParams}`);
+  },
+
+  async addOperation(operationData) {
+    return apiRequest('/api/payroll/operations', {
+      method: 'POST',
+      body: JSON.stringify(operationData)
+    });
+  },
+
+  async cancelOperation(operationId, reason) {
+    return apiRequest(`/api/payroll/operations/${operationId}?reason=${encodeURIComponent(reason)}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Quick Operations for managers
+  async addQuickBonus(userId, bonusData) {
+    return apiRequest(`/api/payroll/users/${userId}/bonus`, {
+      method: 'POST',
+      body: JSON.stringify(bonusData)
+    });
+  },
+
+  async addQuickPenalty(userId, penaltyData) {
+    return apiRequest(`/api/payroll/users/${userId}/penalty`, {
+      method: 'POST',
+      body: JSON.stringify(penaltyData)
+    });
+  },
+
+  async addOvertimePayment(userId, overtimeData) {
+    return apiRequest(`/api/payroll/users/${userId}/overtime`, {
+      method: 'POST',
+      body: JSON.stringify(overtimeData)
+    });
+  },
+
+  async addAllowance(userId, allowanceData) {
+    return apiRequest(`/api/payroll/users/${userId}/allowance`, {
+      method: 'POST',
+      body: JSON.stringify(allowanceData)
+    });
+  },
+
+  async addDeduction(userId, deductionData) {
+    return apiRequest(`/api/payroll/users/${userId}/deduction`, {
+      method: 'POST',
+      body: JSON.stringify(deductionData)
+    });
+  },
+
+  // Enhanced reporting
+  async getUserPayrollSummary(userId, months = 6) {
+    return apiRequest(`/api/payroll/summary/${userId}?months=${months}`);
+  },
+
+  async recalculatePayroll(payrollId) {
+    return apiRequest(`/api/payroll/recalculate/${payrollId}`, {
+      method: 'POST'
+    });
+  }
+};
+
+// Admin Payroll API for admin-specific operations
+export const adminPayrollAPI = {
+  async quickSetupTemplates(baseRates = {}) {
+    return apiRequest('/api/admin/payroll/templates/quick-setup', {
+      method: 'POST',
+      body: JSON.stringify(baseRates)
+    });
+  },
+
+  async bulkUpdateTemplates(updates) {
+    return apiRequest('/api/admin/payroll/templates/bulk-update', {
+      method: 'POST',
+      body: JSON.stringify(updates)
+    });
+  },
+
+  async createBulkOperations(bulkOperationData) {
+    return apiRequest('/api/admin/payroll/operations/bulk', {
+      method: 'POST',
+      body: JSON.stringify(bulkOperationData)
+    });
+  },
+
+  async createSeasonalBonus(bonusAmount, bonusTitle = 'Сезонная премия', targetRoles = [], excludeUsers = []) {
+    const params = new URLSearchParams({
+      bonus_amount: bonusAmount,
+      bonus_title: bonusTitle
+    });
+    
+    targetRoles.forEach(role => params.append('target_roles', role));
+    excludeUsers.forEach(userId => params.append('exclude_users', userId));
+    
+    return apiRequest(`/api/admin/payroll/operations/seasonal-bonus?${params}`, {
+      method: 'POST'
+    });
+  },
+
+  async getOrganizationPayrollSummary(year, month = null) {
+    const params = new URLSearchParams({ year });
+    if (month) params.append('month', month);
+    return apiRequest(`/api/admin/payroll/analytics/organization-summary?${params}`);
+  },
+
+  async getPayrollForecast(months = 3) {
+    return apiRequest(`/api/admin/payroll/forecast?months=${months}`);
+  },
+
+  async autoGenerateMonthlyPayrolls(year, month, forceRecreate = false) {
+    const params = forceRecreate ? '?force_recreate=true' : '';
+    return apiRequest(`/api/admin/payroll/auto-generate/${year}/${month}${params}`, {
+      method: 'POST'
+    });
+  },
+
+  async getPayrollSettings() {
+    return apiRequest('/api/admin/payroll/settings');
+  },
+
+  async updatePayrollSettings(settings) {
+    return apiRequest('/api/admin/payroll/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings)
+    });
+  },
+
+  async exportDetailedReport(year, month = null, format = 'excel') {
+    const params = new URLSearchParams({ year, format });
+    if (month) params.append('month', month);
+    
+    const response = await fetch(`${API_BASE_URL}/api/admin/payroll/export/detailed-report?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (!response.ok) throw new Error('Export failed');
+    return response.blob();
+  },
+
+  async notifyPayrollReady(year, month, userIds = null) {
+    return apiRequest(`/api/admin/payroll/notify/payroll-ready?year=${year}&month=${month}`, {
+      method: 'POST',
+      body: JSON.stringify(userIds)
+    });
+  },
+
+  async archiveOldPayrolls(monthsOld = 24) {
+    return apiRequest(`/api/admin/payroll/archive/old-payrolls?months_old=${monthsOld}`, {
+      method: 'POST'
+    });
   }
 };
 

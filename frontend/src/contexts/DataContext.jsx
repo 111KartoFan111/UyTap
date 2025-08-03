@@ -190,6 +190,7 @@ export const DataProvider = ({ children }) => {
   };
 
   // Enhanced payroll operations
+// Enhanced payroll operations
   const payroll = {
     getAll: (params) => withLoading(() => payrollAPI.getPayrolls(params), true),
     getById: (id) => withLoading(() => payrollAPI.getPayroll(id)),
@@ -198,7 +199,46 @@ export const DataProvider = ({ children }) => {
     markAsPaid: (id, paymentMethod) => withLoading(() => payrollAPI.markAsPaid(id, paymentMethod), false, 'Зарплата отмечена как выплаченная'),
     calculateMonthly: (year, month, userId) => withLoading(() => payrollAPI.calculateMonthly(year, month, userId), false, 'Зарплата рассчитана'),
     getStatistics: (year, month) => withLoading(() => payrollAPI.getStatistics(year, month)),
-    export: (format, year, month) => withLoading(() => payrollAPI.exportData(format, year, month))
+    export: (format, year, month) => withLoading(() => payrollAPI.exportData(format, year, month)),
+    
+    // Templates
+    getTemplates: (params) => withLoading(() => payrollAPI.getTemplates(params), true),
+    createTemplate: (data) => withLoading(() => payrollAPI.createTemplate(data), false, 'Шаблон зарплаты создан'),
+    updateTemplate: (id, data) => withLoading(() => payrollAPI.updateTemplate(id, data), false, 'Шаблон обновлен'),
+    deactivateTemplate: (id) => withLoading(() => payrollAPI.deactivateTemplate(id), false, 'Шаблон деактивирован'),
+    autoGenerate: (year, month, forceRecreate) => withLoading(() => payrollAPI.autoGenerate(year, month, forceRecreate), false, 'Зарплаты сгенерированы автоматически'),
+    
+    // Operations
+    getOperations: (params) => withLoading(() => payrollAPI.getOperations(params), true),
+    addOperation: (data) => withLoading(() => payrollAPI.addOperation(data), false, 'Операция добавлена'),
+    cancelOperation: (id, reason) => withLoading(() => payrollAPI.cancelOperation(id, reason), false, 'Операция отменена'),
+    
+    // Quick operations
+    addQuickBonus: (userId, data) => withLoading(() => payrollAPI.addQuickBonus(userId, data), false, 'Премия добавлена'),
+    addQuickPenalty: (userId, data) => withLoading(() => payrollAPI.addQuickPenalty(userId, data), false, 'Штраф добавлен'),
+    addOvertimePayment: (userId, data) => withLoading(() => payrollAPI.addOvertimePayment(userId, data), false, 'Сверхурочные добавлены'),
+    addAllowance: (userId, data) => withLoading(() => payrollAPI.addAllowance(userId, data), false, 'Надбавка добавлена'),
+    addDeduction: (userId, data) => withLoading(() => payrollAPI.addDeduction(userId, data), false, 'Удержание добавлено'),
+    
+    // Enhanced reporting
+    getUserSummary: (userId, months) => withLoading(() => payrollAPI.getUserPayrollSummary(userId, months)),
+    recalculate: (id) => withLoading(() => payrollAPI.recalculatePayroll(id), false, 'Зарплата пересчитана'),
+    
+    // Admin operations (only available for admins)
+    admin: {
+      quickSetupTemplates: (baseRates) => withLoading(() => adminPayrollAPI.quickSetupTemplates(baseRates), false, 'Шаблоны настроены'),
+      bulkUpdateTemplates: (updates) => withLoading(() => adminPayrollAPI.bulkUpdateTemplates(updates), false, 'Шаблоны обновлены массово'),
+      createBulkOperations: (data) => withLoading(() => adminPayrollAPI.createBulkOperations(data), false, 'Массовые операции созданы'),
+      createSeasonalBonus: (amount, title, roles, excludeUsers) => withLoading(() => adminPayrollAPI.createSeasonalBonus(amount, title, roles, excludeUsers), false, 'Сезонная премия создана'),
+      getOrganizationSummary: (year, month) => withLoading(() => adminPayrollAPI.getOrganizationPayrollSummary(year, month)),
+      getForecast: (months) => withLoading(() => adminPayrollAPI.getPayrollForecast(months)),
+      autoGenerateMonthly: (year, month, forceRecreate) => withLoading(() => adminPayrollAPI.autoGenerateMonthlyPayrolls(year, month, forceRecreate), false, 'Зарплаты за месяц сгенерированы'),
+      getSettings: () => withLoading(() => adminPayrollAPI.getPayrollSettings()),
+      updateSettings: (settings) => withLoading(() => adminPayrollAPI.updatePayrollSettings(settings), false, 'Настройки зарплатной системы обновлены'),
+      exportDetailedReport: (year, month, format) => withLoading(() => adminPayrollAPI.exportDetailedReport(year, month, format)),
+      notifyPayrollReady: (year, month, userIds) => withLoading(() => adminPayrollAPI.notifyPayrollReady(year, month, userIds), false, 'Уведомления отправлены'),
+      archiveOldPayrolls: (monthsOld) => withLoading(() => adminPayrollAPI.archiveOldPayrolls(monthsOld), false, 'Старые зарплаты архивированы')
+    }
   };
 
   // Enhanced reports operations
