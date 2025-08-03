@@ -36,8 +36,23 @@ export const DataProvider = ({ children }) => {
     let errorMessage = 'Произошла ошибка';
     
     if (error.message) {
-      // Переводим типичные HTTP ошибки
-      if (error.message.includes('404')) {
+      // Улучшенная обработка ошибок API
+      if (error.message.includes('Validation error')) {
+        // Парсим ошибки валидации для более понятного отображения
+        const validationMatch = error.message.match(/Validation error: (.+)/);
+        if (validationMatch) {
+          const validationErrors = validationMatch[1];
+          // Переводим часто встречающиеся ошибки валидации
+          errorMessage = validationErrors
+            .replace(/Field required/g, 'Поле обязательно для заполнения')
+            .replace(/amount -> /g, 'Сумма: ')
+            .replace(/reason -> /g, 'Причина: ')
+            .replace(/user_id -> /g, 'Пользователь: ')
+            .replace(/query -> /g, '');
+        } else {
+          errorMessage = 'Ошибка валидации данных';
+        }
+      } else if (error.message.includes('404')) {
         errorMessage = 'Ресурс не найден';
       } else if (error.message.includes('403')) {
         errorMessage = 'Нет прав доступа';
@@ -191,14 +206,15 @@ export const DataProvider = ({ children }) => {
 
   // Enhanced payroll operations
   const payroll = {
-    getAll: (params) => withLoading(() => payrollAPI.getPayrolls(params), true),
-    getById: (id) => withLoading(() => payrollAPI.getPayroll(id)),
-    create: (data) => withLoading(() => payrollAPI.createPayroll(data), false, 'Зарплатная ведомость создана'),
-    update: (id, data) => withLoading(() => payrollAPI.updatePayroll(id, data), false, 'Ведомость обновлена'),
+    getAll: (params) => withLoading(() => payrollAPI.getAll(params), true),
+    getById: (id) => withLoading(() => payrollAPI.getById(id)),
+    create: (data) => withLoading(() => payrollAPI.create(data), false, 'Зарплата успешно создана'),
+    update: (id, data) => withLoading(() => payrollAPI.update(id, data), false, 'Зарплата обновлена'),
+    delete: (id) => withLoading(() => payrollAPI.delete(id), false, 'Зарплата удалена'),
     markAsPaid: (id, paymentMethod) => withLoading(() => payrollAPI.markAsPaid(id, paymentMethod), false, 'Зарплата отмечена как выплаченная'),
     calculateMonthly: (year, month, userId) => withLoading(() => payrollAPI.calculateMonthly(year, month, userId), false, 'Зарплата рассчитана'),
     getStatistics: (year, month) => withLoading(() => payrollAPI.getStatistics(year, month)),
-    export: (format, year, month) => withLoading(() => payrollAPI.exportData(format, year, month)),
+    exportData: (format, year, month) => withLoading(() => payrollAPI.exportData(format, year, month)),
     
     // Templates
     getTemplates: (params) => withLoading(() => payrollAPI.getTemplates(params), true),
@@ -212,32 +228,59 @@ export const DataProvider = ({ children }) => {
     addOperation: (data) => withLoading(() => payrollAPI.addOperation(data), false, 'Операция добавлена'),
     cancelOperation: (id, reason) => withLoading(() => payrollAPI.cancelOperation(id, reason), false, 'Операция отменена'),
     
-    // Quick operations
-    addQuickBonus: (userId, data) => withLoading(() => payrollAPI.addQuickBonus(userId, data), false, 'Премия добавлена'),
-    addQuickPenalty: (userId, data) => withLoading(() => payrollAPI.addQuickPenalty(userId, data), false, 'Штраф добавлен'),
-    addOvertimePayment: (userId, data) => withLoading(() => payrollAPI.addOvertimePayment(userId, data), false, 'Сверхурочные добавлены'),
-    addAllowance: (userId, data) => withLoading(() => payrollAPI.addAllowance(userId, data), false, 'Надбавка добавлена'),
-    addDeduction: (userId, data) => withLoading(() => payrollAPI.addDeduction(userId, data), false, 'Удержание добавлено'),
+    // Quick operations - исправленные вызовы API
+    addQuickBonus: (userId, data) => withLoading(async () => {
+      try {
+        return await payrollAPI.addQuickBonus(userId, data);
+      } catch (error) {
+        // Более подробная обработка ошибок для отладки
+        console.error('Failed to add quick bonus:', error);
+        throw new Error(`Не удалось добавить премию: ${error.message}`);
+      }
+    }, false, 'Премия добавлена'),
+    
+    addQuickPenalty: (userId, data) => withLoading(async () => {
+      try {
+        return await payrollAPI.addQuickPenalty(userId, data);
+      } catch (error) {
+        console.error('Failed to add quick penalty:', error);
+        throw new Error(`Не удалось добавить штраф: ${error.message}`);
+      }
+    }, false, 'Штраф добавлен'),
+    
+    addOvertimePayment: (userId, data) => withLoading(async () => {
+      try {
+        return await payrollAPI.addOvertimePayment(userId, data);
+      } catch (error) {
+        console.error('Failed to add overtime payment:', error);
+        throw new Error(`Не удалось добавить сверхурочные: ${error.message}`);
+      }
+    }, false, 'Сверхурочные добавлены'),
+    
+    addAllowance: (userId, data) => withLoading(async () => {
+      try {
+        return await payrollAPI.addAllowance(userId, data);
+      } catch (error) {
+        console.error('Failed to add allowance:', error);
+        throw new Error(`Не удалось добавить надбавку: ${error.message}`);
+      }
+    }, false, 'Надбавка добавлена'),
+    
+    addDeduction: (userId, data) => withLoading(async () => {
+      try {
+        return await payrollAPI.addDeduction(userId, data);
+      } catch (error) {
+        console.error('Failed to add deduction:', error);
+        throw new Error(`Не удалось добавить удержание: ${error.message}`);
+      }
+    }, false, 'Удержание добавлено'),
     
     // Enhanced reporting
-    getUserSummary: (userId, months) => withLoading(() => payrollAPI.getUserPayrollSummary(userId, months)),
-    recalculate: (id) => withLoading(() => payrollAPI.recalculatePayroll(id), false, 'Зарплата пересчитана'),
+    getUserSummary: (userId, months) => withLoading(() => payrollAPI.getUserSummary(userId, months)),
+    recalculate: (id) => withLoading(() => payrollAPI.recalculate(id), false, 'Зарплата пересчитана'),
     
-    // Admin operations (only available for admins)
-    admin: {
-      quickSetupTemplates: (baseRates) => withLoading(() => adminPayrollAPI.quickSetupTemplates(baseRates), false, 'Шаблоны настроены'),
-      bulkUpdateTemplates: (updates) => withLoading(() => adminPayrollAPI.bulkUpdateTemplates(updates), false, 'Шаблоны обновлены массово'),
-      createBulkOperations: (data) => withLoading(() => adminPayrollAPI.createBulkOperations(data), false, 'Массовые операции созданы'),
-      createSeasonalBonus: (amount, title, roles, excludeUsers) => withLoading(() => adminPayrollAPI.createSeasonalBonus(amount, title, roles, excludeUsers), false, 'Сезонная премия создана'),
-      getOrganizationSummary: (year, month) => withLoading(() => adminPayrollAPI.getOrganizationPayrollSummary(year, month)),
-      getForecast: (months) => withLoading(() => adminPayrollAPI.getPayrollForecast(months)),
-      autoGenerateMonthly: (year, month, forceRecreate) => withLoading(() => adminPayrollAPI.autoGenerateMonthlyPayrolls(year, month, forceRecreate), false, 'Зарплаты за месяц сгенерированы'),
-      getSettings: () => withLoading(() => adminPayrollAPI.getPayrollSettings()),
-      updateSettings: (settings) => withLoading(() => adminPayrollAPI.updatePayrollSettings(settings), false, 'Настройки зарплатной системы обновлены'),
-      exportDetailedReport: (year, month, format) => withLoading(() => adminPayrollAPI.exportDetailedReport(year, month, format)),
-      notifyPayrollReady: (year, month, userIds) => withLoading(() => adminPayrollAPI.notifyPayrollReady(year, month, userIds), false, 'Уведомления отправлены'),
-      archiveOldPayrolls: (monthsOld) => withLoading(() => adminPayrollAPI.archiveOldPayrolls(monthsOld), false, 'Старые зарплаты архивированы')
-    }
+    // Метод экспорта для использования в компонентах
+    export: (format, year, month) => payrollAPI.exportData(format, year, month)
   };
 
   // Enhanced reports operations
