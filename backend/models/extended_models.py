@@ -466,39 +466,34 @@ class Payroll(Base):
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now())
     
-
-    template_id = Column(UUID(as_uuid=True), ForeignKey("payroll_templates.id"))
+    # ИСПРАВЛЕННЫЕ ПОЛЯ ДЛЯ РАСШИРЕННОЙ СИСТЕМЫ
+    template_id = Column(UUID(as_uuid=True), ForeignKey("payroll_templates.id"), nullable=True)
     generated_from_template = Column(Boolean, default=False)
-
+    
     # Детализация операций
-    operations_summary = Column(JSONB, default=dict)  # Сводка по типам операций
-
+    operations_summary = Column(JSONB, default=dict)
+    
     # Дополнительные поля
     overtime_hours = Column(Float, default=0)
     overtime_payment = Column(Float, default=0)
     allowances_total = Column(Float, default=0)
     penalties_total = Column(Float, default=0)
 
-    # Добавить отношения:
-    template = relationship("PayrollTemplate", back_populates="payroll_entries")
-    operations = relationship("PayrollOperation", back_populates="payroll")
-
-    # Также нужно добавить в PayrollTemplate:
-    payroll_entries = relationship("Payroll", back_populates="template")
-
-    # А в PayrollOperation:
-    payroll = relationship("Payroll", back_populates="operations")
-
-    # Отношения
+    # ИСПРАВЛЕННЫЕ ОТНОШЕНИЯ
     organization = relationship("Organization")
     user = relationship("User")
+    
+    # Правильная связь с шаблоном
+    template = relationship("PayrollTemplate", back_populates="payroll_records")
+    
+    # Связь с операциями
+    operations = relationship("PayrollOperation", back_populates="payroll", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint("period_end > period_start", name="check_payroll_period"),
         CheckConstraint("gross_amount >= 0", name="check_positive_gross"),
         Index("idx_payroll_user_period", "user_id", "period_start", "period_end"),
     )
-
 
 # Модель материалов/инвентаря
 class Inventory(Base):
@@ -586,54 +581,63 @@ class InventoryMovement(Base):
         Index("idx_movement_date", "created_at"),
     )
 
-def update_payroll_relationships():
-    """Обновление отношений для модели Payroll"""
+def setup_all_relationships():
+    """Настройка всех отношений после определения всех моделей"""
     
-    # Добавляем новые поля в существующую модель Payroll
-    if not hasattr(Payroll, 'template_id'):
-        Payroll.template_id = Column(UUID(as_uuid=True), ForeignKey("payroll_templates.id"))
-    
-    if not hasattr(Payroll, 'generated_from_template'):
-        Payroll.generated_from_template = Column(Boolean, default=False)
-    
-    if not hasattr(Payroll, 'operations_summary'):
-        Payroll.operations_summary = Column(JSONB, default=dict)
-    
-    if not hasattr(Payroll, 'overtime_hours'):
-        Payroll.overtime_hours = Column(Float, default=0)
-    
-    if not hasattr(Payroll, 'overtime_payment'):
-        Payroll.overtime_payment = Column(Float, default=0)
-    
-    if not hasattr(Payroll, 'allowances_total'):
-        Payroll.allowances_total = Column(Float, default=0)
-    
-    if not hasattr(Payroll, 'penalties_total'):
-        Payroll.penalties_total = Column(Float, default=0)
-
-# Добавляем отношения (если их еще нет)
-if not hasattr(Payroll, 'template'):
-    Payroll.template = relationship("PayrollTemplate", back_populates="payroll_entries")
-
-if not hasattr(Payroll, 'operations'):
-    Payroll.operations = relationship("PayrollOperation", back_populates="payroll", cascade="all, delete-orphan")
-
-# Обновляем User с отношениями к зарплатам
-if not hasattr(User, 'payroll_templates'):
-    User.payroll_templates = relationship("PayrollTemplate", back_populates="user")
-
-if not hasattr(User, 'payroll_operations'):
-    User.payroll_operations = relationship("PayrollOperation", foreign_keys="PayrollOperation.user_id", back_populates="user")
-
-
-update_payroll_relationships()
+    # Импортируем модели зарплат
+    try:
+        from models.payroll_template import PayrollTemplate
+        from models.payroll_operation import PayrollOperation
+        
+        # Добавляем отношения в User (если их еще нет)
+        if not hasattr(User, 'payroll_templates'):
+            User.payroll_templates = relationship(
+                "PayrollTemplate", 
+                back_populates="user",
+                cascade="all, delete-orphan"
+            )
+        
+        if not hasattr(User, 'payroll_records'):
+            User.payroll_records = relationship(
+                "Payroll", 
+                back_populates="user",
+                cascade="all, delete-orphan"
+            )
+        
+        if not hasattr(User, 'created_operations'):
+            User.created_operations = relationship(
+                "PayrollOperation", 
+                foreign_keys="PayrollOperation.created_by",
+                cascade="all, delete-orphan"
+            )
+        
+        if not hasattr(User, 'received_operations'):
+            User.received_operations = relationship(
+                "PayrollOperation", 
+                foreign_keys="PayrollOperation.user_id",
+                cascade="all, delete-orphan"
+            )
+            
+        print("✅ Payroll relationships configured successfully")
+        
+    except ImportError as e:
+        print(f"⚠️  Payroll models not available yet: {e}")
+        # Это нормально на начальных этапах импорта
 
 # Обновляем существующие модели
 # Добавляем отношения в Organization
-Organization.properties = relationship("Property", back_populates="organization", cascade="all, delete-orphan")
-Organization.clients = relationship("Client", back_populates="organization", cascade="all, delete-orphan")
+if not hasattr(Organization, 'properties'):
+    Organization.properties = relationship("Property", back_populates="organization", cascade="all, delete-orphan")
 
-# Добавляем отношения в User
-User.assigned_tasks = relationship("Task", foreign_keys=[Task.assigned_to], back_populates="assignee")
-User.created_tasks = relationship("Task", foreign_keys=[Task.created_by], back_populates="creator")
-User.payrolls = relationship("Payroll", back_populates="user")
+if not hasattr(Organization, 'clients'):
+    Organization.clients = relationship("Client", back_populates="organization", cascade="all, delete-orphan")
+
+# Добавляем отношения в User для задач
+if not hasattr(User, 'assigned_tasks'):
+    User.assigned_tasks = relationship("Task", foreign_keys="Task.assigned_to", back_populates="assignee")
+
+if not hasattr(User, 'created_tasks'):
+    User.created_tasks = relationship("Task", foreign_keys="Task.created_by", back_populates="creator")
+
+# Вызываем настройку отношений
+setup_all_relationships()

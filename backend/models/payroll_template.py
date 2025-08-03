@@ -1,4 +1,5 @@
-# models/payroll_template.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
+# backend/models/payroll_template.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
+
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Enum, Text, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -22,7 +23,7 @@ class PayrollTemplate(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     
     # Основные настройки
-    name = Column(String(255), nullable=False)  # "Стандартный оклад менеджера"
+    name = Column(String(255), nullable=False)
     description = Column(Text)
     status = Column(Enum(PayrollTemplateStatus), default=PayrollTemplateStatus.ACTIVE)
     
@@ -31,21 +32,21 @@ class PayrollTemplate(Base):
     base_rate = Column(Float, nullable=False)
     
     # Автоматические надбавки
-    automatic_allowances = Column(JSONB, default=dict)  # {"transport": 15000, "food": 10000}
+    automatic_allowances = Column(JSONB, default=dict)
     
     # Настройки расчета
     calculate_overtime = Column(Boolean, default=False)
-    overtime_rate_multiplier = Column(Float, default=1.5)  # Коэффициент сверхурочных
+    overtime_rate_multiplier = Column(Float, default=1.5)
     
     include_task_payments = Column(Boolean, default=True)
-    task_payment_rate = Column(Float, default=0)  # Доплата за задачу
+    task_payment_rate = Column(Float, default=0)
     
     # Автоматические вычеты
-    automatic_deductions = Column(JSONB, default=dict)  # {"uniform": 5000}
+    automatic_deductions = Column(JSONB, default=dict)
     
     # Налогообложение
-    tax_rate = Column(Float, default=0.1)      # 10%
-    social_rate = Column(Float, default=0.1)   # 10%
+    tax_rate = Column(Float, default=0.1)
+    social_rate = Column(Float, default=0.1)
     
     # Периодичность применения
     auto_apply_monthly = Column(Boolean, default=True)
@@ -56,10 +57,12 @@ class PayrollTemplate(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
-    # Отношения
+    # ИСПРАВЛЕННЫЕ ОТНОШЕНИЯ
     organization = relationship("Organization")
     user = relationship("User", back_populates="payroll_templates")
-    payroll_entries = relationship("Payroll", back_populates="template")
+    
+    # Правильное название отношения - НЕ payroll_entries!
+    payroll_records = relationship("Payroll", back_populates="template")
     
     def __repr__(self):
         return f"<PayrollTemplate(name='{self.name}', user_id='{self.user_id}', status='{self.status}')>"

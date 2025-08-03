@@ -183,9 +183,6 @@ const Layout = ({ children }) => {
           <button className="nav-item logout-btn" onClick={handleLogout} title="Выйти">
             <FiLogOut size={20} />
           </button>
-          <div className="user-avatar">
-            <img src="https://i.pravatar.cc/150?img=3" alt={user?.first_name || t('common.user')} />
-          </div>
         </div>
       </aside>
 
@@ -199,9 +196,6 @@ const Layout = ({ children }) => {
             <span className="user-name">
               {user?.first_name} {user?.last_name}
             </span>
-            <button className="logout-btn-header" onClick={handleLogout}>
-              <FiLogOut size={16} />
-            </button>
           </div>
         </header>
 

@@ -3,6 +3,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 import uuid
 from models.extended_models import PropertyStatus, PropertyType
+from starlette import status
+from fastapi import status
+
 
 
 class PropertyBase(BaseModel):

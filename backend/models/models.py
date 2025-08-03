@@ -1,3 +1,5 @@
+# backend/models/models.py - ЧИСТАЯ ВЕРСИЯ
+
 from sqlalchemy import (
     Column, String, Text, Boolean, DateTime, Integer, 
     ForeignKey, Enum, TIMESTAMP, JSON, CheckConstraint

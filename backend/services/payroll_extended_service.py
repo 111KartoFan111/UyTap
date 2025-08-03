@@ -1,4 +1,3 @@
-# services/payroll_extended_service.py - ПОЛНАЯ РЕАЛИЗАЦИЯ
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -9,6 +8,8 @@ from models.database import get_db
 from models.extended_models import User, UserRole, Task, TaskStatus, Payroll, PayrollType
 from models.payroll_template import PayrollTemplate, PayrollTemplateStatus
 from models.payroll_operation import PayrollOperation, PayrollOperationType
+
+# ИСПРАВЛЕННЫЕ ИМПОРТЫ СХЕМ
 from schemas.payroll_template import PayrollTemplateCreate, PayrollTemplateUpdate
 from schemas.payroll_operation import PayrollOperationCreate
 
