@@ -1,5 +1,3 @@
-# routers/payroll_extended.py - Дополнительные роуты для работы с зарплатами
-
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -7,12 +5,30 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc, or_
 import uuid
 
-from models.database import get_db
-from models.extended_models import User, UserRole
-from schemas.payroll_extended import *
-from services.payroll_extended_service import PayrollExtendedService
-from utils.dependencies import get_current_active_user
+# ИСПРАВЛЕННЫЕ ИМПОРТЫ
+from models.database import get_db  # НЕ database напрямую
+from models.extended_models import User, UserRole, Payroll  # Основные модели
+from models.payroll_template import PayrollTemplate, PayrollTemplateStatus  # ДОБАВЛЕНО
+from models.payroll_operation import PayrollOperation, PayrollOperationType  # ДОБАВЛЕНО
 
+# ИСПРАВЛЕННЫЕ ИМПОРТЫ СХЕМ
+from schemas.payroll_extended import (
+    PayrollTemplateCreate, 
+    PayrollTemplateResponse, 
+    PayrollTemplateUpdate,
+    PayrollOperationCreate,
+    PayrollOperationResponse,
+    QuickBonusRequest,
+    QuickPenaltyRequest, 
+    QuickOvertimeRequest
+)
+
+# ИСПРАВЛЕННЫЙ ИМПОРТ СЕРВИСА
+from services.payroll_extended_service import PayrollExtendedService
+
+# ИСПРАВЛЕННЫЕ ЗАВИСИМОСТИ
+from utils.dependencies import get_current_active_user
+# ПРАВИЛЬНОЕ СОЗДАНИЕ РОУТЕРА
 router = APIRouter(prefix="/api/payroll", tags=["Enhanced Payroll"])
 
 # ========== ШАБЛОНЫ ЗАРПЛАТ ==========

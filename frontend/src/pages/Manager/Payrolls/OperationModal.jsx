@@ -42,7 +42,7 @@ const OperationModal = ({ employees, onClose, onSubmit }) => {
       const amount = parseFloat(formData.amount);
       const reason = formData.description.trim();
 
-      // Используем правильный API вызов в зависимости от типа операции
+      // ИСПРАВЛЕНО: используем правильные параметры API согласно спецификации
       switch (operationType) {
         case 'bonus':
           await payroll.addQuickBonus(formData.user_id, {

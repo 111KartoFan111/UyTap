@@ -873,7 +873,7 @@ export const payrollAPI = {
   },
 
   getById: async (payrollId) => {
-    return apiRequest(`/api/payroll/${payrollId}`);
+    return apiRequest(`/api/payroll/payID/${payrollId}`);
   },
 
   create: async (data) => {
@@ -1035,7 +1035,6 @@ export const payrollAPI = {
     });
   },
 
-  // Быстрые операции - исправленные методы с правильными параметрами
   addQuickBonus: async (userId, data) => {
     // API ожидает параметры в query string согласно OpenAPI спецификации
     const params = new URLSearchParams({
@@ -1079,8 +1078,10 @@ export const payrollAPI = {
       params.append('hourly_rate', data.hourly_rate);
     }
     
+    // ИСПРАВЛЕНО: body должен быть пустым или содержать только необходимые поля
     return apiRequest(`/api/payroll/users/${userId}/overtime?${params.toString()}`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({}) // Пустое тело, так как все параметры в query string
     });
   },
 
@@ -1111,8 +1112,10 @@ export const payrollAPI = {
       reason: data.reason
     });
     
+    // ИСПРАВЛЕНО: body должен быть пустым или содержать только необходимые поля
     return apiRequest(`/api/payroll/users/${userId}/deduction?${params.toString()}`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({}) // Пустое тело, так как все параметры в query string
     });
   },
 

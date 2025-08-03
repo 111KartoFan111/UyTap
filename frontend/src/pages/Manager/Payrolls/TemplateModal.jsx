@@ -9,7 +9,7 @@ const TemplateModal = ({ templates, employees, onClose, onUpdate }) => {
   const [formData, setFormData] = useState({
     name: '',
     user_id: '',
-    payroll_type: 'monthly',
+    payroll_type: 'monthly_salary', // Исправлено: используем правильное значение из API
     base_rate: '',
     overtime_rate: '',
     overtime_multiplier: 1.5,
@@ -59,7 +59,8 @@ const TemplateModal = ({ templates, employees, onClose, onUpdate }) => {
         overtime_rate_multiplier: parseFloat(formData.overtime_multiplier),
         tax_rate: parseFloat(formData.tax_rate),
         social_rate: parseFloat(formData.pension_rate),
-        effective_from: formData.effective_from,
+        // ИСПРАВЛЕНО: правильный формат даты ISO с временем
+        effective_from: new Date(formData.effective_from + 'T00:00:00.000Z').toISOString(),
         description: `Шаблон для ${employees.find(emp => emp.id === formData.user_id)?.first_name || 'сотрудника'}`
       };
 
@@ -92,7 +93,7 @@ const TemplateModal = ({ templates, employees, onClose, onUpdate }) => {
     setFormData({
       name: '',
       user_id: '',
-      payroll_type: 'monthly',
+      payroll_type: 'monthly_salary', // Исправлено
       base_rate: '',
       overtime_rate: '',
       overtime_multiplier: 1.5,
@@ -104,12 +105,11 @@ const TemplateModal = ({ templates, employees, onClose, onUpdate }) => {
     });
   };
 
+  // ИСПРАВЛЕНО: используем правильные значения из API схемы
   const payrollTypes = [
+    { value: 'monthly_salary', label: 'Ежемесячная зарплата' },
     { value: 'hourly', label: 'Почасовая' },
-    { value: 'daily', label: 'Ежедневная' },
-    { value: 'weekly', label: 'Еженедельная' },
-    { value: 'monthly', label: 'Ежемесячная' },
-    { value: 'yearly', label: 'Годовая' }
+    { value: 'piece_work', label: 'Сдельная' }
   ];
 
   const roles = [

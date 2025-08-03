@@ -21,6 +21,35 @@ class PayrollBase(BaseModel):
     notes: Optional[str] = None
 
 
+class UserResponse(BaseModel):
+    id: str
+    organization_id: Optional[str]
+    email: str
+    first_name: str
+    last_name: str
+    middle_name: Optional[str]
+    phone: Optional[str]
+    role: str
+    status: str
+    email_verified: bool
+    phone_verified: bool
+    two_factor_enabled: bool
+    last_login_at: Optional[datetime]
+    last_activity_at: Optional[datetime]
+    password_changed_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+    preferences: Dict[str, Any]
+
+    @validator('id', 'organization_id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+
+    class Config:
+        from_attributes = True
+
 class PayrollCreate(PayrollBase):
     @validator('period_end')
     def validate_period(cls, v, values):
@@ -50,13 +79,12 @@ class PayrollResponse(PayrollBase):
     gross_amount: float
     net_amount: float
     is_paid: bool
-    paid_at: Optional[datetime]
-    payment_method: Optional[str]
+    paid_at: Optional[datetime] = None
+    payment_method: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    
-    # Связанные объекты
-    user: Optional[Dict[str, str]] = None
+
+    user: Optional[UserResponse] = None
 
     @validator('id', 'organization_id', 'user_id', pre=True)
     def convert_uuid_to_str(cls, v):
@@ -65,4 +93,4 @@ class PayrollResponse(PayrollBase):
         return v
 
     class Config:
-        from_attributes = True
+        orm_mode = True

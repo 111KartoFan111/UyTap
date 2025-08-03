@@ -1,7 +1,7 @@
 # backend/routers/payroll.py
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response, Path
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 import uuid
@@ -61,7 +61,7 @@ async def get_payrolls(
     return payrolls
 
 
-@router.post("", response_model=PayrollResponse)
+@router.post("/pay", response_model=PayrollResponse)
 async def create_payroll(
     payroll_data: PayrollCreate,
     current_user: User = Depends(get_current_active_user),
@@ -116,14 +116,16 @@ async def create_payroll(
     net_amount = gross_amount - payroll_data.deductions - payroll_data.taxes
     
     # Создаем ведомость
+    data = payroll_data.dict()
+    data["user_id"] = user.id
     payroll = Payroll(
         id=uuid.uuid4(),
         organization_id=current_user.organization_id,
-        user_id=user.id,
-        **payroll_data.dict(),
+        **data,
         gross_amount=gross_amount,
         net_amount=net_amount
     )
+
     
     db.add(payroll)
     db.commit()
@@ -148,36 +150,6 @@ async def create_payroll(
     return payroll
 
 
-@router.get("/{payroll_id}", response_model=PayrollResponse)
-async def get_payroll(
-    payroll_id: uuid.UUID,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Получить зарплатную ведомость"""
-    
-    payroll = db.query(Payroll).filter(
-        and_(
-            Payroll.id == payroll_id,
-            Payroll.organization_id == current_user.organization_id
-        )
-    ).first()
-    
-    if not payroll:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Payroll record not found"
-        )
-    
-    # Проверяем права доступа
-    if (current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER] 
-        and payroll.user_id != current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
-    
-    return payroll
 
 
 @router.put("/{payroll_id}", response_model=PayrollResponse)
@@ -666,3 +638,35 @@ async def export_payroll_data(
             media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
+    
+
+@router.get("/payID/{payroll_id}", response_model=PayrollResponse)
+async def get_payroll(
+    payroll_id: uuid.UUID = Path(..., pattern=r"^[0-9a-fA-F-]{36}$"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Получить зарплатную ведомость"""
+    
+    payroll = db.query(Payroll).filter(
+        and_(
+            Payroll.id == payroll_id,
+            Payroll.organization_id == current_user.organization_id
+        )
+    ).first()
+    
+    if not payroll:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payroll record not found"
+        )
+    
+    # Проверяем права доступа
+    if (current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER] 
+        and payroll.user_id != current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    return payroll

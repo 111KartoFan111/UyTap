@@ -6,6 +6,7 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
     user_id: '',
     period_year: new Date().getFullYear(),
     period_month: new Date().getMonth() + 1,
+    payroll_type: 'monthly_salary', // ИСПРАВЛЕНО: добавлено обязательное поле
     base_salary: '',
     work_days: 22,
     bonuses: '',
@@ -26,6 +27,7 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
         user_id: selectedPayroll.user_id || '',
         period_year: selectedPayroll.period_year || new Date().getFullYear(),
         period_month: selectedPayroll.period_month || new Date().getMonth() + 1,
+        payroll_type: selectedPayroll.payroll_type || 'monthly_salary', // ИСПРАВЛЕНО
         base_salary: selectedPayroll.base_salary || '',
         work_days: selectedPayroll.work_days || 22,
         bonuses: selectedPayroll.bonuses || '',
@@ -52,6 +54,9 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
     if (formData.work_days < 0 || formData.work_days > 31) {
       newErrors.work_days = 'Количество рабочих дней должно быть от 0 до 31';
     }
+    if (!formData.payroll_type) {
+      newErrors.payroll_type = 'Выберите тип зарплаты';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -60,17 +65,26 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validateForm()) {
+      // ИСПРАВЛЕНО: создаем правильные даты для периода и добавляем все обязательные поля
+      const startOfMonth = new Date(formData.period_year, formData.period_month - 1, 1);
+      const endOfMonth = new Date(formData.period_year, formData.period_month, 0, 23, 59, 59);
+
       const submitData = {
-        ...formData,
-        base_salary: parseFloat(formData.base_salary) || 0,
-        work_days: parseInt(formData.work_days) || 0,
-        bonuses: parseFloat(formData.bonuses) || 0,
-        overtime_hours: parseFloat(formData.overtime_hours) || 0,
-        overtime_pay: parseFloat(formData.overtime_pay) || 0,
-        allowances: parseFloat(formData.allowances) || 0,
-        tax_amount: parseFloat(formData.tax_amount) || 0,
-        pension_deduction: parseFloat(formData.pension_deduction) || 0,
-        other_deductions: parseFloat(formData.other_deductions) || 0
+        user_id: formData.user_id,
+        // ИСПРАВЛЕНО: добавляем обязательные поля period_start и period_end
+        period_start: startOfMonth.toISOString(),
+        period_end: endOfMonth.toISOString(),
+        payroll_type: formData.payroll_type, // ИСПРАВЛЕНО: добавляем обязательное поле
+        base_rate: parseFloat(formData.base_salary) || 0, // ИСПРАВЛЕНО: используем base_rate вместо base_salary
+        hours_worked: parseFloat(formData.work_days) * 8 || 0, // Примерный расчет часов
+        tasks_completed: 0, // Можно добавить поле в форму при необходимости
+        tasks_payment: 0,
+        bonus: parseFloat(formData.bonuses) || 0,
+        tips: 0, // Можно добавить поле в форму при необходимости
+        other_income: parseFloat(formData.allowances) || 0,
+        deductions: parseFloat(formData.other_deductions) || 0,
+        taxes: parseFloat(formData.tax_amount) || 0,
+        notes: formData.notes || null
       };
 
       onSubmit(submitData);
@@ -84,6 +98,13 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
     ];
     return monthNames[month - 1];
   };
+
+  // ИСПРАВЛЕНО: используем правильные значения из API схемы
+  const payrollTypes = [
+    { value: 'monthly_salary', label: 'Ежемесячная зарплата' },
+    { value: 'hourly', label: 'Почасовая' },
+    { value: 'piece_work', label: 'Сдельная' }
+  ];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -117,6 +138,22 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
                   ))}
                 </select>
                 {errors.user_id && <span className="error-text">{errors.user_id}</span>}
+              </div>
+
+              <div className="form-field">
+                <label>Тип зарплаты *</label>
+                <select
+                  value={formData.payroll_type}
+                  onChange={(e) => setFormData({ ...formData, payroll_type: e.target.value })}
+                  className={errors.payroll_type ? 'error' : ''}
+                >
+                  {payrollTypes.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.payroll_type && <span className="error-text">{errors.payroll_type}</span>}
               </div>
 
               <div className="form-field">
