@@ -3,6 +3,8 @@ import { FiPlus, FiSearch, FiFilter, FiCalendar, FiUsers, FiHome, FiEye, FiEdit2
 import { useData } from '../../contexts/DataContext';
 import RentalModal from './Floor/RentalModal';
 import './Pages.css';
+import QuickPaymentPopup from '../../components/Payments/QuickPaymentPopup';
+import { PaymentManager } from '../../components/Payments/PaymentManager';
 
 const Rentals = () => {
   const { rentals, properties, clients, utils } = useData();
@@ -16,10 +18,14 @@ const Rentals = () => {
   const [propertiesList, setPropertiesList] = useState([]);
   const [clientsList, setClientsList] = useState([]);
   
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [propertyFilter, setPropertyFilter] = useState('all');
+
+  const [showQuickPayment, setShowQuickPayment] = useState(false);
+  const [selectedRentalForPayment, setSelectedRentalForPayment] = useState(null);
   
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -74,6 +80,67 @@ const Rentals = () => {
     } finally {
       setLoading(false);
     }
+  };
+  // 🆕 Метод для открытия быстрого платежа
+const handleQuickPayment = (rental, event) => {
+  const rect = event.target.getBoundingClientRect();
+  const position = {
+    x: rect.left + rect.width / 2,
+    y: rect.top + window.scrollY
+  };
+  
+  setSelectedRentalForPayment({ ...rental, popupPosition: position });
+  setShowQuickPayment(true);
+};
+
+// 🆕 Метод добавления платежа
+const handlePaymentAdd = async (rentalId, paymentData) => {
+  try {
+    const response = await fetch(`http://localhost:8000/api/rentals/${rentalId}/payment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(paymentData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Payment failed');
+    }
+
+    // Обновляем локальное состояние
+    const updatedAmount = paymentData.payment_amount;
+    
+    setRentalsList(prev => prev.map(rental => {
+      if (rental.id === rentalId) {
+        return {
+          ...rental,
+          paid_amount: (rental.paid_amount || 0) + updatedAmount
+        };
+      }
+      return rental;
+    }));
+    
+    setFilteredRentals(prev => prev.map(rental => {
+      if (rental.id === rentalId) {
+        return {
+          ...rental,
+          paid_amount: (rental.paid_amount || 0) + updatedAmount
+        };
+      }
+      return rental;
+    }));
+
+    utils.showSuccess(`Платеж ₸${updatedAmount.toLocaleString()} добавлен!`);
+    loadData(); // Перезагрузить для обновления статистики
+    
+  } catch (error) {
+    console.error('Payment failed:', error);
+    utils.showError('Ошибка при добавлении платежа: ' + error.message);
+    throw error;
+  }
   };
 
   const calculateStats = (rentalsData, propertiesData) => {
@@ -525,6 +592,25 @@ const Rentals = () => {
                     </td>
                     <td>
                       <div className="rental-actions">
+                        {(rental.total_amount - (rental.paid_amount || 0)) > 0 && (
+                          <button 
+                            className={`btn-icon payment ${
+                              rental.paid_amount === 0 ? 'unpaid' : 'partial'
+                            }`}
+                            onClick={(e) => handleQuickPayment(rental, e)}
+                            title={`Добавить платеж (₸${(rental.total_amount - (rental.paid_amount || 0)).toLocaleString()})`}
+                            style={{
+                              backgroundColor: rental.paid_amount === 0 ? '#ef4444' : '#f59e0b',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <FiDollarSign />
+                          </button>
+                        )}
                         {status === 'pending_checkin' && (
                           <button 
                             className="btn-icon checkin"
@@ -612,6 +698,17 @@ const Rentals = () => {
           </div>
         )}
       </div>
+      {showQuickPayment && selectedRentalForPayment && (
+        <QuickPaymentPopup
+          rental={selectedRentalForPayment}
+          position={selectedRentalForPayment.popupPosition}
+          onClose={() => {
+            setShowQuickPayment(false);
+            setSelectedRentalForPayment(null);
+          }}
+          onPaymentAdd={handlePaymentAdd}
+        />
+      )}
 
       {showRentalModal && (
         <RentalModal
