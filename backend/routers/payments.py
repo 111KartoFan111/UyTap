@@ -427,7 +427,7 @@ async def cancel_payment(
 ):
     """Отменить платеж"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to cancel payments"
@@ -494,7 +494,7 @@ async def create_refund(
 ):
     """Создать возврат средств"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create refunds"

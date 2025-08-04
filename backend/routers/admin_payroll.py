@@ -24,7 +24,7 @@ from models.payroll_operation import PayrollOperation, PayrollOperationType
 router = APIRouter(prefix="/api/admin/payroll", tags=["Admin Payroll"])
 
 # Только админы и система
-admin_required = require_role([UserRole.ADMIN, UserRole.SYSTEM_OWNER])
+admin_required = require_role([UserRole.ADMIN,UserRole.ACCOUNTANT])
 
 # ========== УПРАВЛЕНИЕ ШАБЛОНАМИ ==========
 

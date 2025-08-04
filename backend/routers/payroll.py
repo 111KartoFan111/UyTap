@@ -40,7 +40,7 @@ async def get_payrolls(
     """Получить список зарплатных ведомостей"""
     
     # Проверяем права доступа
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         # Обычные сотрудники видят только свои ведомости
         user_id = str(current_user.id)
     
@@ -69,7 +69,7 @@ async def create_payroll(
 ):
     """Создать зарплатную ведомость"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to create payroll records"
@@ -161,7 +161,7 @@ async def update_payroll(
 ):
     """Обновить зарплатную ведомость"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to update payroll records"
@@ -229,7 +229,7 @@ async def mark_payroll_paid(
 ):
     """Отметить зарплату как выплаченную"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to mark payroll as paid"
@@ -289,7 +289,7 @@ async def calculate_monthly_payroll(
 ):
     """Рассчитать зарплату за месяц"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to calculate payroll"
@@ -445,7 +445,7 @@ async def get_payroll_statistics(
 ):
     """Получить статистику по зарплате"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to view payroll statistics"
@@ -544,7 +544,7 @@ async def export_payroll_data(
 ):
     """Экспорт данных зарплаты"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to export payroll data"
@@ -642,7 +642,7 @@ async def export_payroll_data(
 
 @router.get("/payID/{payroll_id}", response_model=PayrollResponse)
 async def get_payroll(
-    payroll_id: uuid.UUID = Path(..., pattern=r"^[0-9a-fA-F-]{36}$"),
+    payroll_id: uuid.UUID,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -662,7 +662,7 @@ async def get_payroll(
         )
     
     # Проверяем права доступа
-    if (current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER] 
+    if (current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT] 
         and payroll.user_id != current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

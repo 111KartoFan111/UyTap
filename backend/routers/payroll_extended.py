@@ -49,7 +49,7 @@ async def create_payroll_template(
     - Автоматические вычеты
     """
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can create payroll templates"
@@ -126,7 +126,7 @@ async def update_payroll_template(
 ):
     """Обновить шаблон зарплаты"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     template = db.query(PayrollTemplate).filter(
@@ -159,7 +159,7 @@ async def deactivate_payroll_template(
 ):
     """Деактивировать шаблон зарплаты"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     template = db.query(PayrollTemplate).filter(
@@ -200,7 +200,7 @@ async def auto_generate_payrolls(
     - Сверхурочные
     """
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     if force_recreate:
@@ -271,7 +271,7 @@ async def add_payroll_operation(
     - ADVANCE: Аванс
     """
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     # Проверяем, что пользователь существует
@@ -346,7 +346,7 @@ async def cancel_payroll_operation(
 ):
     """Отменить операцию с зарплатой (если ещё не применена)"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     operation = db.query(PayrollOperation).filter(
@@ -399,7 +399,7 @@ async def add_bonus(
 ):
     """Быстро добавить премию сотруднику"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     # Определяем период
@@ -444,7 +444,7 @@ async def add_penalty(
 ):
     """Быстро добавить штраф сотруднику"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Only admins can add penalties")
     
     # Определяем период
@@ -489,7 +489,7 @@ async def add_overtime(
 ):
     """Добавить сверхурочные часы"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     # Получаем шаблон пользователя для определения базовой ставки
@@ -557,7 +557,7 @@ async def get_user_payroll_summary(
     """Получить сводку по зарплате пользователя за несколько месяцев"""
     
     # Проверяем права доступа
-    if (current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER] 
+    if (current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT] 
         and str(current_user.id) != user_id):
         raise HTTPException(status_code=403, detail="Access denied")
     
@@ -643,7 +643,7 @@ async def recalculate_payroll(
 ):
     """Пересчитать зарплату с учётом всех операций"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     payroll = db.query(Payroll).filter(

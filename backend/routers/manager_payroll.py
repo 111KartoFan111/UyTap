@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/payroll", tags=["Manager Payroll Operations"])
 
 def require_manager_or_admin(current_user: User = Depends(get_current_active_user)):
     """Проверка прав менеджера или админа"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions"
@@ -91,7 +91,7 @@ async def add_quick_penalty(
     """Быстро добавить штраф сотруднику"""
     
     # Только админы могут накладывать штрафы
-    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can impose penalties"
