@@ -33,7 +33,7 @@ async def quick_setup_templates_for_organization(
     base_rates: Dict[str, float] = {
         "admin": 500000,
         "manager": 400000,
-        "accountant": 350000,
+        "accountant": 400000,
         "technical_staff": 300000,
         "cleaner": 250000,
         "storekeeper": 280000

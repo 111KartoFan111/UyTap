@@ -1,62 +1,58 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   FiPlus, 
-  FiSearch, 
-  FiFilter, 
-  FiEdit2, 
-  FiEye, 
   FiDownload,
-  FiX,
-  FiUser,
-  FiDollarSign,
   FiCalendar,
-  FiTrendingUp,
-  FiClock,
-  FiCheck,
-  FiRefreshCw,
-  FiSettings
+  FiAlertCircle,
+  FiRefreshCw
 } from 'react-icons/fi';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
+
+// Импортируем существующие модальные окна
 import { PayrollModal, TemplateModal, OperationModal } from './Payrolls';
-import '../Manager/Pages.css';
+
+import './Payroll.css';
 
 const Payroll = () => {
   const { payroll, organization, utils } = useData();
   const { user } = useAuth();
   
+  // Основные данные
   const [payrollList, setPayrollList] = useState([]);
   const [filteredPayrolls, setFilteredPayrolls] = useState([]);
-  const [templates, setTemplates] = useState([]);
-  const [operations, setOperations] = useState([]);
   const [employees, setEmployees] = useState([]);
   
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [periodFilter, setPeriodFilter] = useState('current');
-  const [employeeFilter, setEmployeeFilter] = useState('all');
+  // Фильтры
+  const [filters, setFilters] = useState({
+    searchTerm: '',
+    statusFilter: 'all',
+    employeeFilter: 'all'
+  });
   
+  // UI состояния
   const [loading, setLoading] = useState(true);
   const [showPayrollModal, setShowPayrollModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showOperationModal, setShowOperationModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
   
+  // Период
   const [currentPeriod, setCurrentPeriod] = useState({
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1
   });
   
+  // Статистика (правильная структура)
   const [stats, setStats] = useState({
     totalPayrolls: 0,
     pendingPayrolls: 0,
     paidPayrolls: 0,
     totalAmount: 0,
-    avgSalary: 0,
-    monthlyTotal: 0
+    avgSalary: 0
   });
 
-  // Загрузка данных при монтировании компонента
+  // Загрузка данных при монтировании компонента и изменении периода
   useEffect(() => {
     loadData();
   }, [currentPeriod]);
@@ -64,14 +60,14 @@ const Payroll = () => {
   // Фильтрация при изменении поисковых параметров
   useEffect(() => {
     filterPayrolls();
-  }, [payrollList, searchTerm, statusFilter, periodFilter, employeeFilter]);
+  }, [payrollList, filters]);
 
-  const loadData = async () => {
+  // Загрузка всех данных
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Загружаем данные параллельно с обработкой ошибок
-      const [payrollsData, templatesData, operationsData, employeesData] = await Promise.allSettled([
+      const [payrollsData, employeesData] = await Promise.allSettled([
         payroll.getAll({
           year: currentPeriod.year,
           month: currentPeriod.month,
@@ -80,44 +76,25 @@ const Payroll = () => {
           console.warn('Failed to load payrolls:', err);
           return [];
         }),
-        payroll.getTemplates({ status: 'active' }).catch(err => {
-          console.warn('Failed to load templates:', err);
-          return [];
-        }),
-        payroll.getOperations({
-          year: currentPeriod.year,
-          month: currentPeriod.month,
-          limit: 100
-        }).catch(err => {
-          console.warn('Failed to load operations:', err);
-          return [];
-        }),
         organization.getUsers({ status: 'active', limit: 200 }).catch(err => {
           console.warn('Failed to load employees:', err);
           return [];
         })
       ]);
 
-      // Безопасное извлечение данных
+      // ИСПРАВЛЕНО: Правильное извлечение данных
       const payrolls = payrollsData.status === 'fulfilled' && Array.isArray(payrollsData.value) 
         ? payrollsData.value 
-        : [];
-      
-      const templatesResult = templatesData.status === 'fulfilled' && Array.isArray(templatesData.value) 
-        ? templatesData.value 
-        : [];
-      
-      const operationsResult = operationsData.status === 'fulfilled' && Array.isArray(operationsData.value) 
-        ? operationsData.value 
         : [];
       
       const employeesResult = employeesData.status === 'fulfilled' && Array.isArray(employeesData.value) 
         ? employeesData.value 
         : [];
 
+      console.log('Loaded payrolls:', payrolls); // Для отладки
+      console.log('Loaded employees:', employeesResult); // Для отладки
+
       setPayrollList(payrolls);
-      setTemplates(templatesResult);
-      setOperations(operationsResult);
       setEmployees(employeesResult);
       
       calculateStats(payrolls);
@@ -126,86 +103,93 @@ const Payroll = () => {
       console.error('Failed to load payroll data:', error);
       utils.showError('Не удалось загрузить данные о зарплатах');
       
-      // Устанавливаем пустые массивы в случае критической ошибки
       setPayrollList([]);
-      setTemplates([]);
-      setOperations([]);
       setEmployees([]);
       setStats({
         totalPayrolls: 0,
         pendingPayrolls: 0,
         paidPayrolls: 0,
         totalAmount: 0,
-        avgSalary: 0,
-        monthlyTotal: 0
+        avgSalary: 0
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPeriod, payroll, organization, utils]);
 
-  const calculateStats = (payrolls) => {
-    // Проверяем, что payrolls - это массив
+  // ИСПРАВЛЕНО: Правильный расчет статистики с учетом структуры API
+  const calculateStats = useCallback((payrolls) => {
     if (!Array.isArray(payrolls)) {
       console.warn('calculateStats received non-array data:', payrolls);
       payrolls = [];
     }
 
     const totalPayrolls = payrolls.length;
-    const pendingPayrolls = payrolls.filter(p => p && p.status === 'pending').length;
-    const paidPayrolls = payrolls.filter(p => p && p.status === 'paid').length;
     
+    // ИСПРАВЛЕНО: Используем is_paid boolean вместо status string
+    const pendingPayrolls = payrolls.filter(p => p && !p.is_paid).length;
+    const paidPayrolls = payrolls.filter(p => p && p.is_paid).length;
+    
+    // ИСПРАВЛЕНО: Используем net_amount из API
     const totalAmount = payrolls.reduce((sum, p) => {
-      const amount = p && typeof p.total_amount === 'number' ? p.total_amount : 0;
-      return sum + amount;
+      const netAmount = p && typeof p.net_amount === 'number' ? p.net_amount : 0;
+      return sum + netAmount;
     }, 0);
     
     const avgSalary = totalPayrolls > 0 ? totalAmount / totalPayrolls : 0;
-    
-    const monthlyTotal = payrolls.reduce((sum, p) => {
-      const salary = p && typeof p.base_salary === 'number' ? p.base_salary : 0;
-      return sum + salary;
-    }, 0);
 
     setStats({
       totalPayrolls,
       pendingPayrolls,
       paidPayrolls,
       totalAmount,
-      avgSalary,
-      monthlyTotal
+      avgSalary
     });
-  };
 
-  const filterPayrolls = () => {
-    let filtered = payrollList;
+    console.log('Calculated stats:', { // Для отладки
+      totalPayrolls,
+      pendingPayrolls,
+      paidPayrolls,
+      totalAmount,
+      avgSalary
+    });
+  }, []);
+
+  // ИСПРАВЛЕНО: Правильная фильтрация
+  const filterPayrolls = useCallback(() => {
+    let filtered = [...payrollList];
 
     // Фильтр по поисковому запросу
-    if (searchTerm) {
-      filtered = filtered.filter(payroll => {
-        const employee = employees.find(emp => emp.id === payroll.user_id);
+    if (filters.searchTerm) {
+      filtered = filtered.filter(payrollItem => {
+        const employee = employees.find(emp => emp.id === payrollItem.user_id);
         const employeeName = employee ? `${employee.first_name} ${employee.last_name}` : '';
         
         return (
-          employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          payroll.id.toLowerCase().includes(searchTerm.toLowerCase())
+          employeeName.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+          payrollItem.id.toLowerCase().includes(filters.searchTerm.toLowerCase())
         );
       });
     }
 
-    // Фильтр по статусу
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(payroll => payroll.status === statusFilter);
+    // ИСПРАВЛЕНО: Фильтр по статусу с учетом is_paid
+    if (filters.statusFilter !== 'all') {
+      if (filters.statusFilter === 'pending') {
+        filtered = filtered.filter(payrollItem => !payrollItem.is_paid);
+      } else if (filters.statusFilter === 'paid') {
+        filtered = filtered.filter(payrollItem => payrollItem.is_paid);
+      }
     }
 
     // Фильтр по сотруднику
-    if (employeeFilter !== 'all') {
-      filtered = filtered.filter(payroll => payroll.user_id === employeeFilter);
+    if (filters.employeeFilter !== 'all') {
+      filtered = filtered.filter(payrollItem => payrollItem.user_id === filters.employeeFilter);
     }
 
     setFilteredPayrolls(filtered);
-  };
+  }, [payrollList, filters, employees]);
 
+  // ИСПРАВЛЕНО: Обработчики с правильными полями API
   const handleCreatePayroll = async (payrollData) => {
     try {
       const newPayroll = await payroll.create(payrollData);
@@ -241,8 +225,9 @@ const Payroll = () => {
   const handleMarkAsPaid = async (payrollId, paymentMethod = 'bank_transfer') => {
     try {
       await payroll.markAsPaid(payrollId, paymentMethod);
+      // ИСПРАВЛЕНО: Обновляем is_paid вместо status
       setPayrollList(prev => prev.map(p => 
-        p.id === payrollId ? { ...p, status: 'paid', paid_at: new Date().toISOString() } : p
+        p.id === payrollId ? { ...p, is_paid: true, paid_at: new Date().toISOString() } : p
       ));
       utils.showSuccess('Зарплата отмечена как выплаченная');
     } catch (error) {
@@ -276,32 +261,10 @@ const Payroll = () => {
         false
       );
       
-      // Проверяем, что результат содержит данные
-      let generatedPayrolls = [];
+      console.log('Auto-generate result:', result); // Для отладки
       
-      if (Array.isArray(result)) {
-        generatedPayrolls = result;
-      } else if (result && Array.isArray(result.payrolls)) {
-        generatedPayrolls = result.payrolls;
-      } else if (result && Array.isArray(result.data)) {
-        generatedPayrolls = result.data;
-      } else {
-        console.warn('Unexpected result format from autoGenerate:', result);
-        // Если формат неожиданный, просто перезагружаем данные
-        await loadData();
-        utils.showSuccess('Зарплаты сгенерированы успешно');
-        return;
-      }
-      
-      if (generatedPayrolls.length > 0) {
-        setPayrollList(prev => [...generatedPayrolls, ...prev]);
-        utils.showSuccess(`Сгенерировано ${generatedPayrolls.length} зарплат`);
-      } else {
-        utils.showInfo('Зарплаты уже созданы за этот период или нет активных сотрудников');
-      }
-      
-      // В любом случае перезагружаем данные для актуализации
-      await loadData();
+      await loadData(); // Перезагружаем данные
+      utils.showSuccess('Зарплаты сгенерированы успешно');
       
     } catch (error) {
       console.error('Failed to auto-generate payrolls:', error);
@@ -324,33 +287,31 @@ const Payroll = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return amount ? `₸ ${amount.toLocaleString()}` : '₸ 0';
-  };
-
+  // Утилиты для отображения
+  const formatCurrency = (amount) => `₸ ${(amount || 0).toLocaleString()}`;
+  
   const formatDate = (dateString) => {
     if (!dateString) return 'Не указано';
     return new Date(dateString).toLocaleDateString('ru-RU');
   };
 
-  const getStatusDisplayName = (status) => {
-    const statusNames = {
-      'pending': 'Ожидает выплаты',
-      'paid': 'Выплачена',
-      'cancelled': 'Отменена',
-      'draft': 'Черновик'
+  // ИСПРАВЛЕНО: Извлекаем год и месяц из period_start
+  const getPayrollPeriod = (payrollItem) => {
+    if (!payrollItem.period_start) return { year: currentPeriod.year, month: currentPeriod.month };
+    
+    const date = new Date(payrollItem.period_start);
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1
     };
-    return statusNames[status] || status;
   };
 
-  const getStatusBadgeClass = (status) => {
-    const classes = {
-      'pending': 'status-pending',
-      'paid': 'status-paid',
-      'cancelled': 'status-cancelled',
-      'draft': 'status-draft'
-    };
-    return classes[status] || 'status-default';
+  const getStatusDisplayName = (payrollItem) => {
+    return payrollItem.is_paid ? 'Выплачена' : 'Ожидает выплаты';
+  };
+
+  const getStatusBadgeClass = (payrollItem) => {
+    return payrollItem.is_paid ? 'status-paid' : 'status-pending';
   };
 
   const getRoleDisplayName = (role) => {
@@ -364,14 +325,6 @@ const Payroll = () => {
     };
     return roleNames[role] || role;
   };
-
-  const statusOptions = [
-    { value: 'all', label: 'Все статусы' },
-    { value: 'pending', label: 'Ожидают выплаты' },
-    { value: 'paid', label: 'Выплачены' },
-    { value: 'cancelled', label: 'Отменены' },
-    { value: 'draft', label: 'Черновики' }
-  ];
 
   const handlePeriodChange = (direction) => {
     setCurrentPeriod(prev => {
@@ -389,6 +342,12 @@ const Payroll = () => {
       return { year: newYear, month: newMonth };
     });
   };
+
+  const statusOptions = [
+    { value: 'all', label: 'Все статусы' },
+    { value: 'pending', label: 'Ожидают выплаты' },
+    { value: 'paid', label: 'Выплачены' }
+  ];
 
   const getMonthName = (month) => {
     const monthNames = [
@@ -409,9 +368,10 @@ const Payroll = () => {
 
   return (
     <div className="payroll-page">
+      {/* Заголовок страницы */}
       <div className="page-header">
-        <h1>Управление зарплатами</h1>
-        <div className="header-controls">
+        <div className="header-left">
+          <h1>Управление зарплатами</h1>
           <div className="period-selector">
             <button 
               className="period-btn"
@@ -420,6 +380,7 @@ const Payroll = () => {
               ←
             </button>
             <span className="current-period">
+              <FiCalendar />
               {getMonthName(currentPeriod.month)} {currentPeriod.year}
             </span>
             <button 
@@ -429,54 +390,9 @@ const Payroll = () => {
               →
             </button>
           </div>
-          
-          <div className="search-box">
-            <FiSearch />
-            <input 
-              type="text" 
-              placeholder="Поиск сотрудников..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <button 
-                className="clear-search"
-                onClick={() => setSearchTerm('')}
-              >
-                <FiX />
-              </button>
-            )}
-          </div>
-          
-          <div className="filter-group">
-            <FiFilter />
-            <select 
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              {statusOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <FiUser />
-            <select 
-              value={employeeFilter}
-              onChange={(e) => setEmployeeFilter(e.target.value)}
-            >
-              <option value="all">Все сотрудники</option>
-              {employees.map(employee => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.first_name} {employee.last_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        </div>
+        
+        <div className="header-actions">
           <button 
             className="btn-outline"
             onClick={() => handleExport('xlsx')}
@@ -488,6 +404,7 @@ const Payroll = () => {
           <button 
             className="btn-outline"
             onClick={handleAutoGenerate}
+            disabled={loading}
           >
             <FiRefreshCw /> Автогенерация
           </button>
@@ -503,89 +420,107 @@ const Payroll = () => {
           </button>
         </div>
       </div>
+
+      {/* Предупреждения */}
+      {stats.pendingPayrolls > 0 && (
+        <div className="alert warning">
+          <FiAlertCircle />
+          <span>
+            У вас {stats.pendingPayrolls} зарплат ожидают выплаты на общую сумму{' '}
+            {formatCurrency(stats.totalAmount)}
+          </span>
+        </div>
+      )}
       
       {/* Статистика */}
-      <div className="payroll-stats">
-        <div className="stat-card">
-          <div className="stat-icon">
-            <FiUser />
-          </div>
-          <div className="stat-content">
-            <h3>Всего зарплат</h3>
-            <div className="stat-number">{stats.totalPayrolls}</div>
-          </div>
+      <div className="payroll-statistics">
+        <div className="stats-header">
+          <h3>
+            Статистика за {getMonthName(currentPeriod.month)} {currentPeriod.year}
+          </h3>
         </div>
         
-        <div className="stat-card">
-          <div className="stat-icon">
-            <FiClock />
+        <div className="stats-grid">
+          <div className="stat-card primary">
+            <div className="stat-content">
+              <div className="stat-value">{stats.totalPayrolls}</div>
+              <div className="stat-label">Всего зарплат</div>
+            </div>
           </div>
-          <div className="stat-content">
-            <h3>Ожидают выплаты</h3>
-            <div className="stat-number">{stats.pendingPayrolls}</div>
+
+          <div className="stat-card warning">
+            <div className="stat-content">
+              <div className="stat-value">{stats.pendingPayrolls}</div>
+              <div className="stat-label">Ожидают выплаты</div>
+            </div>
           </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <FiCheck />
+
+          <div className="stat-card success">
+            <div className="stat-content">
+              <div className="stat-value">{stats.paidPayrolls}</div>
+              <div className="stat-label">Выплачено</div>
+            </div>
           </div>
-          <div className="stat-content">
-            <h3>Выплачено</h3>
-            <div className="stat-number">{stats.paidPayrolls}</div>
+
+          <div className="stat-card info">
+            <div className="stat-content">
+              <div className="stat-value">{formatCurrency(stats.totalAmount)}</div>
+              <div className="stat-label">Общая сумма</div>
+            </div>
           </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <FiDollarSign />
-          </div>
-          <div className="stat-content">
-            <h3>Общая сумма</h3>
-            <div className="stat-number">{formatCurrency(stats.totalAmount)}</div>
-          </div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon">
-            <FiTrendingUp />
-          </div>
-          <div className="stat-content">
-            <h3>Средняя зарплата</h3>
-            <div className="stat-number">{formatCurrency(stats.avgSalary)}</div>
+
+          <div className="stat-card">
+            <div className="stat-content">
+              <div className="stat-value">{formatCurrency(stats.avgSalary)}</div>
+              <div className="stat-label">Средняя зарплата</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Быстрые действия */}
-      <div className="payroll-quick-actions">
-        <button 
-          className="quick-action-btn"
-          onClick={() => setShowTemplateModal(true)}
-        >
-          <FiSettings />
-          <span>Управление шаблонами</span>
-        </button>
-        
-        <button 
-          className="quick-action-btn"
-          onClick={() => setShowOperationModal(true)}
-        >
-          <FiPlus />
-          <span>Добавить операцию</span>
-        </button>
-        
-        <button 
-          className="quick-action-btn"
-          onClick={() => handleAutoGenerate()}
-        >
-          <FiRefreshCw />
-          <span>Пересчитать все</span>
-        </button>
+      {/* Фильтры */}
+      <div className="payroll-filters">
+        <div className="filters-main">
+          <div className="filters-left">
+            <div className="search-box">
+              <input 
+                type="text" 
+                placeholder="Поиск сотрудников..."
+                value={filters.searchTerm}
+                onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
+              />
+            </div>
+            
+            <select 
+              className="filter-select"
+              value={filters.statusFilter}
+              onChange={(e) => setFilters({ ...filters, statusFilter: e.target.value })}
+            >
+              {statusOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <select 
+              className="filter-select"
+              value={filters.employeeFilter}
+              onChange={(e) => setFilters({ ...filters, employeeFilter: e.target.value })}
+            >
+              <option value="all">Все сотрудники</option>
+              {employees.map(employee => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.first_name} {employee.last_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* Таблица зарплат */}
-      <div className="payroll-table-wrapper">
+      {/* ИСПРАВЛЕННАЯ Таблица зарплат */}
+      <div className="payroll-table-container">
         {filteredPayrolls.length > 0 ? (
           <table className="payroll-table">
             <thead>
@@ -594,8 +529,7 @@ const Payroll = () => {
                 <th>Должность</th>
                 <th>Период</th>
                 <th>Базовая ставка</th>
-                <th>Бонусы/Надбавки</th>
-                <th>Удержания</th>
+                <th>Итого начислено</th>
                 <th>К выплате</th>
                 <th>Статус</th>
                 <th>Действия</th>
@@ -604,14 +538,12 @@ const Payroll = () => {
             <tbody>
               {filteredPayrolls.map(payrollItem => {
                 const employee = employees.find(emp => emp.id === payrollItem.user_id);
+                const period = getPayrollPeriod(payrollItem);
                 
                 return (
-                  <tr key={payrollItem.id}>
+                  <tr key={payrollItem.id} className="payroll-row">
                     <td>
-                      <div className="employee-info">
-                        <div className="employee-avatar">
-                          <FiUser />
-                        </div>
+                      <div className="employee-cell">
                         <div className="employee-details">
                           <div className="employee-name">
                             {employee ? `${employee.first_name} ${employee.last_name}` : 'Не найден'}
@@ -628,77 +560,44 @@ const Payroll = () => {
                       </span>
                     </td>
                     <td>
-                      <div className="period-info">
-                        <div className="period-text">
-                          {getMonthName(payrollItem.period_month)} {payrollItem.period_year}
-                        </div>
-                        <div className="work-days">
-                          Рабочих дней: {payrollItem.work_days || 0}
+                      <div className="period-cell">
+                        <div className="period-main">
+                          {period.month}/{period.year}
                         </div>
                       </div>
                     </td>
                     <td>
-                      <div className="salary-amount">
-                        {formatCurrency(payrollItem.base_salary)}
+                      <div className="amount-cell">
+                        {formatCurrency(payrollItem.base_rate)}
                       </div>
                     </td>
                     <td>
-                      <div className="bonuses-info">
-                        <div className="bonus-amount">
-                          +{formatCurrency(payrollItem.bonuses || 0)}
-                        </div>
-                        <div className="overtime-amount">
-                          Сверхур.: +{formatCurrency(payrollItem.overtime_pay || 0)}
-                        </div>
+                      <div className="amount-cell">
+                        {formatCurrency(payrollItem.gross_amount)}
                       </div>
                     </td>
                     <td>
-                      <div className="deductions-info">
-                        <div className="tax-amount">
-                          ИПН: -{formatCurrency(payrollItem.tax_amount || 0)}
-                        </div>
-                        <div className="pension-amount">
-                          Пенс.: -{formatCurrency(payrollItem.pension_deduction || 0)}
-                        </div>
-                        <div className="other-deductions">
-                          Прочее: -{formatCurrency(payrollItem.other_deductions || 0)}
+                      <div className="net-amount-cell">
+                        <div className="net-amount">
+                          {formatCurrency(payrollItem.net_amount)}
                         </div>
                       </div>
                     </td>
                     <td>
-                      <div className="final-amount">
-                        <div className="net-salary">
-                          {formatCurrency(payrollItem.net_salary)}
-                        </div>
-                        <div className="total-amount">
-                          Всего: {formatCurrency(payrollItem.total_amount)}
-                        </div>
+                      <div className="status-cell">
+                        <span className={`status-badge ${getStatusBadgeClass(payrollItem)}`}>
+                          {getStatusDisplayName(payrollItem)}
+                        </span>
+                        {payrollItem.paid_at && (
+                          <div className="paid-date">
+                            {formatDate(payrollItem.paid_at)}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td>
-                      <span className={`status-badge ${getStatusBadgeClass(payrollItem.status)}`}>
-                        {getStatusDisplayName(payrollItem.status)}
-                      </span>
-                      {payrollItem.paid_at && (
-                        <div className="paid-date">
-                          {formatDate(payrollItem.paid_at)}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button 
-                          className="btn-icon view"
-                          onClick={() => {
-                            setSelectedPayroll(payrollItem);
-                            setShowPayrollModal(true);
-                          }}
-                          title="Просмотр"
-                        >
-                          <FiEye />
-                        </button>
-                        
-                        {payrollItem.status === 'pending' && (
+                      <div className="actions-cell">
+                        {!payrollItem.is_paid && (
                           <>
                             <button 
                               className="btn-icon edit"
@@ -708,7 +607,7 @@ const Payroll = () => {
                               }}
                               title="Редактировать"
                             >
-                              <FiEdit2 />
+                              ✏️
                             </button>
                             
                             <button 
@@ -716,7 +615,7 @@ const Payroll = () => {
                               onClick={() => handleRecalculate(payrollItem.id)}
                               title="Пересчитать"
                             >
-                              <FiRefreshCw />
+                              🔄
                             </button>
                             
                             <button 
@@ -724,20 +623,10 @@ const Payroll = () => {
                               onClick={() => handleMarkAsPaid(payrollItem.id)}
                               title="Отметить как выплаченную"
                             >
-                              <FiCheck />
+                              ✅
                             </button>
                           </>
                         )}
-                        
-                        <button 
-                          className="btn-icon download"
-                          onClick={() => {
-                            // Экспорт отдельной зарплаты
-                          }}
-                          title="Скачать справку"
-                        >
-                          <FiDownload />
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -746,22 +635,21 @@ const Payroll = () => {
             </tbody>
           </table>
         ) : (
-          <div className="no-payrolls">
+          <div className="empty-payrolls">
             <div className="empty-state">
-              <FiDollarSign size={48} />
               <h3>
-                {searchTerm || statusFilter !== 'all' || employeeFilter !== 'all'
+                {filters.searchTerm || filters.statusFilter !== 'all' || filters.employeeFilter !== 'all'
                   ? 'Зарплаты не найдены' 
                   : 'Нет зарплат'
                 }
               </h3>
               <p>
-                {searchTerm || statusFilter !== 'all' || employeeFilter !== 'all'
+                {filters.searchTerm || filters.statusFilter !== 'all' || filters.employeeFilter !== 'all'
                   ? 'Попробуйте изменить условия поиска'
                   : `Нет зарплат за ${getMonthName(currentPeriod.month)} ${currentPeriod.year}`
                 }
               </p>
-              {(!searchTerm && statusFilter === 'all' && employeeFilter === 'all') && (
+              {(!filters.searchTerm && filters.statusFilter === 'all' && filters.employeeFilter === 'all') && (
                 <div className="empty-actions">
                   <button 
                     className="btn-primary"
@@ -800,7 +688,6 @@ const Payroll = () => {
 
       {showTemplateModal && (
         <TemplateModal
-          templates={templates}
           employees={employees}
           onClose={() => setShowTemplateModal(false)}
           onUpdate={loadData}

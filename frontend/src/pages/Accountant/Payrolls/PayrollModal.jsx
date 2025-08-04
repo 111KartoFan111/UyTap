@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiX, FiDollarSign } from 'react-icons/fi';
 
 const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }) => {
@@ -6,16 +6,16 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
     user_id: '',
     period_year: new Date().getFullYear(),
     period_month: new Date().getMonth() + 1,
-    payroll_type: 'monthly_salary', // ИСПРАВЛЕНО: добавлено обязательное поле
-    base_salary: '',
-    work_days: 22,
-    bonuses: '',
-    overtime_hours: '',
-    overtime_pay: '',
-    allowances: '',
-    tax_amount: '',
-    pension_deduction: '',
-    other_deductions: '',
+    payroll_type: 'monthly_salary',
+    base_rate: '', // ИСПРАВЛЕНО: используем base_rate
+    hours_worked: 0,
+    tasks_completed: 0,
+    tasks_payment: 0,
+    bonus: 0,
+    tips: 0,
+    other_income: 0,
+    deductions: 0,
+    taxes: 0,
     notes: ''
   });
 
@@ -23,20 +23,25 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
 
   useEffect(() => {
     if (selectedPayroll) {
+      // ИСПРАВЛЕНО: Правильная структура данных из API
+      const period = selectedPayroll.period_start 
+        ? new Date(selectedPayroll.period_start)
+        : new Date();
+
       setFormData({
         user_id: selectedPayroll.user_id || '',
-        period_year: selectedPayroll.period_year || new Date().getFullYear(),
-        period_month: selectedPayroll.period_month || new Date().getMonth() + 1,
-        payroll_type: selectedPayroll.payroll_type || 'monthly_salary', // ИСПРАВЛЕНО
-        base_salary: selectedPayroll.base_salary || '',
-        work_days: selectedPayroll.work_days || 22,
-        bonuses: selectedPayroll.bonuses || '',
-        overtime_hours: selectedPayroll.overtime_hours || '',
-        overtime_pay: selectedPayroll.overtime_pay || '',
-        allowances: selectedPayroll.allowances || '',
-        tax_amount: selectedPayroll.tax_amount || '',
-        pension_deduction: selectedPayroll.pension_deduction || '',
-        other_deductions: selectedPayroll.other_deductions || '',
+        period_year: period.getFullYear(),
+        period_month: period.getMonth() + 1,
+        payroll_type: selectedPayroll.payroll_type || 'monthly_salary',
+        base_rate: selectedPayroll.base_rate || '', // ИСПРАВЛЕНО
+        hours_worked: selectedPayroll.hours_worked || 0,
+        tasks_completed: selectedPayroll.tasks_completed || 0,
+        tasks_payment: selectedPayroll.tasks_payment || 0,
+        bonus: selectedPayroll.bonus || 0,
+        tips: selectedPayroll.tips || 0,
+        other_income: selectedPayroll.other_income || 0,
+        deductions: selectedPayroll.deductions || 0,
+        taxes: selectedPayroll.taxes || 0,
         notes: selectedPayroll.notes || ''
       });
     }
@@ -48,11 +53,8 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
     if (!formData.user_id) {
       newErrors.user_id = 'Выберите сотрудника';
     }
-    if (!formData.base_salary || parseFloat(formData.base_salary) <= 0) {
-      newErrors.base_salary = 'Базовая зарплата должна быть больше 0';
-    }
-    if (formData.work_days < 0 || formData.work_days > 31) {
-      newErrors.work_days = 'Количество рабочих дней должно быть от 0 до 31';
+    if (!formData.base_rate || parseFloat(formData.base_rate) <= 0) {
+      newErrors.base_rate = 'Базовая ставка должна быть больше 0';
     }
     if (!formData.payroll_type) {
       newErrors.payroll_type = 'Выберите тип зарплаты';
@@ -62,33 +64,36 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (validateForm()) {
-      // ИСПРАВЛЕНО: создаем правильные даты для периода и добавляем все обязательные поля
-      const startOfMonth = new Date(formData.period_year, formData.period_month - 1, 1);
-      const endOfMonth = new Date(formData.period_year, formData.period_month, 0, 23, 59, 59);
-
-      const submitData = {
-        user_id: formData.user_id,
-        // ИСПРАВЛЕНО: добавляем обязательные поля period_start и period_end
-        period_start: startOfMonth.toISOString(),
-        period_end: endOfMonth.toISOString(),
-        payroll_type: formData.payroll_type, // ИСПРАВЛЕНО: добавляем обязательное поле
-        base_rate: parseFloat(formData.base_salary) || 0, // ИСПРАВЛЕНО: используем base_rate вместо base_salary
-        hours_worked: parseFloat(formData.work_days) * 8 || 0, // Примерный расчет часов
-        tasks_completed: 0, // Можно добавить поле в форму при необходимости
-        tasks_payment: 0,
-        bonus: parseFloat(formData.bonuses) || 0,
-        tips: 0, // Можно добавить поле в форму при необходимости
-        other_income: parseFloat(formData.allowances) || 0,
-        deductions: parseFloat(formData.other_deductions) || 0,
-        taxes: parseFloat(formData.tax_amount) || 0,
-        notes: formData.notes || null
-      };
-
-      onSubmit(submitData);
+  const handleSubmit = () => {
+    
+    if (!validateForm()) {
+      return;
     }
+
+    // ИСПРАВЛЕНО: Создаем правильную структуру данных для API
+    const startOfMonth = new Date(formData.period_year, formData.period_month - 1, 1);
+    const endOfMonth = new Date(formData.period_year, formData.period_month, 0, 23, 59, 59);
+
+    const submitData = {
+      user_id: formData.user_id,
+      period_start: startOfMonth.toISOString(),
+      period_end: endOfMonth.toISOString(),
+      payroll_type: formData.payroll_type,
+      base_rate: parseFloat(formData.base_rate) || 0, // ИСПРАВЛЕНО: используем base_rate
+      hours_worked: parseFloat(formData.hours_worked) || 0,
+      tasks_completed: parseInt(formData.tasks_completed) || 0,
+      tasks_payment: parseFloat(formData.tasks_payment) || 0,
+      bonus: parseFloat(formData.bonus) || 0,
+      tips: parseFloat(formData.tips) || 0,
+      other_income: parseFloat(formData.other_income) || 0,
+      deductions: parseFloat(formData.deductions) || 0,
+      taxes: parseFloat(formData.taxes) || 0,
+      notes: formData.notes || null
+    };
+
+    console.log('Submitting payroll data:', submitData); // Для отладки
+
+    onSubmit(submitData);
   };
 
   const getMonthName = (month) => {
@@ -106,6 +111,24 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
     { value: 'piece_work', label: 'Сдельная' }
   ];
 
+  // Автоматический расчет итоговых сумм
+  const calculateTotals = () => {
+    const baseRate = parseFloat(formData.base_rate) || 0;
+    const tasksPayment = parseFloat(formData.tasks_payment) || 0;
+    const bonus = parseFloat(formData.bonus) || 0;
+    const tips = parseFloat(formData.tips) || 0;
+    const otherIncome = parseFloat(formData.other_income) || 0;
+    const deductions = parseFloat(formData.deductions) || 0;
+    const taxes = parseFloat(formData.taxes) || 0;
+
+    const grossAmount = baseRate + tasksPayment + bonus + tips + otherIncome;
+    const netAmount = grossAmount - deductions - taxes;
+
+    return { grossAmount, netAmount };
+  };
+
+  const { grossAmount, netAmount } = calculateTotals();
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content payroll-modal" onClick={e => e.stopPropagation()}>
@@ -118,7 +141,7 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
           </button>
         </div>
         
-        <form className="payroll-form" onSubmit={handleSubmit}>
+        <div className="payroll-form">
           <div className="form-section">
             <h3>Основная информация</h3>
             <div className="form-grid">
@@ -180,19 +203,6 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
                   ))}
                 </select>
               </div>
-
-              <div className="form-field">
-                <label>Рабочих дней</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="31"
-                  value={formData.work_days}
-                  onChange={(e) => setFormData({ ...formData, work_days: e.target.value })}
-                  className={errors.work_days ? 'error' : ''}
-                />
-                {errors.work_days && <span className="error-text">{errors.work_days}</span>}
-              </div>
             </div>
           </div>
 
@@ -200,63 +210,86 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
             <h3>Начисления</h3>
             <div className="form-grid">
               <div className="form-field">
-                <label>Базовая зарплата *</label>
+                <label>Базовая ставка *</label>
                 <input
                   type="number"
                   min="0"
                   step="1000"
-                  value={formData.base_salary}
-                  onChange={(e) => setFormData({ ...formData, base_salary: e.target.value })}
+                  value={formData.base_rate}
+                  onChange={(e) => setFormData({ ...formData, base_rate: e.target.value })}
                   placeholder="150000"
-                  className={errors.base_salary ? 'error' : ''}
+                  className={errors.base_rate ? 'error' : ''}
                 />
-                {errors.base_salary && <span className="error-text">{errors.base_salary}</span>}
+                {errors.base_rate && <span className="error-text">{errors.base_rate}</span>}
               </div>
 
               <div className="form-field">
-                <label>Бонусы и премии</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1000"
-                  value={formData.bonuses}
-                  onChange={(e) => setFormData({ ...formData, bonuses: e.target.value })}
-                  placeholder="0"
-                />
-              </div>
-
-              <div className="form-field">
-                <label>Часы сверхурочных</label>
+                <label>Часов отработано</label>
                 <input
                   type="number"
                   min="0"
                   step="0.5"
-                  value={formData.overtime_hours}
-                  onChange={(e) => setFormData({ ...formData, overtime_hours: e.target.value })}
+                  value={formData.hours_worked}
+                  onChange={(e) => setFormData({ ...formData, hours_worked: e.target.value })}
+                  placeholder="160"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Задач выполнено</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.tasks_completed}
+                  onChange={(e) => setFormData({ ...formData, tasks_completed: e.target.value })}
                   placeholder="0"
                 />
               </div>
 
               <div className="form-field">
-                <label>Оплата сверхурочных</label>
+                <label>Оплата за задачи</label>
                 <input
                   type="number"
                   min="0"
                   step="1000"
-                  value={formData.overtime_pay}
-                  onChange={(e) => setFormData({ ...formData, overtime_pay: e.target.value })}
+                  value={formData.tasks_payment}
+                  onChange={(e) => setFormData({ ...formData, tasks_payment: e.target.value })}
                   placeholder="0"
                 />
               </div>
 
               <div className="form-field">
-                <label>Надбавки и доплаты</label>
+                <label>Премии и бонусы</label>
                 <input
                   type="number"
                   min="0"
                   step="1000"
-                  value={formData.allowances}
-                  onChange={(e) => setFormData({ ...formData, allowances: e.target.value })}
+                  value={formData.bonus}
+                  onChange={(e) => setFormData({ ...formData, bonus: e.target.value })}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Чаевые</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={formData.tips}
+                  onChange={(e) => setFormData({ ...formData, tips: e.target.value })}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Прочий доход</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={formData.other_income}
+                  onChange={(e) => setFormData({ ...formData, other_income: e.target.value })}
                   placeholder="0"
                 />
               </div>
@@ -267,25 +300,13 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
             <h3>Удержания</h3>
             <div className="form-grid">
               <div className="form-field">
-                <label>ИПН (подоходный налог)</label>
+                <label>Налоги (ИПН + соц. взносы)</label>
                 <input
                   type="number"
                   min="0"
                   step="100"
-                  value={formData.tax_amount}
-                  onChange={(e) => setFormData({ ...formData, tax_amount: e.target.value })}
-                  placeholder="Автоматически рассчитается"
-                />
-              </div>
-
-              <div className="form-field">
-                <label>Пенсионные взносы</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={formData.pension_deduction}
-                  onChange={(e) => setFormData({ ...formData, pension_deduction: e.target.value })}
+                  value={formData.taxes}
+                  onChange={(e) => setFormData({ ...formData, taxes: e.target.value })}
                   placeholder="Автоматически рассчитается"
                 />
               </div>
@@ -296,10 +317,29 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
                   type="number"
                   min="0"
                   step="100"
-                  value={formData.other_deductions}
-                  onChange={(e) => setFormData({ ...formData, other_deductions: e.target.value })}
+                  value={formData.deductions}
+                  onChange={(e) => setFormData({ ...formData, deductions: e.target.value })}
                   placeholder="0"
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Предварительный расчет */}
+          <div className="form-section calculation-preview">
+            <h3>Предварительный расчет</h3>
+            <div className="calculation-grid">
+              <div className="calc-row">
+                <span>Всего начислено:</span>
+                <span className="amount">₸ {grossAmount.toLocaleString()}</span>
+              </div>
+              <div className="calc-row">
+                <span>Всего удержано:</span>
+                <span className="amount negative">-₸ {(parseFloat(formData.deductions) + parseFloat(formData.taxes)).toLocaleString()}</span>
+              </div>
+              <div className="calc-row total">
+                <span>К выплате:</span>
+                <span className="amount final">₸ {Math.max(0, netAmount).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -320,11 +360,11 @@ const PayrollModal = ({ payroll: selectedPayroll, employees, onClose, onSubmit }
             <button type="button" className="btn-cancel" onClick={onClose}>
               Отмена
             </button>
-            <button type="submit" className="btn-primary">
+            <button type="button" className="btn-primary" onClick={handleSubmit}>
               {selectedPayroll ? 'Сохранить' : 'Создать'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
