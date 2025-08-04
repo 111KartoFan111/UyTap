@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/payroll", tags=["Manager Payroll Operations"])
 
 def require_manager_or_admin(current_user: User = Depends(get_current_active_user)):
     """Проверка прав менеджера или админа"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions"

@@ -16,7 +16,7 @@ import CreateOrganizationModal from './CreateOrganizationModal';
 import CreateUserModal from './CreateUserModal';
 import './AdminDashboard.css';
 
-const AdminDashboard = () => {
+const SystemOwner = () => {
   const { t } = useTranslation();
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrg, setSelectedOrg] = useState(null);
@@ -457,4 +457,4 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard;
+export default SystemOwner;

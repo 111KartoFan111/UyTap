@@ -37,6 +37,17 @@ const Layout = ({ children }) => {
 
     switch (user.role) {
       case 'admin':
+        return [
+          { path: '/admin', icon: FiHome, label: 'Главная' },
+          { path: '/admin/floor-plan', icon: FiGrid, label: 'План этажа' },
+          { path: '/admin/rentals', icon: FiCalendar, label: 'Аренда' },
+          { path: '/admin/clients', icon: FiUsers, label: 'Клиенты' },
+          { path: '/admin/reports', icon: FiBarChart2, label: 'Отчеты' },
+          { path: '/admin/payroll', icon: FiDollarSign, label: 'Зарплаты' },
+          { path: '/admin/staff', icon: FaUsersGear, label: 'Сотрудники' },
+          { path: '/admin/settings', icon: LuUserCog, label: 'Настройки' },
+
+        ];
       case 'manager':
         return [
           { path: '/manager', icon: FiHome, label: 'Главная' },
@@ -46,7 +57,6 @@ const Layout = ({ children }) => {
           { path: '/manager/reports', icon: FiBarChart2, label: 'Отчеты' },
           { path: '/manager/staff', icon: FaUsersGear, label: 'Сотрудники' },
           { path: '/manager/settings', icon: LuUserCog, label: 'Настройки' },
-          { path: '/manager/payroll', icon: FiDollarSign, label: 'Зарплаты' },
         ];
       
       case 'cleaner':
@@ -64,7 +74,10 @@ const Layout = ({ children }) => {
       case 'accountant':
         return [
           { path: '/accountant', icon: FiHome, label: 'Финансы' },
-          { path: '/guests', icon: FiUsers, label: 'Клиенты' },
+          { path: '/accountant/payroll', icon: FiDollarSign, label: 'Зарплаты' },
+          { path: '/accountant/clients', icon: FiUsers, label: 'Клиенты' },
+          { path: '/accountant/reports', icon: FiBarChart2, label: 'Отчеты' },
+          { path: '/accountant/staff', icon: FaUsersGear, label: 'Сотрудники' },
         ];
       
       case 'storekeeper':

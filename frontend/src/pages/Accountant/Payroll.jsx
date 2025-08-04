@@ -19,7 +19,7 @@ import {
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PayrollModal, TemplateModal, OperationModal } from './Payrolls';
-import './Pages.css';
+import '../Manager/Pages.css';
 
 const Payroll = () => {
   const { payroll, organization, utils } = useData();

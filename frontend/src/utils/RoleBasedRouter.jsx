@@ -1,6 +1,7 @@
 import { useAuth } from '../contexts/AuthContext';
-import AdminDashboard from '../components/Admin/AdminDashboard';
+import SystemOwner from '../components/Admin/AdminDashboard';
 import ManagerDashboard from '../pages/Manager/ManagerDashboard';
+import AdminDashboard from '../pages/Manager/AdminDashboard';
 import CleanerDashboard from '../pages/Cleaner/CleanerDashboard';
 import TechnicalStaffDashboard from '../pages/TechnicalStaff/TechnicalStaffDashboard';
 import AccountantDashboard from '../pages/Accountant/AccountantDashboard';
@@ -15,8 +16,9 @@ const RoleBasedRouter = () => {
 
   switch (user.role) {
     case 'system_owner':
-      return <AdminDashboard />;
+      return <SystemOwner />;
     case 'admin':
+      return <AdminDashboard />;
     case 'manager':
       return <ManagerDashboard />;
     case 'cleaner':

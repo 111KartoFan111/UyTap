@@ -5,7 +5,7 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout/Layout';
 import LoginPage from './pages/Auth/LoginPage.jsx';
-import AdminDashboard from './components/Admin/AdminDashboard';
+import SystemOwner from './components/Admin/AdminDashboard';
 import AdminLogin from './components/Admin/AdminLogin';
 import SystemInitializer from './components/SystemInitializer/SystemInitializer.jsx';
 import { useAuth } from './contexts/AuthContext';
@@ -18,12 +18,14 @@ import Clients from './pages/Manager/Client/Clients.jsx';
 import Reports from './pages/Manager/Reports.jsx';
 import Settings from './pages/Manager/Settings.jsx';
 import Staff from './pages/Manager/Staff.jsx';
-import Payroll from './pages/Manager/Payroll.jsx';
+
+import AdminDashboard from './pages/Manager/AdminDashboard.jsx';
 
 // Import other role pages
 import CleanerDashboard from './pages/Cleaner/CleanerDashboard.jsx';
 import TechnicalStaffDashboard from './pages/TechnicalStaff/TechnicalStaffDashboard.jsx';
 import AccountantDashboard from './pages/Accountant/AccountantDashboard.jsx';
+import Payroll from './pages/Accountant/Payroll.jsx';
 import StorekeeperDashboard from './pages/Storekeeper/StorekeeperDashboard.jsx';
 
 // Import shared components
@@ -101,8 +103,9 @@ const RoleBasedHome = () => {
 
   switch (user.role) {
     case 'system_owner':
-      return <Navigate to="/admin" replace />;
+      return <Navigate to="/owner" replace />;
     case 'admin':
+      return <Navigate to="/admin" replace />;
     case 'manager':
       return <Navigate to="/manager" replace />;
     case 'cleaner':
@@ -132,11 +135,11 @@ const AppRoutes = () => {
       
       {/* Admin routes */}
       <Route 
-        path="/admin/*" 
+        path="/owner/*" 
         element={
           <AdminRoute>
             <Routes>
-              <Route index element={<AdminDashboard />} />
+              <Route index element={<SystemOwner />} />
             </Routes>
           </AdminRoute>
         } 
@@ -144,19 +147,37 @@ const AppRoutes = () => {
       
       {/* Manager routes */}
       <Route 
+        path="/admin/*" 
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <Layout>
+              <Routes>
+                <Route index element={<AdminDashboard />} />
+                <Route path="floor-plan" element={<FloorPlan />} />
+                <Route path="payroll" element={<Payroll />} />
+                <Route path="rentals" element={<Rentals />} />
+                <Route path="clients" element={<Clients />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="staff" element={<Staff />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+
+      <Route 
         path="/manager/*" 
         element={
-          <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <ProtectedRoute allowedRoles={['manager']}>
             <Layout>
               <Routes>
                 <Route index element={<ManagerDashboard />} />
                 <Route path="floor-plan" element={<FloorPlan />} />
                 <Route path="rentals" element={<Rentals />} />
                 <Route path="clients" element={<Clients />} />
-                <Route path="reports" element={<Reports />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="staff" element={<Staff />} />
-                <Route path="payroll" element={<Payroll />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
@@ -199,6 +220,10 @@ const AppRoutes = () => {
             <Layout>
               <Routes>
                 <Route index element={<AccountantDashboard />} />
+                <Route path="payroll" element={<Payroll />} />
+                <Route path="clients" element={<Clients />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="staff" element={<Staff />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

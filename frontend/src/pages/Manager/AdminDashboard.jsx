@@ -1,4 +1,4 @@
-// frontend/src/pages/Manager/ManagerDashboard.jsx - ОБНОВЛЕННЫЙ
+// frontend/src/pages/admin/AdminDashboard.jsx - ОБНОВЛЕННЫЙ
 import { useState, useEffect } from 'react';
 import { 
   FiHome, 
@@ -20,7 +20,7 @@ import { useData } from '../../contexts/DataContext';
 import FloorPlan from './Floor/FloorPlan';
 import './ManagerDashboard.css';
 
-const ManagerDashboard = () => {
+const AdminDashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { 
@@ -330,7 +330,7 @@ const ManagerDashboard = () => {
       <div className="quick-actions1">
         <h2>Быстрые действия</h2>
         <div className="actions-grid">
-          <Link to="/manager/floor-plan" className="action-card">
+          <Link to="/admin/floor-plan" className="action-card">
             <div className="action-icon">
               <FiHome />
             </div>
@@ -341,7 +341,7 @@ const ManagerDashboard = () => {
             </div>
           </Link>
 
-          <Link to="/manager/rentals" className="action-card">
+          <Link to="/admin/rentals" className="action-card">
             <div className="action-icon">
               <FiCalendar />
             </div>
@@ -352,7 +352,7 @@ const ManagerDashboard = () => {
             </div>
           </Link>
 
-          <Link to="/manager/clients" className="action-card">
+          <Link to="/admin/clients" className="action-card">
             <div className="action-icon">
               <FiUsers />
             </div>
@@ -362,19 +362,17 @@ const ManagerDashboard = () => {
               <FiArrowRight />
             </div>
           </Link>
-          {user?.role == 'admin' && (
-            <Link to="/admin/reports" className="action-card">
-              <div className="action-icon">
-                <FiTrendingUp />
-              </div>
-              <h3>Отчеты</h3>
-              <p>Аналитика и финансовые отчеты</p>
-              <div className="action-arrow">
-                <FiArrowRight />
-              </div>
-            </Link>
-          )}
-          <Link to="/manager/payroll" className="action-card">
+          <Link to="/admin/reports" className="action-card">
+            <div className="action-icon">
+              <FiTrendingUp />
+            </div>
+            <h3>Отчеты</h3>
+            <p>Аналитика и финансовые отчеты</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
+          <Link to="/admin/payroll" className="action-card">
             <div className="action-icon">
               <FiDollarSign />
             </div>
@@ -385,7 +383,7 @@ const ManagerDashboard = () => {
             </div>
           </Link>
 
-          <Link to="/manager/staff" className="action-card">
+          <Link to="/admin/staff" className="action-card">
             <div className="action-icon">
               <FaUsersGear />
             </div>
@@ -402,7 +400,7 @@ const ManagerDashboard = () => {
       <div className="floor-plan-preview">
         <div className="section-header">
           <h2>Текущее состояние помещений</h2>
-          <Link to="/manager/floor-plan" className="view-all-link">
+          <Link to="/admin/floor-plan" className="view-all-link">
             Подробный план <FiArrowRight />
           </Link>
         </div>
@@ -414,7 +412,7 @@ const ManagerDashboard = () => {
         ) : (
           <div className="no-properties-message">
             <p>Нет созданных помещений</p>
-            <Link to="/manager/floor-plan" className="btn-primary">
+            <Link to="/admin/floor-plan" className="btn-primary">
               Создать первое помещение
             </Link>
           </div>
@@ -425,7 +423,7 @@ const ManagerDashboard = () => {
       <div className="recent-activities">
         <div className="section-header">
           <h3>Последние события</h3>
-          <Link to="/manager/rentals" className="view-all-link">
+          <Link to="/admin/rentals" className="view-all-link">
             Все аренды <FiArrowRight />
           </Link>
         </div>
@@ -463,7 +461,7 @@ const ManagerDashboard = () => {
           ) : (
             <div className="no-activities">
               <p>Нет последних событий</p>
-              <Link to="/manager/rentals" className="btn-outline">
+              <Link to="/admin/rentals" className="btn-outline">
                 Создать аренду
               </Link>
             </div>
@@ -474,4 +472,4 @@ const ManagerDashboard = () => {
   );
 };
 
-export default ManagerDashboard;
+export default AdminDashboard;
