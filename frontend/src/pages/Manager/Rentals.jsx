@@ -1,16 +1,17 @@
-// frontend/src/pages/Manager/Rentals.jsx - УЛУЧШЕННАЯ ВЕРСИЯ
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiPlus, FiSearch, FiFilter, FiCalendar, FiUsers, FiHome, FiEye, FiEdit2, FiX, FiCheck, FiClock, FiLogIn, FiLogOut, FiDollarSign, FiCreditCard } from 'react-icons/fi';
 import { useData } from '../../contexts/DataContext';
 import RentalModal from './Floor/RentalModal';
-import './Pages.css';
+import RentalDetailModal from './RentalDetailModal.jsx';
 import QuickPaymentPopup from '../../components/Payments/QuickPaymentPopup';
 import { PaymentManager } from '../../components/Payments';
+import './Pages.css';
 
 const Rentals = () => {
   const { rentals, properties, clients, utils } = useData();
   
   const [showRentalModal, setShowRentalModal] = useState(false);
+  const [showRentalDetail, setShowRentalDetail] = useState(false);
   const [selectedRental, setSelectedRental] = useState(null);
   const [selectedProperty, setSelectedProperty] = useState(null);
   
@@ -24,7 +25,7 @@ const Rentals = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [propertyFilter, setPropertyFilter] = useState('all');
 
-  // 🆕 Состояния для управления платежами
+  // Состояния для управления платежами
   const [showQuickPayment, setShowQuickPayment] = useState(false);
   const [showPaymentManager, setShowPaymentManager] = useState(false);
   const [selectedRentalForPayment, setSelectedRentalForPayment] = useState(null);
@@ -40,8 +41,8 @@ const Rentals = () => {
     pendingCheckOut: 0,
     totalRevenue: 0,
     occupancyRate: 0,
-    unpaidCompletedRentals: 0, // 🆕 Добавляем статистику по неоплаченным завершенным арендам
-    partiallyPaidRentals: 0    // 🆕 Частично оплаченные аренды
+    unpaidCompletedRentals: 0,
+    partiallyPaidRentals: 0
   });
 
   // Загрузка данных при монтировании компонента
@@ -86,80 +87,6 @@ const Rentals = () => {
     }
   };
 
-  // 🆕 Улучшенная функция для открытия быстрого платежа
-  const handleQuickPayment = (rental, event) => {
-    const rect = event.target.getBoundingClientRect();
-    const position = {
-      x: rect.left + rect.width / 2,
-      y: rect.top + window.scrollY
-    };
-    
-    setSelectedRentalForPayment({ 
-      ...rental, 
-      popupPosition: position,
-      // Добавляем информацию о клиенте и помещении для удобства
-      client: clientsList.find(c => c.id === rental.client_id),
-      property: propertiesList.find(p => p.id === rental.property_id)
-    });
-    setShowQuickPayment(true);
-  };
-
-  // 🆕 Функция для открытия полного менеджера платежей
-  const handleOpenPaymentManager = (rental) => {
-    setSelectedRentalForPayment({
-      ...rental,
-      client: clientsList.find(c => c.id === rental.client_id),
-      property: propertiesList.find(p => p.id === rental.property_id)
-    });
-    setShowPaymentManager(true);
-  };
-
-  // 🆕 Улучшенный метод добавления платежа с лучшей обработкой ошибок
-  const handlePaymentAdd = async (rentalId, paymentData) => {
-    try {
-      const response = await fetch(`http://localhost:8000/api/rentals/${rentalId}/payment`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(paymentData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Payment failed');
-      }
-
-      const updatedAmount = paymentData.payment_amount;
-      
-      // Обновляем локальное состояние
-      const updateRental = (rental) => {
-        if (rental.id === rentalId) {
-          return {
-            ...rental,
-            paid_amount: (rental.paid_amount || 0) + updatedAmount
-          };
-        }
-        return rental;
-      };
-      
-      setRentalsList(prev => prev.map(updateRental));
-      setFilteredRentals(prev => prev.map(updateRental));
-
-      utils.showSuccess(`Платеж ₸${updatedAmount.toLocaleString()} добавлен!`);
-      
-      // Перезагружаем данные для обновления статистики
-      await loadData();
-      
-    } catch (error) {
-      console.error('Payment failed:', error);
-      utils.showError('Ошибка при добавлении платежа: ' + error.message);
-      throw error;
-    }
-  };
-
-  // 🆕 Обновление статистики с учетом платежей
   const calculateStats = (rentalsData, propertiesData) => {
     const now = new Date();
     const totalRentals = rentalsData.length;
@@ -178,7 +105,6 @@ const Rentals = () => {
       sum + (rental.paid_amount || 0), 0
     );
     
-    // 🆕 Подсчитываем проблемные аренды с оплатой
     const unpaidCompletedRentals = rentalsData.filter(rental => 
       rental.checked_out && (rental.paid_amount || 0) === 0
     ).length;
@@ -226,7 +152,7 @@ const Rentals = () => {
       });
     }
 
-    // 🆕 Расширенные фильтры по статусу с учетом оплаты
+    // Расширенные фильтры по статусу с учетом оплаты
     if (statusFilter !== 'all') {
       filtered = filtered.filter(rental => {
         const isPaid = (rental.paid_amount || 0) >= rental.total_amount;
@@ -244,11 +170,11 @@ const Rentals = () => {
             return rental.checked_out;
           case 'expired':
             return rental.is_active && new Date(rental.end_date) < new Date();
-          case 'unpaid_completed': // 🆕 Новый фильтр
+          case 'unpaid_completed':
             return rental.checked_out && isUnpaid;
-          case 'partially_paid': // 🆕 Новый фильтр
+          case 'partially_paid':
             return isPartiallyPaid;
-          case 'fully_paid': // 🆕 Новый фильтр
+          case 'fully_paid':
             return isPaid;
           default:
             return true;
@@ -256,7 +182,6 @@ const Rentals = () => {
       });
     }
 
-    // Остальные фильтры...
     if (typeFilter !== 'all') {
       filtered = filtered.filter(rental => rental.rental_type === typeFilter);
     }
@@ -268,7 +193,84 @@ const Rentals = () => {
     setFilteredRentals(filtered);
   };
 
-  // 🆕 Функция для определения статуса оплаты
+  // Функция для открытия деталей аренды
+  const handleViewRentalDetails = (rental) => {
+    setSelectedRental(rental);
+    setShowRentalDetail(true);
+  };
+
+  // Функция для быстрого платежа
+  const handleQuickPayment = (rental, event) => {
+    const rect = event.target.getBoundingClientRect();
+    const position = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + window.scrollY
+    };
+    
+    setSelectedRentalForPayment({ 
+      ...rental, 
+      popupPosition: position,
+      client: clientsList.find(c => c.id === rental.client_id),
+      property: propertiesList.find(p => p.id === rental.property_id)
+    });
+    setShowQuickPayment(true);
+  };
+
+  // Функция для открытия полного менеджера платежей
+  const handleOpenPaymentManager = (rental) => {
+    setSelectedRentalForPayment({
+      ...rental,
+      client: clientsList.find(c => c.id === rental.client_id),
+      property: propertiesList.find(p => p.id === rental.property_id)
+    });
+    setShowPaymentManager(true);
+  };
+
+  // Функция добавления платежа
+  const handlePaymentAdd = async (rentalId, paymentData) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/rentals/${rentalId}/payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Payment failed');
+      }
+
+      const updatedAmount = paymentData.payment_amount;
+      
+      // Обновляем локальное состояние
+      const updateRental = (rental) => {
+        if (rental.id === rentalId) {
+          return {
+            ...rental,
+            paid_amount: (rental.paid_amount || 0) + updatedAmount
+          };
+        }
+        return rental;
+      };
+      
+      setRentalsList(prev => prev.map(updateRental));
+      setFilteredRentals(prev => prev.map(updateRental));
+
+      utils.showSuccess(`Платеж ₸${updatedAmount.toLocaleString()} добавлен!`);
+      
+      await loadData();
+      
+    } catch (error) {
+      console.error('Payment failed:', error);
+      utils.showError('Ошибка при добавлении платежа: ' + error.message);
+      throw error;
+    }
+  };
+
+  // Функция для определения статуса оплаты
   const getPaymentStatus = (rental) => {
     const paid = rental.paid_amount || 0;
     const total = rental.total_amount;
@@ -278,7 +280,6 @@ const Rentals = () => {
     return { status: 'paid', text: '✅ Оплачено', color: 'text-green-600' };
   };
 
-  // Остальные функции остаются без изменений...
   const handleCreateRental = async (rentalData) => {
     try {
       const newRental = await rentals.create(rentalData);
@@ -424,7 +425,7 @@ const Rentals = () => {
     return typeNames[type] || type;
   };
 
-  // 🆕 Обновленные опции фильтров с фильтрами по оплате
+  // Обновленные опции фильтров с фильтрами по оплате
   const statusOptions = [
     { value: 'all', label: 'Все статусы' },
     { value: 'active', label: 'Активные' },
@@ -532,7 +533,7 @@ const Rentals = () => {
         </div>
       </div>
       
-      {/* 🆕 Обновленная статистика с показателями оплаты */}
+      {/* Обновленная статистика с показателями оплаты */}
       <div className="rentals-stats">
         <div className="stat-card">
           <h3>Всего аренд</h3>
@@ -558,7 +559,6 @@ const Rentals = () => {
           <h3>Загруженность</h3>
           <div className="stat-number">{stats.occupancyRate}%</div>
         </div>
-        {/* 🆕 Новые карточки статистики */}
         {stats.unpaidCompletedRentals > 0 && (
           <div className="stat-card alert">
             <h3>🔴 Без оплаты</h3>
@@ -647,7 +647,6 @@ const Rentals = () => {
                         <span className={`status-badge ${status}`}>
                           {getStatusDisplayName(status)}
                         </span>
-                        {/* 🆕 Добавляем статус оплаты */}
                         <span className={`payment-status ${paymentStatus.status}`}>
                           {paymentStatus.text}
                         </span>
@@ -666,7 +665,6 @@ const Rentals = () => {
                             К доплате: ₸ {outstanding.toLocaleString()}
                           </div>
                         )}
-                        {/* 🆕 Прогресс-бар оплаты */}
                         <div className="payment-progress">
                           <div className="progress-bar">
                             <div 
@@ -683,7 +681,7 @@ const Rentals = () => {
                     </td>
                     <td>
                       <div className="rental-actions">
-                        {/* 🆕 Улучшенные кнопки для работы с платежами */}
+                        {/* Кнопки для работы с платежами */}
                         {outstanding > 0 && (
                           <>
                             <button 
@@ -723,6 +721,24 @@ const Rentals = () => {
                           </>
                         )}
                         
+                        {/* Кнопка подробнее - ОБНОВЛЕНО */}
+                        <button 
+                          className="btn-icon view"
+                          onClick={() => handleViewRentalDetails(rental)}
+                          title="Подробная информация"
+                          style={{
+                            backgroundColor: '#6b7280',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            marginRight: '4px'
+                          }}
+                        >
+                          <FiEye />
+                        </button>
+                        
                         {/* Существующие кнопки действий */}
                         {status === 'pending_checkin' && (
                           <button 
@@ -754,14 +770,14 @@ const Rentals = () => {
                         )}
                         
                         <button 
-                          className="btn-icon view"
+                          className="btn-icon edit"
                           onClick={() => {
                             setSelectedRental(rental);
                             setShowRentalModal(true);
                           }}
-                          title="Просмотр/Редактирование"
+                          title="Редактировать"
                         >
-                          <FiEye />
+                          <FiEdit2 />
                         </button>
                         
                         {rental.is_active && (
@@ -812,7 +828,7 @@ const Rentals = () => {
         )}
       </div>
 
-      {/* 🆕 Быстрые действия для проблемных оплат */}
+      {/* Быстрые действия для проблемных оплат */}
       {(stats.unpaidCompletedRentals > 0 || stats.partiallyPaidRentals > 0) && (
         <div className="payment-alerts">
           <h3>⚠️ Требуют внимания:</h3>
@@ -850,7 +866,7 @@ const Rentals = () => {
         />
       )}
 
-      {/* 🆕 Полный менеджер платежей */}
+      {/* Полный менеджер платежей */}
       {showPaymentManager && selectedRentalForPayment && (
         <PaymentManager
           rental={selectedRentalForPayment}
@@ -859,7 +875,6 @@ const Rentals = () => {
             setSelectedRentalForPayment(null);
           }}
           onPaymentUpdate={(updatedRental) => {
-            // Обновляем аренду после изменения платежа
             const updateRental = (rental) => {
               if (rental.id === updatedRental.id) {
                 return updatedRental;
@@ -870,12 +885,12 @@ const Rentals = () => {
             setRentalsList(prev => prev.map(updateRental));
             setFilteredRentals(prev => prev.map(updateRental));
             
-            // Перезагружаем статистику
             loadData();
           }}
         />
       )}
 
+      {/* Модальное окно создания/редактирования аренды */}
       {showRentalModal && (
         <RentalModal
           rental={selectedRental}
@@ -886,6 +901,30 @@ const Rentals = () => {
             setSelectedProperty(null);
           }}
           onSubmit={selectedRental ? handleUpdateRental : handleCreateRental}
+        />
+      )}
+
+      {/* НОВОЕ: Модальное окно деталей аренды */}
+      {showRentalDetail && selectedRental && (
+        <RentalDetailModal
+          rental={selectedRental}
+          onClose={() => {
+            setShowRentalDetail(false);
+            setSelectedRental(null);
+          }}
+          onPaymentUpdate={(updatedRental) => {
+            const updateRental = (rental) => {
+              if (rental.id === updatedRental.id) {
+                return updatedRental;
+              }
+              return rental;
+            };
+            
+            setRentalsList(prev => prev.map(updateRental));
+            setFilteredRentals(prev => prev.map(updateRental));
+            
+            loadData();
+          }}
         />
       )}
     </div>
