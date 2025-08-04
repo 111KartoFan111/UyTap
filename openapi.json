@@ -1,5 +1,4 @@
 openapi: 3.1.0
-swagger: '2.0'
 info:
   title: Enhanced Rental System API
   description: |2-
@@ -10,13 +9,13 @@ info:
         
   version: 2.0.0
 paths:
-  /api/payroll:
+  /api/properties:
     get:
       tags:
-        - Payroll
-      summary: Get Payrolls
-      description: Получить список зарплатных ведомостей
-      operationId: get_payrolls_api_payroll_get
+        - Properties
+      summary: Get Properties
+      description: Получить список помещений организации
+      operationId: get_properties_api_properties_get
       security:
         - HTTPBearer: []
       parameters:
@@ -37,40 +36,30 @@ paths:
             minimum: 1
             default: 100
             title: Limit
-        - name: user_id
+        - name: status
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/PropertyStatus'
+              - type: 'null'
+            title: Status
+        - name: property_type
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/PropertyType'
+              - type: 'null'
+            title: Property Type
+        - name: search
           in: query
           required: false
           schema:
             anyOf:
               - type: string
               - type: 'null'
-            title: User Id
-        - name: period_start
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-                format: date-time
-              - type: 'null'
-            title: Period Start
-        - name: period_end
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-                format: date-time
-              - type: 'null'
-            title: Period End
-        - name: is_paid
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: boolean
-              - type: 'null'
-            title: Is Paid
+            title: Search
       responses:
         '200':
           description: Successful Response
@@ -79,8 +68,8 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/PayrollResponse'
-                title: Response Get Payrolls Api Payroll Get
+                  $ref: '#/components/schemas/PropertyResponse'
+                title: Response Get Properties Api Properties Get
         '422':
           description: Validation Error
           content:
@@ -89,10 +78,10 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
-        - Payroll
-      summary: Create Payroll
-      description: Создать зарплатную ведомость
-      operationId: create_payroll_api_payroll_post
+        - Properties
+      summary: Create Property
+      description: Создать новое помещение
+      operationId: create_property_api_properties_post
       security:
         - HTTPBearer: []
       requestBody:
@@ -100,44 +89,44 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PayrollCreate'
+              $ref: '#/components/schemas/PropertyCreate'
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PayrollResponse'
+                $ref: '#/components/schemas/PropertyResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/{payroll_id}:
+  /api/properties/{property_id}:
     get:
       tags:
-        - Payroll
-      summary: Get Payroll
-      description: Получить зарплатную ведомость
-      operationId: get_payroll_api_payroll__payroll_id__get
+        - Properties
+      summary: Get Property
+      description: Получить информацию о помещении
+      operationId: get_property_api_properties__property_id__get
       security:
         - HTTPBearer: []
       parameters:
-        - name: payroll_id
+        - name: property_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            title: Payroll Id
+            title: Property Id
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PayrollResponse'
+                $ref: '#/components/schemas/PropertyResponse'
         '422':
           description: Validation Error
           content:
@@ -146,62 +135,55 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
     put:
       tags:
-        - Payroll
-      summary: Update Payroll
-      description: Обновить зарплатную ведомость
-      operationId: update_payroll_api_payroll__payroll_id__put
+        - Properties
+      summary: Update Property
+      description: Обновить помещение
+      operationId: update_property_api_properties__property_id__put
       security:
         - HTTPBearer: []
       parameters:
-        - name: payroll_id
+        - name: property_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            title: Payroll Id
+            title: Property Id
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PayrollUpdate'
+              $ref: '#/components/schemas/PropertyUpdate'
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PayrollResponse'
+                $ref: '#/components/schemas/PropertyResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/{payroll_id}/pay:
-    post:
+    delete:
       tags:
-        - Payroll
-      summary: Mark Payroll Paid
-      description: Отметить зарплату как выплаченную
-      operationId: mark_payroll_paid_api_payroll__payroll_id__pay_post
+        - Properties
+      summary: Delete Property
+      description: Удалить помещение
+      operationId: delete_property_api_properties__property_id__delete
       security:
         - HTTPBearer: []
       parameters:
-        - name: payroll_id
+        - name: property_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            title: Payroll Id
-        - name: payment_method
-          in: query
-          required: true
-          schema:
-            type: string
-            title: Payment Method
+            title: Property Id
       responses:
         '200':
           description: Successful Response
@@ -214,126 +196,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/calculate-monthly:
-    post:
+  /api/properties/{property_id}/status:
+    patch:
       tags:
-        - Payroll
-      summary: Calculate Monthly Payroll
-      description: Рассчитать зарплату за месяц
-      operationId: calculate_monthly_payroll_api_payroll_calculate_monthly_post
+        - Properties
+      summary: Update Property Status
+      description: Изменить статус помещения
+      operationId: update_property_status_api_properties__property_id__status_patch
       security:
         - HTTPBearer: []
       parameters:
-        - name: year
-          in: query
-          required: true
-          schema:
-            type: integer
-            maximum: 2030
-            minimum: 2020
-            title: Year
-        - name: month
-          in: query
-          required: true
-          schema:
-            type: integer
-            maximum: 12
-            minimum: 1
-            title: Month
-        - name: user_id
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-              - type: 'null'
-            title: User Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/statistics/overview:
-    get:
-      tags:
-        - Payroll
-      summary: Get Payroll Statistics
-      description: Получить статистику по зарплате
-      operationId: get_payroll_statistics_api_payroll_statistics_overview_get
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: year
-          in: query
-          required: true
-          schema:
-            type: integer
-            maximum: 2030
-            minimum: 2020
-            title: Year
-        - name: month
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: integer
-                maximum: 12
-                minimum: 1
-              - type: 'null'
-            title: Month
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/export/{format}:
-    get:
-      tags:
-        - Payroll
-      summary: Export Payroll Data
-      description: Экспорт данных зарплаты
-      operationId: export_payroll_data_api_payroll_export__format__get
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: format
+        - name: property_id
           in: path
           required: true
           schema:
             type: string
-            title: Format
-        - name: year
+            format: uuid
+            title: Property Id
+        - name: new_status
           in: query
           required: true
           schema:
-            type: integer
-            maximum: 2030
-            minimum: 2020
-            title: Year
-        - name: month
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: integer
-                maximum: 12
-                minimum: 1
-              - type: 'null'
-            title: Month
+            $ref: '#/components/schemas/PropertyStatus'
       responses:
         '200':
           description: Successful Response
@@ -346,65 +230,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/templates:
-    post:
-      tags:
-        - Enhanced Payroll
-      summary: Create Payroll Template
-      description: |-
-        Создать шаблон зарплаты для сотрудника
-
-        Позволяет настроить автоматический расчет зарплаты:
-        - Базовая ставка
-        - Автоматические надбавки (транспорт, питание и т.д.)
-        - Настройки сверхурочных
-        - Интеграция с задачами
-        - Автоматические вычеты
-      operationId: create_payroll_template_api_payroll_templates_post
-      security:
-        - HTTPBearer: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PayrollTemplateCreate'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PayrollTemplateResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/{property_id}/tasks:
     get:
       tags:
-        - Enhanced Payroll
-      summary: Get Payroll Templates
-      description: Получить шаблоны зарплат
-      operationId: get_payroll_templates_api_payroll_templates_get
+        - Properties
+      summary: Get Property Tasks
+      description: Получить задачи для помещения
+      operationId: get_property_tasks_api_properties__property_id__tasks_get
       security:
         - HTTPBearer: []
       parameters:
-        - name: user_id
-          in: query
-          required: false
+        - name: property_id
+          in: path
+          required: true
           schema:
-            anyOf:
-              - type: string
-              - type: 'null'
-            title: User Id
+            type: string
+            format: uuid
+            title: Property Id
         - name: status
           in: query
           required: false
           schema:
             anyOf:
-              - $ref: '#/components/schemas/PayrollTemplateStatus'
+              - $ref: '#/components/schemas/TaskStatus'
               - type: 'null'
             title: Status
       responses:
@@ -415,205 +263,159 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/PayrollTemplateResponse'
-                title: Response Get Payroll Templates Api Payroll Templates Get
+                  $ref: '#/components/schemas/TaskResponse'
+                title: >-
+                  Response Get Property Tasks Api Properties  Property Id  Tasks
+                  Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/templates/{template_id}:
-    put:
+    post:
       tags:
-        - Enhanced Payroll
-      summary: Update Payroll Template
-      description: Обновить шаблон зарплаты
-      operationId: update_payroll_template_api_payroll_templates__template_id__put
+        - Properties
+      summary: Create Property Task
+      description: Создать задачу для помещения
+      operationId: create_property_task_api_properties__property_id__tasks_post
       security:
         - HTTPBearer: []
       parameters:
-        - name: template_id
+        - name: property_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            title: Template Id
+            title: Property Id
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PayrollTemplateUpdate'
+              $ref: '#/components/schemas/TaskCreate'
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PayrollTemplateResponse'
+                $ref: '#/components/schemas/TaskResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-    delete:
-      tags:
-        - Enhanced Payroll
-      summary: Deactivate Payroll Template
-      description: Деактивировать шаблон зарплаты
-      operationId: deactivate_payroll_template_api_payroll_templates__template_id__delete
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: template_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            title: Template Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/auto-generate:
-    post:
-      tags:
-        - Enhanced Payroll
-      summary: Auto Generate Payrolls
-      description: |-
-        Автоматическое создание зарплат на основе шаблонов
-
-        Создает зарплатные ведомости для всех сотрудников, у которых есть
-        активные шаблоны. Учитывает:
-        - Выполненные задачи
-        - Автоматические надбавки и вычеты
-        - Премии и штрафы
-        - Сверхурочные
-      operationId: auto_generate_payrolls_api_payroll_auto_generate_post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: year
-          in: query
-          required: true
-          schema:
-            type: integer
-            maximum: 2030
-            minimum: 2020
-            title: Year
-        - name: month
-          in: query
-          required: true
-          schema:
-            type: integer
-            maximum: 12
-            minimum: 1
-            title: Month
-        - name: force_recreate
-          in: query
-          required: false
-          schema:
-            type: boolean
-            description: Пересоздать существующие зарплаты
-            default: false
-            title: Force Recreate
-          description: Пересоздать существующие зарплаты
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/operations:
-    post:
-      tags:
-        - Enhanced Payroll
-      summary: Add Payroll Operation
-      description: |-
-        Добавить операцию (премию, штраф, надбавку и т.д.)
-
-        Типы операций:
-        - BONUS: Премия
-        - PENALTY: Штраф
-        - OVERTIME: Сверхурочные
-        - ALLOWANCE: Надбавка
-        - DEDUCTION: Удержание
-        - COMMISSION: Комиссионные
-        - HOLIDAY_PAY: Праздничная доплата
-        - ADVANCE: Аванс
-      operationId: add_payroll_operation_api_payroll_operations_post
-      security:
-        - HTTPBearer: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PayrollOperationCreate'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PayrollOperationResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/{property_id}/availability:
     get:
       tags:
-        - Enhanced Payroll
-      summary: Get Payroll Operations
-      description: Получить операции с зарплатой
-      operationId: get_payroll_operations_api_payroll_operations_get
+        - Properties
+      summary: Check Property Availability
+      description: Проверить доступность помещения на период
+      operationId: >-
+        check_property_availability_api_properties__property_id__availability_get
       security:
         - HTTPBearer: []
       parameters:
-        - name: user_id
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+            title: Start Date
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+            title: End Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/{property_id}/statistics:
+    get:
+      tags:
+        - Properties
+      summary: Get Property Statistics
+      description: Получить статистику по помещению
+      operationId: get_property_statistics_api_properties__property_id__statistics_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: property_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Property Id
+        - name: period_days
           in: query
           required: false
           schema:
-            anyOf:
-              - type: string
-              - type: 'null'
-            title: User Id
-        - name: operation_type
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - $ref: '#/components/schemas/PayrollOperationType'
-              - type: 'null'
-            title: Operation Type
-        - name: is_applied
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: boolean
-              - type: 'null'
-            title: Is Applied
+            type: integer
+            maximum: 365
+            minimum: 1
+            default: 30
+            title: Period Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/properties/bulk-release-from-cleaning:
+    post:
+      tags:
+        - Properties
+      summary: Bulk Release From Cleaning
+      description: Массово освободить помещения из уборки (если нет активных задач)
+      operationId: >-
+        bulk_release_from_cleaning_api_properties_bulk_release_from_cleaning_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+      security:
+        - HTTPBearer: []
+  /api/rentals:
+    get:
+      tags:
+        - Rentals
+      summary: Get Rentals
+      description: Получить список аренд
+      operationId: get_rentals_api_rentals_get
+      security:
+        - HTTPBearer: []
+      parameters:
         - name: skip
           in: query
           required: false
@@ -631,6 +433,38 @@ paths:
             minimum: 1
             default: 100
             title: Limit
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: boolean
+              - type: 'null'
+            title: Is Active
+        - name: rental_type
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/RentalType'
+              - type: 'null'
+            title: Rental Type
+        - name: property_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Property Id
+        - name: client_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Client Id
       responses:
         '200':
           description: Successful Response
@@ -639,31 +473,122 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/PayrollOperationResponse'
-                title: Response Get Payroll Operations Api Payroll Operations Get
+                  $ref: '#/components/schemas/RentalResponse'
+                title: Response Get Rentals Api Rentals Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/operations/{operation_id}:
-    delete:
+    post:
       tags:
-        - Enhanced Payroll
-      summary: Cancel Payroll Operation
-      description: Отменить операцию с зарплатой (если ещё не применена)
-      operationId: cancel_payroll_operation_api_payroll_operations__operation_id__delete
+        - Rentals
+      summary: Create Rental
+      description: Создать новую аренду
+      operationId: create_rental_api_rentals_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RentalCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RentalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}:
+    get:
+      tags:
+        - Rentals
+      summary: Get Rental
+      description: Получить информацию об аренде
+      operationId: get_rental_api_rentals__rental_id__get
       security:
         - HTTPBearer: []
       parameters:
-        - name: operation_id
+        - name: rental_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            title: Operation Id
+            title: Rental Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RentalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Rentals
+      summary: Update Rental
+      description: Обновить аренду
+      operationId: update_rental_api_rentals__rental_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Rental Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RentalUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RentalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Rentals
+      summary: Cancel Rental
+      description: Отменить аренду
+      operationId: cancel_rental_api_rentals__rental_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Rental Id
         - name: reason
           in: query
           required: true
@@ -683,162 +608,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/users/{user_id}/bonus:
+  /api/rentals/{rental_id}/check-in:
     post:
       tags:
-        - Manager Payroll Operations
-      summary: Add Quick Bonus
-      description: Быстро добавить премию сотруднику
-      operationId: add_quick_bonus_api_payroll_users__user_id__bonus_post
+        - Rentals
+      summary: Check In Rental
+      description: Заселить клиента
+      operationId: check_in_rental_api_rentals__rental_id__check_in_post
       security:
         - HTTPBearer: []
       parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-            title: User Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuickBonusRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/users/{user_id}/penalty:
-    post:
-      tags:
-        - Manager Payroll Operations
-      summary: Add Quick Penalty
-      description: Быстро добавить штраф сотруднику
-      operationId: add_quick_penalty_api_payroll_users__user_id__penalty_post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-            title: User Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuickPenaltyRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/users/{user_id}/overtime:
-    post:
-      tags:
-        - Manager Payroll Operations
-      summary: Add Overtime Payment
-      description: Добавить оплату сверхурочных
-      operationId: add_overtime_payment_api_payroll_users__user_id__overtime_post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-            title: User Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuickOvertimeRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/summary/{user_id}:
-    get:
-      tags:
-        - Enhanced Payroll
-      summary: Get User Payroll Summary
-      description: Получить сводку по зарплате пользователя за несколько месяцев
-      operationId: get_user_payroll_summary_api_payroll_summary__user_id__get
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-            title: User Id
-        - name: months
-          in: query
-          required: false
-          schema:
-            type: integer
-            maximum: 24
-            minimum: 1
-            default: 6
-            title: Months
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/recalculate/{payroll_id}:
-    post:
-      tags:
-        - Enhanced Payroll
-      summary: Recalculate Payroll
-      description: Пересчитать зарплату с учётом всех операций
-      operationId: recalculate_payroll_api_payroll_recalculate__payroll_id__post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: payroll_id
+        - name: rental_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-            title: Payroll Id
+            title: Rental Id
       responses:
         '200':
           description: Successful Response
@@ -851,29 +637,288 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/admin/payroll/templates/quick-setup:
+  /api/rentals/{rental_id}/check-out:
     post:
       tags:
-        - Admin Payroll
-      summary: Quick Setup Templates For Organization
-      description: Быстрая настройка шаблонов для всех сотрудников организации
-      operationId: >-
-        quick_setup_templates_for_organization_api_admin_payroll_templates_quick_setup_post
+        - Rentals
+      summary: Check Out Rental
+      description: Выселить клиента
+      operationId: check_out_rental_api_rentals__rental_id__check_out_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Rental Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients:
+    get:
+      tags:
+        - Clients
+      summary: Get Clients
+      description: Получить список клиентов
+      operationId: get_clients_api_clients_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: search
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Search
+        - name: source
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Source
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClientResponse'
+                title: Response Get Clients Api Clients Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+        - Clients
+      summary: Create Client
+      description: Создать нового клиента
+      operationId: create_client_api_clients_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients/{client_id}:
+    get:
+      tags:
+        - Clients
+      summary: Get Client
+      description: Получить информацию о клиенте
+      operationId: get_client_api_clients__client_id__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Clients
+      summary: Update Client
+      description: Обновить клиента
+      operationId: update_client_api_clients__client_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Clients
+      summary: Delete Client
+      description: Удалить клиента
+      operationId: delete_client_api_clients__client_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients/{client_id}/history:
+    get:
+      tags:
+        - Clients
+      summary: Get Client History
+      description: Получить историю клиента
+      operationId: get_client_history_api_clients__client_id__history_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients/{client_id}/statistics:
+    get:
+      tags:
+        - Clients
+      summary: Get Client Statistics
+      description: Получить статистику по клиенту
+      operationId: get_client_statistics_api_clients__client_id__statistics_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Client Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/clients/bulk-import:
+    post:
+      tags:
+        - Clients
+      summary: Bulk Import Clients
+      description: Массовый импорт клиентов
+      operationId: bulk_import_clients_api_clients_bulk_import_post
       requestBody:
         content:
           application/json:
             schema:
-              additionalProperties:
-                type: number
-              type: object
-              title: Base Rates
-              default:
-                admin: 500000
-                manager: 400000
-                accountant: 350000
-                technical_staff: 300000
-                cleaner: 250000
-                storekeeper: 280000
+              items:
+                $ref: '#/components/schemas/ClientCreate'
+              type: array
+              title: Clients Data
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -888,20 +933,543 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
         - HTTPBearer: []
-  /api/admin/payroll/templates/bulk-update:
+  /api/orders:
+    get:
+      tags:
+        - Room Orders
+      summary: Get Orders
+      description: Получить список заказов в номер
+      operationId: get_orders_api_orders_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: status
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/OrderStatus'
+              - type: 'null'
+            title: Status
+        - name: order_type
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Order Type
+        - name: property_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Property Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoomOrderResponse'
+                title: Response Get Orders Api Orders Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
-        - Admin Payroll
-      summary: Bulk Update Templates
-      description: Массовое обновление шаблонов
-      operationId: bulk_update_templates_api_admin_payroll_templates_bulk_update_post
+        - Room Orders
+      summary: Create Order
+      description: Создать заказ с проверкой наличия на складе
+      operationId: create_order_api_orders_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomOrderCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomOrderResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/orders/{order_id}:
+    get:
+      tags:
+        - Room Orders
+      summary: Get Order
+      description: Получить информацию о заказе
+      operationId: get_order_api_orders__order_id__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Order Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomOrderResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Room Orders
+      summary: Update Order
+      description: Обновить заказ
+      operationId: update_order_api_orders__order_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Order Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomOrderUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomOrderResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/orders/{order_id}/assign:
+    post:
+      tags:
+        - Room Orders
+      summary: Assign Order
+      description: Назначить заказ исполнителю
+      operationId: assign_order_api_orders__order_id__assign_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Order Id
+        - name: assigned_to
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Assigned To
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/orders/statistics/overview:
+    get:
+      tags:
+        - Room Orders
+      summary: Get Orders Statistics
+      description: Получить статистику по заказам
+      operationId: get_orders_statistics_api_orders_statistics_overview_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: period_days
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 365
+            minimum: 1
+            default: 30
+            title: Period Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/orders/{order_id}/complete:
+    post:
+      tags:
+        - Room Orders
+      summary: Complete Order With Inventory
+      description: Complete order with automatic inventory deduction
+      operationId: complete_order_with_inventory_api_orders__order_id__complete_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Order Id
+        - name: completion_notes
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Completion Notes
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/inventory:
+    get:
+      tags:
+        - Inventory
+      summary: Get Inventory Items
+      description: Получить список товаров инвентаря
+      operationId: get_inventory_items_api_inventory_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: category
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Category
+        - name: search
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Search
+        - name: low_stock
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+            title: Low Stock
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: boolean
+              - type: 'null'
+            title: Is Active
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryResponse'
+                title: Response Get Inventory Items Api Inventory Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+        - Inventory
+      summary: Create Inventory Item
+      description: Создать новый товар инвентаря
+      operationId: create_inventory_item_api_inventory_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/inventory/{item_id}/movement:
+    post:
+      tags:
+        - Inventory
+      summary: Create Inventory Movement
+      description: Создать движение товара (поступление/расход)
+      operationId: create_inventory_movement_api_inventory__item_id__movement_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Item Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryMovementCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryMovementResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/inventory/{item_id}/movements:
+    get:
+      tags:
+        - Inventory
+      summary: Get Inventory Movements
+      description: Получить движения товара
+      operationId: get_inventory_movements_api_inventory__item_id__movements_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Item Id
+        - name: skip
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Skip
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: movement_type
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Movement Type
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryMovementResponse'
+                title: >-
+                  Response Get Inventory Movements Api Inventory  Item Id 
+                  Movements Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/inventory/low-stock/alert:
+    get:
+      tags:
+        - Inventory
+      summary: Get Low Stock Items
+      description: Получить товары с низким остатком
+      operationId: get_low_stock_items_api_inventory_low_stock_alert_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+      security:
+        - HTTPBearer: []
+  /api/inventory/bulk:
+    post:
+      tags:
+        - Inventory
+      summary: Create Inventory Items Bulk
+      description: Массовое создание товаров инвентаря
+      operationId: create_inventory_items_bulk_api_inventory_bulk_post
       requestBody:
         content:
           application/json:
             schema:
-              additionalProperties:
+              items:
+                $ref: '#/components/schemas/InventoryCreate'
+              type: array
+              title: Items Data
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/InventoryResponse'
+                type: array
+                title: Response Create Inventory Items Bulk Api Inventory Bulk Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - HTTPBearer: []
+  /api/inventory/statistics/overview:
+    get:
+      tags:
+        - Inventory
+      summary: Get Inventory Statistics
+      description: Получить статистику по инвентарю
+      operationId: get_inventory_statistics_api_inventory_statistics_overview_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+      security:
+        - HTTPBearer: []
+  /api/inventory/bulk-update-stock:
+    post:
+      tags:
+        - Inventory
+      summary: Bulk Update Stock
+      description: Массовое обновление остатков
+      operationId: bulk_update_stock_api_inventory_bulk_update_stock_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              items:
                 type: object
-              type: object
+              type: array
               title: Updates
         required: true
       responses:
@@ -918,19 +1486,30 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
         - HTTPBearer: []
-  /api/admin/payroll/operations/bulk:
-    post:
+  /api/inventory/export/{format}:
+    get:
       tags:
-        - Admin Payroll
-      summary: Create Bulk Operations
-      description: Массовое создание операций для группы сотрудников
-      operationId: create_bulk_operations_api_admin_payroll_operations_bulk_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BulkOperationCreate'
-        required: true
+        - Inventory
+      summary: Export Inventory Data
+      description: Экспорт данных инвентаря
+      operationId: export_inventory_data_api_inventory_export__format__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: format
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Format
+        - name: category
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Category
       responses:
         '200':
           description: Successful Response
@@ -943,400 +1522,471 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-      security:
-        - HTTPBearer: []
-  /api/admin/payroll/operations/seasonal-bonus:
-    post:
+  /api/inventory/{item_id}:
+    get:
       tags:
-        - Admin Payroll
-      summary: Create Seasonal Bonus
-      description: Создать сезонную премию для группы сотрудников
-      operationId: create_seasonal_bonus_api_admin_payroll_operations_seasonal_bonus_post
+        - Inventory
+      summary: Get Inventory Item
+      description: Получить товар инвентаря
+      operationId: get_inventory_item_api_inventory__item_id__get
       security:
         - HTTPBearer: []
       parameters:
-        - name: bonus_amount
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Item Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+        - Inventory
+      summary: Update Inventory Item
+      description: Обновить товар инвентаря
+      operationId: update_inventory_item_api_inventory__item_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Item Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Inventory
+      summary: Delete Inventory Item
+      description: Удалить товар инвентаря
+      operationId: delete_inventory_item_api_inventory__item_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Item Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/inventory/available-for-orders:
+    get:
+      tags:
+        - Inventory
+      summary: Get Available Inventory For Orders
+      description: Get inventory items available for room orders
+      operationId: >-
+        get_available_inventory_for_orders_api_inventory_available_for_orders_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Category
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                title: >-
+                  Response Get Available Inventory For Orders Api Inventory
+                  Available For Orders Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/inventory/orders-impact-report:
+    get:
+      tags:
+        - Inventory
+      summary: Get Inventory Orders Impact Report
+      description: Get report on inventory usage through orders
+      operationId: >-
+        get_inventory_orders_impact_report_api_inventory_orders_impact_report_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+            title: Start Date
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+            title: End Date
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/payment-checkin:
+    post:
+      tags:
+        - Rental Payments
+      summary: Process Checkin Payment
+      description: Обработка платежа при заселении
+      operationId: process_checkin_payment_api_rentals__rental_id__payment_checkin_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Rental Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInPaymentRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/payment:
+    post:
+      tags:
+        - Rental Payments
+      summary: Add Payment To Rental
+      description: Добавление платежа к аренде
+      operationId: add_payment_to_rental_api_rentals__rental_id__payment_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Rental Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessPaymentRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/check-in-with-payment:
+    post:
+      tags:
+        - Rental Payments
+      summary: Check In With Payment
+      description: Заселение с поддержкой платежа
+      operationId: check_in_with_payment_api_rentals__rental_id__check_in_with_payment_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Rental Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInWithPaymentRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/payments:
+    get:
+      tags:
+        - Rental Payments
+      summary: Get Rental Payment History
+      description: Получение истории платежей по аренде
+      operationId: get_rental_payment_history_api_rentals__rental_id__payments_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Rental Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentHistoryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/payment-status:
+    get:
+      tags:
+        - Rental Payments
+      summary: Get Rental Payment Status
+      description: Получение статуса оплаты аренды
+      operationId: get_rental_payment_status_api_rentals__rental_id__payment_status_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Rental Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/payments/{payment_id}/complete:
+    put:
+      tags:
+        - Rental Payments
+      summary: Complete Payment
+      description: Завершить платеж вручную
+      operationId: >-
+        complete_payment_api_rentals__rental_id__payments__payment_id__complete_put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Rental Id
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Payment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/payments/{payment_id}/cancel:
+    delete:
+      tags:
+        - Rental Payments
+      summary: Cancel Payment
+      description: Отменить платеж
+      operationId: >-
+        cancel_payment_api_rentals__rental_id__payments__payment_id__cancel_delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Rental Id
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Payment Id
+        - name: reason
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Reason
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/rentals/{rental_id}/refund:
+    post:
+      tags:
+        - Rental Payments
+      summary: Create Refund
+      description: Создать возврат средств
+      operationId: create_refund_api_rentals__rental_id__refund_post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: rental_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Rental Id
+        - name: refund_amount
           in: query
           required: true
           schema:
             type: number
-            exclusiveMinimum: 0
-            title: Bonus Amount
-        - name: bonus_title
+            title: Refund Amount
+        - name: reason
           in: query
-          required: false
+          required: true
           schema:
             type: string
-            default: Сезонная премия
-            title: Bonus Title
-        - name: target_roles
-          in: query
-          required: false
-          schema:
-            type: array
-            items:
-              $ref: '#/components/schemas/UserRole'
-            title: Target Roles
-        - name: exclude_users
-          in: query
-          required: false
-          schema:
-            type: array
-            items:
-              type: string
-            default: []
-            title: Exclude Users
+            title: Reason
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/admin/payroll/analytics/organization-summary:
+  /api/rentals/{rental_id}/payments/summary:
     get:
       tags:
-        - Admin Payroll
-      summary: Get Organization Payroll Summary
-      description: Получить сводку по зарплатам организации
-      operationId: >-
-        get_organization_payroll_summary_api_admin_payroll_analytics_organization_summary_get
+        - Rental Payments
+      summary: Get Payment Summary
+      description: Получить краткую сводку по платежам
+      operationId: get_payment_summary_api_rentals__rental_id__payments_summary_get
       security:
         - HTTPBearer: []
       parameters:
-        - name: year
-          in: query
-          required: true
-          schema:
-            type: integer
-            maximum: 2030
-            minimum: 2020
-            title: Year
-        - name: month
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: integer
-                maximum: 12
-                minimum: 1
-              - type: 'null'
-            title: Month
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/admin/payroll/forecast:
-    get:
-      tags:
-        - Admin Payroll
-      summary: Get Payroll Forecast
-      description: Получить прогноз расходов на зарплату
-      operationId: get_payroll_forecast_api_admin_payroll_forecast_get
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: months
-          in: query
-          required: false
-          schema:
-            type: integer
-            maximum: 12
-            minimum: 1
-            default: 3
-            title: Months
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/admin/payroll/auto-generate/{year}/{month}:
-    post:
-      tags:
-        - Admin Payroll
-      summary: Auto Generate Monthly Payrolls
-      description: Автоматическая генерация зарплат за месяц
-      operationId: >-
-        auto_generate_monthly_payrolls_api_admin_payroll_auto_generate__year___month__post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: year
-          in: path
-          required: true
-          schema:
-            type: integer
-            maximum: 2030
-            minimum: 2020
-            title: Year
-        - name: month
-          in: path
-          required: true
-          schema:
-            type: integer
-            maximum: 12
-            minimum: 1
-            title: Month
-        - name: force_recreate
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
-            title: Force Recreate
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/admin/payroll/settings:
-    get:
-      tags:
-        - Admin Payroll
-      summary: Get Payroll Settings
-      description: Получить настройки зарплатной системы
-      operationId: get_payroll_settings_api_admin_payroll_settings_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-      security:
-        - HTTPBearer: []
-    put:
-      tags:
-        - Admin Payroll
-      summary: Update Payroll Settings
-      description: Обновить настройки зарплатной системы
-      operationId: update_payroll_settings_api_admin_payroll_settings_put
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PayrollSettingsUpdate'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      security:
-        - HTTPBearer: []
-  /api/admin/payroll/export/detailed-report:
-    get:
-      tags:
-        - Admin Payroll
-      summary: Export Detailed Payroll Report
-      description: Экспорт детального отчета по зарплатам
-      operationId: >-
-        export_detailed_payroll_report_api_admin_payroll_export_detailed_report_get
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: year
-          in: query
-          required: true
-          schema:
-            type: integer
-            maximum: 2030
-            minimum: 2020
-            title: Year
-        - name: month
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: integer
-                maximum: 12
-                minimum: 1
-              - type: 'null'
-            title: Month
-        - name: format
-          in: query
-          required: false
-          schema:
-            type: string
-            pattern: ^(excel|pdf|json)$
-            default: excel
-            title: Format
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/admin/payroll/notify/payroll-ready:
-    post:
-      tags:
-        - Admin Payroll
-      summary: Notify Payroll Ready
-      description: Уведомить сотрудников о готовности зарплаты
-      operationId: notify_payroll_ready_api_admin_payroll_notify_payroll_ready_post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: year
-          in: query
-          required: true
-          schema:
-            type: integer
-            title: Year
-        - name: month
-          in: query
-          required: true
-          schema:
-            type: integer
-            title: Month
-      requestBody:
-        content:
-          application/json:
-            schema:
-              anyOf:
-                - type: array
-                  items:
-                    type: string
-                - type: 'null'
-              title: User Ids
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/admin/payroll/archive/old-payrolls:
-    post:
-      tags:
-        - Admin Payroll
-      summary: Archive Old Payrolls
-      description: Архивировать старые зарплаты
-      operationId: archive_old_payrolls_api_admin_payroll_archive_old_payrolls_post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: months_old
-          in: query
-          required: false
-          schema:
-            type: integer
-            maximum: 60
-            minimum: 12
-            default: 24
-            title: Months Old
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/users/{user_id}/allowance:
-    post:
-      tags:
-        - Manager Payroll Operations
-      summary: Add Allowance
-      description: Добавить надбавку сотруднику
-      operationId: add_allowance_api_payroll_users__user_id__allowance_post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: user_id
+        - name: rental_id
           in: path
           required: true
           schema:
             type: string
-            title: User Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuickAllowanceRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/payroll/users/{user_id}/deduction:
-    post:
-      tags:
-        - Manager Payroll Operations
-      summary: Add Deduction
-      description: Добавить вычет сотруднику
-      operationId: add_deduction_api_payroll_users__user_id__deduction_post
-      security:
-        - HTTPBearer: []
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-            title: User Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuickDeductionRequest'
+            title: Rental Id
       responses:
         '200':
           description: Successful Response
@@ -3407,11 +4057,8 @@ components:
           title: Updated At
         user:
           anyOf:
-            - additionalProperties:
-                type: string
-              type: object
+            - $ref: '#/components/schemas/UserResponse'
             - type: 'null'
-          title: User
       type: object
       required:
         - user_id
@@ -3423,8 +4070,6 @@ components:
         - gross_amount
         - net_amount
         - is_paid
-        - paid_at
-        - payment_method
         - created_at
         - updated_at
       title: PayrollResponse
