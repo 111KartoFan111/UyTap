@@ -6,48 +6,7 @@ import RentalDetailModal from './RentalDetailModal.jsx';
 import { QuickPaymentPopup, PaymentManager } from '../../components/Payments';
 import './Pages.css';
 
-// Добавляем CSS для модальных окон в head
-const modalStyles = `
-.modal-overlay {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  background-color: rgba(0, 0, 0, 0.5) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  z-index: 9999 !important;
-  padding: 20px !important;
-}
 
-.quick-payment-overlay {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  background-color: rgba(0, 0, 0, 0.3) !important;
-  display: flex !important;
-  align-items: flex-start !important;
-  justify-content: center !important;
-  z-index: 10001 !important;
-  padding-top: 100px !important;
-}
-
-body.modal-open {
-  overflow: hidden !important;
-}
-`;
-
-// Добавляем стили в head если их еще нет
-if (!document.getElementById('modal-styles')) {
-  const style = document.createElement('style');
-  style.id = 'modal-styles';
-  style.textContent = modalStyles;
-  document.head.appendChild(style);
-}
 
 const Rentals = () => {
   const { rentals, properties, clients, utils } = useData();

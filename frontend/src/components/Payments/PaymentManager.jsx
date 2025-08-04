@@ -9,8 +9,11 @@ import {
   FiAlertCircle,
   FiRefreshCw
 } from 'react-icons/fi';
+import { useData } from '../../contexts/DataContext';
 
 const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
+  const { utils } = useData();
+  
   const [payments, setPayments] = useState([]);
   const [paymentStatus, setPaymentStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -40,7 +43,7 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
     try {
       setLoading(true);
       
-      // Загружаем статус платежей и историю
+      // Загружаем статус платежей и историю через реальное API
       const [statusData, historyData] = await Promise.all([
         fetchPaymentStatus(rental.id),
         fetchPaymentHistory(rental.id)
@@ -51,35 +54,65 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
       
     } catch (error) {
       console.error('Failed to load payment data:', error);
+      utils.showError('Не удалось загрузить данные о платежах');
     } finally {
       setLoading(false);
     }
   };
 
-  // Mock API calls - замените на реальные вызовы API
+  // Реальные API вызовы вместо моков
   const fetchPaymentStatus = async (rentalId) => {
-    // Имитация API вызова
-    return {
-      rental_id: rentalId,
-      total_amount: rental.total_amount,
-      paid_amount: rental.paid_amount || 0,
-      outstanding_amount: rental.total_amount - (rental.paid_amount || 0),
-      deposit_amount: rental.deposit || 0,
-      payment_completion_percentage: ((rental.paid_amount || 0) / rental.total_amount) * 100,
-      is_fully_paid: (rental.paid_amount || 0) >= rental.total_amount,
-      payment_count: 0,
-      payment_methods_used: []
-    };
+    try {
+      const response = await fetch(`http://localhost:8000/api/rentals/${rentalId}/payment-status`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch payment status');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Payment status fetch failed:', error);
+      // Возвращаем базовые данные на основе rental
+      return {
+        rental_id: rentalId,
+        total_amount: rental.total_amount,
+        paid_amount: rental.paid_amount || 0,
+        outstanding_amount: rental.total_amount - (rental.paid_amount || 0),
+        deposit_amount: rental.deposit || 0,
+        payment_completion_percentage: ((rental.paid_amount || 0) / rental.total_amount) * 100,
+        is_fully_paid: (rental.paid_amount || 0) >= rental.total_amount,
+        payment_count: 0,
+        payment_methods_used: []
+      };
+    }
   };
 
   const fetchPaymentHistory = async (rentalId) => {
-    // Имитация API вызова
-    return {
-      rental_id: rentalId,
-      payments: [],
-      total_payments: 0,
-      total_paid_amount: rental.paid_amount || 0
-    };
+    try {
+      const response = await fetch(`http://localhost:8000/api/rentals/${rentalId}/payments`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch payment history');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Payment history fetch failed:', error);
+      return {
+        rental_id: rentalId,
+        payments: [],
+        total_payments: 0,
+        total_paid_amount: rental.paid_amount || 0
+      };
+    }
   };
 
   const addPayment = async () => {
@@ -92,21 +125,32 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
 
       setLoading(true);
       
-      // Здесь должен быть реальный API вызов
-      const newPayment = {
-        id: Date.now().toString(),
-        amount: parseFloat(paymentForm.payment_amount),
-        payment_method: paymentForm.payment_method,
-        payment_type: paymentForm.payment_type,
-        description: paymentForm.description || `Оплата аренды ${rental.property?.number || ''}`,
-        payer_name: paymentForm.payer_name,
-        reference_number: paymentForm.reference_number,
-        card_last4: paymentForm.card_last4,
-        status: 'completed',
-        created_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        notes: paymentForm.notes
-      };
+      // Реальный API вызов для добавления платежа
+      const response = await fetch(`http://localhost:8000/api/rentals/${rental.id}/payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          payment_amount: parseFloat(paymentForm.payment_amount),
+          payment_method: paymentForm.payment_method,
+          payment_type: paymentForm.payment_type.toLowerCase(),
+          description: paymentForm.description || `Оплата аренды ${rental.property?.number || ''}`,
+          payer_name: paymentForm.payer_name,
+          reference_number: paymentForm.reference_number,
+          card_last4: paymentForm.card_last4,
+          notes: paymentForm.notes,
+          auto_complete: true
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Payment failed');
+      }
+
+      const newPayment = await response.json();
 
       // Обновляем локальное состояние
       setPayments(prev => [newPayment, ...prev]);
@@ -145,11 +189,11 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
         });
       }
 
-      alert('Платеж успешно добавлен!');
+      utils.showSuccess('Платеж успешно добавлен!');
       
     } catch (error) {
       console.error('Failed to add payment:', error);
-      alert('Ошибка при добавлении платежа: ' + error.message);
+      utils.showError('Ошибка при добавлении платежа: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -218,11 +262,17 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
 
   if (loading && !paymentStatus) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-96">
-          <div className="flex items-center justify-center">
-            <FiRefreshCw className="animate-spin mr-2" />
-            Загрузка данных о платежах...
+      <div className="property-details-overlay">
+        <div className="property-details-content" style={{ width: '400px', height: 'auto' }}>
+          <div className="property-details-header">
+            <h2>Загрузка данных о платежах...</h2>
+            <button onClick={onClose} className="close-btn">
+              <FiX size={20} />
+            </button>
+          </div>
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <FiRefreshCw className="animate-spin" size={32} style={{ marginBottom: '16px' }} />
+            <p>Загружаем информацию о платежах...</p>
           </div>
         </div>
       </div>
@@ -230,91 +280,97 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[90vh] overflow-hidden">
+    <div className="property-details-overlay" onClick={onClose}>
+      <div className="property-details-content" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold flex items-center">
-              <FiDollarSign className="mr-2" />
-              Управление платежами
+        <div className="property-details-header">
+          <div className="header-info">
+            <h2>
+              <FiDollarSign /> Управление платежами
             </h2>
-            <p className="text-blue-100 text-sm">
+            <p style={{ margin: '8px 0 0 0', color: '#666', fontSize: '14px' }}>
               Аренда: {rental.property?.name || rental.property?.number || 'Помещение'} | 
               Клиент: {rental.client ? `${rental.client.first_name} ${rental.client.last_name}` : 'Не указан'}
             </p>
           </div>
-          <button 
-            onClick={onClose}
-            className="text-white hover:bg-blue-700 p-2 rounded"
-          >
-            <FiX size={20} />
-          </button>
+          <div className="header-actions">
+            <button onClick={onClose} className="close-btn">
+              <FiX size={20} />
+            </button>
+          </div>
         </div>
 
-        <div className="p-6 overflow-y-auto h-full">
+        <div className="tabs-content" style={{ padding: '24px', maxHeight: '70vh', overflowY: 'auto' }}>
           {/* Payment Status Overview */}
           {paymentStatus && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-4">Статус оплаты</h3>
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#2c3e50' }}>
+                Статус оплаты
+              </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600">Общая сумма</div>
-                  <div className="text-xl font-semibold text-gray-900">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ backgroundColor: '#f8f9fa', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Общая сумма</div>
+                  <div style={{ fontSize: '20px', fontWeight: '600', color: '#2c3e50' }}>
                     {formatCurrency(paymentStatus.total_amount)}
                   </div>
                 </div>
                 
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <div className="text-sm text-green-600">Оплачено</div>
-                  <div className="text-xl font-semibold text-green-700">
+                <div style={{ backgroundColor: '#f0f9ff', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#0369a1', marginBottom: '4px' }}>Оплачено</div>
+                  <div style={{ fontSize: '20px', fontWeight: '600', color: '#0369a1' }}>
                     {formatCurrency(paymentStatus.paid_amount)}
                   </div>
                 </div>
                 
-                <div className="bg-red-50 p-4 rounded-lg">
-                  <div className="text-sm text-red-600">К доплате</div>
-                  <div className="text-xl font-semibold text-red-700">
+                <div style={{ backgroundColor: '#fef2f2', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#dc2626', marginBottom: '4px' }}>К доплате</div>
+                  <div style={{ fontSize: '20px', fontWeight: '600', color: '#dc2626' }}>
                     {formatCurrency(paymentStatus.outstanding_amount)}
                   </div>
                 </div>
               </div>
 
               {/* Progress Bar */}
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium">Прогресс оплаты</span>
-                  <span className="text-sm text-gray-600">
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: '500' }}>Прогресс оплаты</span>
+                  <span style={{ fontSize: '14px', color: '#666' }}>
                     {paymentStatus.payment_completion_percentage.toFixed(1)}%
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div style={{ width: '100%', backgroundColor: '#e5e7eb', borderRadius: '9999px', height: '12px' }}>
                   <div 
-                    className={`h-3 rounded-full transition-all duration-300 ${
-                      paymentStatus.is_fully_paid ? 'bg-green-500' : 'bg-blue-500'
-                    }`}
                     style={{ 
-                      width: `${Math.min(paymentStatus.payment_completion_percentage, 100)}%` 
+                      height: '12px', 
+                      borderRadius: '9999px', 
+                      transition: 'all 0.3s ease',
+                      backgroundColor: paymentStatus.is_fully_paid ? '#10b981' : '#3b82f6',
+                      width: `${Math.min(paymentStatus.payment_completion_percentage, 100)}%`
                     }}
-                  ></div>
+                  />
                 </div>
               </div>
 
               {/* Payment Status Alert */}
-              <div className={`p-4 rounded-lg flex items-center ${
-                paymentStatus.is_fully_paid 
-                  ? 'bg-green-50 text-green-800 border border-green-200'
-                  : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
-              }`}>
+              <div style={{
+                padding: '16px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: paymentStatus.is_fully_paid ? '#f0fdf4' : '#fef3c7',
+                color: paymentStatus.is_fully_paid ? '#166534' : '#92400e',
+                border: `1px solid ${paymentStatus.is_fully_paid ? '#bbf7d0' : '#fde68a'}`,
+                marginBottom: '16px'
+              }}>
                 {paymentStatus.is_fully_paid ? (
                   <>
-                    <FiCheck className="mr-2 text-green-600" />
+                    <FiCheck style={{ marginRight: '8px', color: '#10b981' }} />
                     Оплата полностью завершена
                   </>
                 ) : (
                   <>
-                    <FiAlertCircle className="mr-2 text-yellow-600" />
+                    <FiAlertCircle style={{ marginRight: '8px', color: '#f59e0b' }} />
                     Требуется доплата: {formatCurrency(paymentStatus.outstanding_amount)}
                   </>
                 )}
@@ -324,21 +380,21 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
 
           {/* Quick Payment Actions */}
           {paymentStatus && !paymentStatus.is_fully_paid && (
-            <div className="mb-6">
-              <h4 className="font-medium mb-3">Быстрые действия</h4>
-              <div className="flex flex-wrap gap-2">
+            <div style={{ marginBottom: '24px' }}>
+              <h4 style={{ fontWeight: '500', marginBottom: '12px' }}>Быстрые действия</h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 <button
                   onClick={() => handleQuickPayment(paymentStatus.outstanding_amount)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center"
+                  className="quick-action-btn primary"
                 >
-                  <FiCheck className="mr-2" />
+                  <FiCheck style={{ marginRight: '8px' }} />
                   Полная оплата ({formatCurrency(paymentStatus.outstanding_amount)})
                 </button>
                 
                 {paymentStatus.outstanding_amount > 1000 && (
                   <button
                     onClick={() => handleQuickPayment(Math.round(paymentStatus.outstanding_amount / 2))}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                    className="quick-action-btn secondary"
                   >
                     Половина суммы
                   </button>
@@ -346,9 +402,9 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
                 
                 <button
                   onClick={() => setShowAddPayment(true)}
-                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center"
+                  className="quick-action-btn secondary"
                 >
-                  <FiPlus className="mr-2" />
+                  <FiPlus style={{ marginRight: '8px' }} />
                   Добавить платеж
                 </button>
               </div>
@@ -357,12 +413,20 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
 
           {/* Add Payment Form */}
           {showAddPayment && (
-            <div className="mb-6 bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium mb-4">Добавить платеж</h4>
+            <div style={{ 
+              marginBottom: '24px', 
+              backgroundColor: '#f8f9fa', 
+              padding: '16px', 
+              borderRadius: '8px',
+              border: '1px solid #e9ecef'
+            }}>
+              <h4 style={{ fontWeight: '500', marginBottom: '16px' }}>Добавить платеж</h4>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Сумма *</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
+                    Сумма *
+                  </label>
                   <input
                     type="number"
                     step="0.01"
@@ -371,25 +435,39 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
                       ...prev,
                       payment_amount: e.target.value
                     }))}
-                    className={`w-full p-2 border rounded-lg ${
-                      formErrors.payment_amount ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: formErrors.payment_amount ? '1px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}
                     placeholder="0.00"
                   />
                   {formErrors.payment_amount && (
-                    <p className="text-red-500 text-xs mt-1">{formErrors.payment_amount}</p>
+                    <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                      {formErrors.payment_amount}
+                    </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Способ оплаты *</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
+                    Способ оплаты *
+                  </label>
                   <select
                     value={paymentForm.payment_method}
                     onChange={(e) => setPaymentForm(prev => ({
                       ...prev,
                       payment_method: e.target.value
                     }))}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}
                   >
                     <option value="cash">Наличные</option>
                     <option value="card">Банковская карта</option>
@@ -399,14 +477,22 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Тип платежа</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
+                    Тип платежа
+                  </label>
                   <select
                     value={paymentForm.payment_type}
                     onChange={(e) => setPaymentForm(prev => ({
                       ...prev,
                       payment_type: e.target.value
                     }))}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}
                   >
                     <option value="rent_payment">Основная оплата</option>
                     <option value="deposit">Залог</option>
@@ -416,7 +502,9 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Плательщик</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
+                    Плательщик
+                  </label>
                   <input
                     type="text"
                     value={paymentForm.payer_name}
@@ -424,14 +512,22 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
                       ...prev,
                       payer_name: e.target.value
                     }))}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}
                     placeholder="ФИО плательщика"
                   />
                 </div>
 
                 {paymentForm.payment_method === 'card' && (
                   <div>
-                    <label className="block text-sm font-medium mb-1">Последние 4 цифры карты</label>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
+                      Последние 4 цифры карты
+                    </label>
                     <input
                       type="text"
                       maxLength="4"
@@ -440,19 +536,27 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
                         ...prev,
                         card_last4: e.target.value.replace(/\D/g, '')
                       }))}
-                      className={`w-full p-2 border rounded-lg ${
-                        formErrors.card_last4 ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: formErrors.card_last4 ? '1px solid #ef4444' : '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px'
+                      }}
                       placeholder="1234"
                     />
                     {formErrors.card_last4 && (
-                      <p className="text-red-500 text-xs mt-1">{formErrors.card_last4}</p>
+                      <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                        {formErrors.card_last4}
+                      </p>
                     )}
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Номер документа</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
+                    Номер документа
+                  </label>
                   <input
                     type="text"
                     value={paymentForm.reference_number}
@@ -460,59 +564,100 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
                       ...prev,
                       reference_number: e.target.value
                     }))}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}
                     placeholder="Номер чека/операции"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Описание</label>
-                  <input
-                    type="text"
-                    value={paymentForm.description}
-                    onChange={(e) => setPaymentForm(prev => ({
-                      ...prev,
-                      description: e.target.value
-                    }))}
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                    placeholder="Описание платежа"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Примечания</label>
-                  <textarea
-                    value={paymentForm.notes}
-                    onChange={(e) => setPaymentForm(prev => ({
-                      ...prev,
-                      notes: e.target.value
-                    }))}
-                    rows="2"
-                    className="w-full p-2 border border-gray-300 rounded-lg"
-                    placeholder="Дополнительные примечания"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 mt-4">
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
+                  Описание
+                </label>
+                <input
+                  type="text"
+                  value={paymentForm.description}
+                  onChange={(e) => setPaymentForm(prev => ({
+                    ...prev,
+                    description: e.target.value
+                  }))}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                  placeholder="Описание платежа"
+                />
+              </div>
+
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
+                  Примечания
+                </label>
+                <textarea
+                  value={paymentForm.notes}
+                  onChange={(e) => setPaymentForm(prev => ({
+                    ...prev,
+                    notes: e.target.value
+                  }))}
+                  rows="2"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    resize: 'vertical'
+                  }}
+                  placeholder="Дополнительные примечания"
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
                 <button
                   onClick={() => {
                     setShowAddPayment(false);
                     setFormErrors({});
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  style={{
+                    padding: '8px 16px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    backgroundColor: 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
                 >
                   Отмена
                 </button>
                 <button
                   onClick={addPayment}
                   disabled={loading}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    backgroundColor: loading ? '#9ca3af' : '#10b981',
+                    color: 'white',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
                 >
                   {loading ? (
-                    <FiRefreshCw className="animate-spin mr-2" />
+                    <FiRefreshCw className="animate-spin" style={{ marginRight: '8px' }} />
                   ) : (
-                    <FiCheck className="mr-2" />
+                    <FiCheck style={{ marginRight: '8px' }} />
                   )}
                   Добавить платеж
                 </button>
@@ -520,73 +665,111 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
             </div>
           )}
 
+          {!showAddPayment && paymentStatus?.outstanding_amount > 0 && (
+            <button
+              onClick={() => setShowAddPayment(true)}
+              className="quick-action-btn primary"
+              style={{ marginBottom: '24px' }}
+            >
+              <FiPlus style={{ marginRight: '8px' }} />
+              Добавить платеж
+            </button>
+          )}
+
           {/* Payment History */}
           <div>
-            <h4 className="font-medium mb-4">История платежей ({payments.length})</h4>
+            <h4 style={{ fontWeight: '500', marginBottom: '16px' }}>
+              История платежей ({payments.length})
+            </h4>
             
             {payments.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <FiCreditCard size={48} className="mx-auto mb-4 text-gray-300" />
+              <div style={{ textAlign: 'center', padding: '32px 20px', color: '#666' }}>
+                <FiCreditCard size={48} style={{ margin: '0 auto 16px', color: '#d1d5db' }} />
                 <p>Платежи не найдены</p>
-                <p className="text-sm">Добавьте первый платеж для этой аренды</p>
+                <p style={{ fontSize: '14px' }}>Добавьте первый платеж для этой аренды</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {payments.map((payment) => (
-                  <div key={payment.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="font-medium text-lg">
+                  <div key={payment.id} style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '16px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '18px', fontWeight: '500' }}>
                             {formatCurrency(payment.amount)}
                           </span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            payment.status === 'completed' 
-                              ? 'bg-green-100 text-green-800'
-                              : payment.status === 'pending'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
+                          <span style={{
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            backgroundColor: payment.status === 'completed' ? '#dcfce7' : payment.status === 'pending' ? '#fef3c7' : '#f3f4f6',
+                            color: payment.status === 'completed' ? '#166534' : payment.status === 'pending' ? '#92400e' : '#374151'
+                          }}>
                             {payment.status === 'completed' ? 'Завершен' : payment.status}
                           </span>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                          gap: '16px', 
+                          fontSize: '14px', 
+                          color: '#666',
+                          marginBottom: '8px'
+                        }}>
                           <div>
-                            <span className="font-medium">Способ: </span>
+                            <span style={{ fontWeight: '500' }}>Способ: </span>
                             {getPaymentMethodName(payment.payment_method)}
                             {payment.card_last4 && ` (*${payment.card_last4})`}
                           </div>
                           <div>
-                            <span className="font-medium">Тип: </span>
+                            <span style={{ fontWeight: '500' }}>Тип: </span>
                             {getPaymentTypeName(payment.payment_type)}
                           </div>
                           <div>
-                            <span className="font-medium">Дата: </span>
+                            <span style={{ fontWeight: '500' }}>Дата: </span>
                             {formatDate(payment.completed_at || payment.created_at)}
                           </div>
                           {payment.reference_number && (
                             <div>
-                              <span className="font-medium">Документ: </span>
+                              <span style={{ fontWeight: '500' }}>Документ: </span>
                               {payment.reference_number}
                             </div>
                           )}
                         </div>
                         
                         {payment.description && (
-                          <div className="mt-2 text-sm text-gray-700">
+                          <div style={{ marginTop: '8px', fontSize: '14px', color: '#374151' }}>
                             {payment.description}
                           </div>
                         )}
                         
                         {payment.payer_name && (
-                          <div className="mt-1 text-sm text-gray-600">
+                          <div style={{ marginTop: '4px', fontSize: '14px', color: '#666' }}>
                             Плательщик: {payment.payer_name}
+                          </div>
+                        )}
+                        
+                        {payment.notes && (
+                          <div style={{ marginTop: '8px', fontSize: '14px', color: '#374151', backgroundColor: '#f9fafb', padding: '8px', borderRadius: '4px' }}>
+                            {payment.notes}
                           </div>
                         )}
                       </div>
                       
-                      <button className="text-gray-400 hover:text-gray-600 p-1">
+                      <button style={{
+                        color: '#9ca3af',
+                        background: 'none',
+                        border: 'none',
+                        padding: '4px',
+                        cursor: 'pointer',
+                        borderRadius: '4px'
+                      }}>
                         <FiEye size={16} />
                       </button>
                     </div>
@@ -601,128 +784,4 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
   );
 };
 
-// Основной компонент для демонстрации
-const RentalPaymentApp = () => {
-  const [showPaymentManager, setShowPaymentManager] = useState(false);
-  const [selectedRental, setSelectedRental] = useState(null);
-
-  // Пример данных аренды
-  const mockRental = {
-    id: "rental-123",
-    total_amount: 50000,
-    paid_amount: 0, // Проблема: оплата 0
-    deposit: 10000,
-    property: {
-      id: "prop-1",
-      name: "Комната 101",
-      number: "101"
-    },
-    client: {
-      id: "client-1",
-      first_name: "Иван",
-      last_name: "Петров"
-    },
-    start_date: "2024-03-01T14:00:00Z",
-    end_date: "2024-03-03T12:00:00Z",
-    checked_in: true,
-    checked_out: true,
-    is_active: false
-  };
-
-  const handleOpenPayments = () => {
-    setSelectedRental(mockRental);
-    setShowPaymentManager(true);
-  };
-
-  const handlePaymentUpdate = (updatedRental) => {
-    console.log('Rental updated with payment:', updatedRental);
-    // Здесь обновите локальное состояние или перезагрузите данные
-  };
-
-  return (
-    <div className="p-8 bg-gray-100 min-h-screen">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Система управления платежами</h1>
-        
-        {/* Пример карточки аренды */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Завершенная аренда</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <span className="text-sm text-gray-600">Помещение:</span>
-              <div className="font-medium">{mockRental.property.name}</div>
-            </div>
-            <div>
-              <span className="text-sm text-gray-600">Клиент:</span>
-              <div className="font-medium">
-                {mockRental.client.first_name} {mockRental.client.last_name}
-              </div>
-            </div>
-            <div>
-              <span className="text-sm text-gray-600">Статус:</span>
-              <div className="font-medium text-green-600">Завершено</div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <span className="text-sm text-gray-600">Общая сумма:</span>
-              <div className="font-medium text-lg">₸ {mockRental.total_amount.toLocaleString()}</div>
-            </div>
-            <div>
-              <span className="text-sm text-gray-600">Оплачено:</span>
-              <div className={`font-medium text-lg ${
-                mockRental.paid_amount === 0 ? 'text-red-600' : 'text-green-600'
-              }`}>
-                ₸ {mockRental.paid_amount.toLocaleString()}
-              </div>
-            </div>
-          </div>
-          
-          {mockRental.paid_amount === 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center text-red-800">
-                <FiAlertCircle className="mr-2" />
-                <span className="font-medium">Внимание! Оплата не получена</span>
-              </div>
-              <p className="text-red-600 text-sm ml-6">
-                Клиент завершил аренду, но оплата отсутствует
-              </p>
-            </div>
-          )}
-          
-          <button
-            onClick={handleOpenPayments}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
-          >
-            <FiDollarSign className="mr-2" />
-            Управление платежами
-          </button>
-        </div>
-        
-        {/* Инструкции */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">Как использовать:</h3>
-          <ul className="text-blue-800 text-sm space-y-1">
-            <li>• Нажмите "Управление платежами" для добавления оплаты</li>
-            <li>• Используйте быстрые действия для полной или частичной оплаты</li>
-            <li>• Добавьте детали платежа: способ оплаты, номер документа</li>
-            <li>• Система автоматически обновит статус оплаты аренды</li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Payment Manager Modal */}
-      {showPaymentManager && (
-        <PaymentManager
-          rental={selectedRental}
-          onClose={() => setShowPaymentManager(false)}
-          onPaymentUpdate={handlePaymentUpdate}
-        />
-      )}
-    </div>
-  );
-};
-
-export default RentalPaymentApp;
+export default PaymentManager;

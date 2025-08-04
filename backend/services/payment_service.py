@@ -1,4 +1,3 @@
-# services/payment_service.py
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -10,7 +9,7 @@ from models.payment_models import Payment, PaymentStatus, PaymentType
 from models.extended_models import Rental
 from schemas.payment import (
     PaymentCreate, PaymentUpdate, ProcessPaymentRequest,
-    PaymentStatusResponse, PaymentHistoryResponse
+    PaymentStatusResponse, PaymentHistoryResponse, PaymentResponse
 )
 
 class PaymentService:
@@ -36,14 +35,34 @@ class PaymentService:
         if not rental:
             raise ValueError("Rental not found")
         
-        # Создаем платеж
+        # ИСПРАВЛЕНО: Создаем платеж правильно
         payment = Payment(
             id=uuid.uuid4(),
             organization_id=organization_id,
             rental_id=rental_id,
-            **payment_data.dict(),
-            status=PaymentStatus.PENDING
+            payment_type=payment_data.payment_type,  # Enum уже правильный
+            amount=payment_data.amount,
+            currency=payment_data.currency,
+            payment_method=payment_data.payment_method,
+            description=payment_data.description,
+            payer_name=payment_data.payer_name,
+            payer_phone=payment_data.payer_phone,
+            payer_email=payment_data.payer_email,
+            status=PaymentStatus.PENDING  # Используем enum напрямую
         )
+        
+        # Добавляем опциональные поля только если они есть
+        if hasattr(payment_data, 'reference_number') and payment_data.reference_number:
+            payment.reference_number = payment_data.reference_number
+            
+        if hasattr(payment_data, 'card_last4') and payment_data.card_last4:
+            payment.card_last4 = payment_data.card_last4
+            
+        if hasattr(payment_data, 'bank_name') and payment_data.bank_name:
+            payment.bank_name = payment_data.bank_name
+            
+        if hasattr(payment_data, 'notes') and payment_data.notes:
+            payment.notes = payment_data.notes
         
         db.add(payment)
         db.commit()
@@ -60,19 +79,25 @@ class PaymentService:
     ) -> Payment:
         """Обработать платеж"""
         
-        # Создаем платеж
+        # ИСПРАВЛЕНО: Создаем PaymentCreate с правильными данными
         payment_data = PaymentCreate(
             payment_type=payment_request.payment_type,
             amount=payment_request.payment_amount,
+            currency="KZT",
             payment_method=payment_request.payment_method,
             description=payment_request.description,
             payer_name=payment_request.payer_name,
             payer_phone=payment_request.payer_phone,
-            payer_email=payment_request.payer_email,
-            reference_number=payment_request.reference_number,
-            card_last4=payment_request.card_last4,
-            bank_name=payment_request.bank_name
+            payer_email=payment_request.payer_email
         )
+        
+        # Добавляем дополнительные поля
+        if payment_request.reference_number:
+            payment_data.reference_number = payment_request.reference_number
+        if payment_request.card_last4:
+            payment_data.card_last4 = payment_request.card_last4
+        if payment_request.bank_name:
+            payment_data.bank_name = payment_request.bank_name
         
         payment = PaymentService.create_payment(
             db, rental_id, payment_data, organization_id
@@ -113,10 +138,8 @@ class PaymentService:
         rental = payment.rental
         if rental:
             if payment.payment_type == PaymentType.REFUND:
-                # Для возврата вычитаем сумму
                 rental.paid_amount = max(0, rental.paid_amount - payment.amount)
             else:
-                # Для всех остальных типов добавляем сумму
                 rental.paid_amount += payment.amount
             
             # Обновляем статистику клиента
@@ -128,128 +151,6 @@ class PaymentService:
         
         db.commit()
         return payment
-    
-    @staticmethod
-    def get_payment_status(
-        db: Session,
-        rental_id: uuid.UUID,
-        organization_id: uuid.UUID
-    ) -> PaymentStatusResponse:
-        """Получить статус оплаты аренды"""
-        
-        rental = db.query(Rental).filter(
-            and_(
-                Rental.id == rental_id,
-                Rental.organization_id == organization_id
-            )
-        ).first()
-        
-        if not rental:
-            raise ValueError("Rental not found")
-        
-        # Получаем все платежи по аренде
-        payments = db.query(Payment).filter(
-            and_(
-                Payment.rental_id == rental_id,
-                Payment.status == PaymentStatus.COMPLETED
-            )
-        ).all()
-        
-        # Считаем залог отдельно
-        deposit_payments = [p for p in payments if p.payment_type == PaymentType.DEPOSIT]
-        deposit_amount = sum(p.amount for p in deposit_payments)
-        
-        # Основные платежи (исключая возвраты)
-        main_payments = [p for p in payments if p.payment_type != PaymentType.REFUND]
-        refund_payments = [p for p in payments if p.payment_type == PaymentType.REFUND]
-        
-        total_paid = sum(p.amount for p in main_payments) - sum(p.amount for p in refund_payments)
-        outstanding_amount = max(0, rental.total_amount - total_paid)
-        
-        # Последний платеж
-        last_payment = db.query(Payment).filter(
-            and_(
-                Payment.rental_id == rental_id,
-                Payment.status == PaymentStatus.COMPLETED
-            )
-        ).order_by(desc(Payment.completed_at)).first()
-        
-        # Методы оплаты
-        payment_methods = list(set(p.payment_method for p in payments if p.payment_method))
-        
-        # Проверяем просрочку (упрощенно - если прошло более 3 дней после заселения без полной оплаты)
-        is_overdue = False
-        if rental.check_in_time and outstanding_amount > 0:
-            days_since_checkin = (datetime.now(timezone.utc) - rental.check_in_time).days
-            is_overdue = days_since_checkin > 3
-        
-        return PaymentStatusResponse(
-            rental_id=str(rental_id),
-            total_amount=rental.total_amount,
-            paid_amount=total_paid,
-            outstanding_amount=outstanding_amount,
-            deposit_amount=deposit_amount,
-            payment_completion_percentage=round((total_paid / rental.total_amount) * 100, 2) if rental.total_amount > 0 else 0,
-            last_payment_date=last_payment.completed_at if last_payment else None,
-            payment_count=len(payments),
-            payment_methods_used=payment_methods,
-            is_fully_paid=outstanding_amount <= 0,
-            is_overdue=is_overdue
-        )
-    
-    @staticmethod
-    def get_payment_history(
-        db: Session,
-        rental_id: uuid.UUID,
-        organization_id: uuid.UUID
-    ) -> PaymentHistoryResponse:
-        """Получить историю платежей по аренде"""
-        
-        # Проверяем существование аренды
-        rental = db.query(Rental).filter(
-            and_(
-                Rental.id == rental_id,
-                Rental.organization_id == organization_id
-            )
-        ).first()
-        
-        if not rental:
-            raise ValueError("Rental not found")
-        
-        # Получаем все платежи
-        payments = db.query(Payment).filter(
-            Payment.rental_id == rental_id
-        ).order_by(desc(Payment.created_at)).all()
-        
-        # Группируем по типам
-        type_summary = {}
-        for payment_type in PaymentType:
-            type_payments = [p for p in payments if p.payment_type == payment_type and p.status == PaymentStatus.COMPLETED]
-            if type_payments:
-                type_summary[payment_type.value] = sum(p.amount for p in type_payments)
-        
-        # Группируем по методам
-        method_summary = {}
-        for payment in payments:
-            if payment.status == PaymentStatus.COMPLETED and payment.payment_method:
-                if payment.payment_method not in method_summary:
-                    method_summary[payment.payment_method] = 0
-                method_summary[payment.payment_method] += payment.amount
-        
-        # Общая сумма оплаченного
-        completed_payments = [p for p in payments if p.status == PaymentStatus.COMPLETED]
-        total_paid = sum(p.amount for p in completed_payments if p.payment_type != PaymentType.REFUND)
-        total_refunded = sum(p.amount for p in completed_payments if p.payment_type == PaymentType.REFUND)
-        net_paid = total_paid - total_refunded
-        
-        return PaymentHistoryResponse(
-            rental_id=str(rental_id),
-            payments=[PaymentResponse.from_orm(p) for p in payments],
-            total_payments=len(payments),
-            total_paid_amount=net_paid,
-            payment_summary_by_type=type_summary,
-            payment_summary_by_method=method_summary
-        )
     
     @staticmethod
     def cancel_payment(db: Session, payment_id: uuid.UUID, reason: str = None) -> Payment:
@@ -283,6 +184,7 @@ class PaymentService:
         refund_data = PaymentCreate(
             payment_type=PaymentType.REFUND,
             amount=refund_amount,
+            currency="KZT",
             payment_method="refund",
             description=f"Возврат: {reason}"
         )
@@ -296,6 +198,7 @@ class PaymentService:
         
         return refund
     
+
     @staticmethod
     def get_payments_by_rental(
         db: Session,
@@ -310,3 +213,65 @@ class PaymentService:
             query = query.filter(Payment.status == status)
         
         return query.order_by(desc(Payment.created_at)).all()
+
+    @staticmethod
+    def get_payment_status(
+        db: Session,
+        rental_id: uuid.UUID,
+        organization_id: uuid.UUID
+    ) -> PaymentStatusResponse:
+        """Получить статус оплаты аренды"""
+        
+        rental = db.query(Rental).filter(
+            and_(
+                Rental.id == rental_id,
+                Rental.organization_id == organization_id
+            )
+        ).first()
+        
+        if not rental:
+            raise ValueError("Rental not found")
+        
+        payments = db.query(Payment).filter(
+            and_(
+                Payment.rental_id == rental_id,
+                Payment.status == PaymentStatus.COMPLETED
+            )
+        ).all()
+        
+        deposit_payments = [p for p in payments if p.payment_type == PaymentType.DEPOSIT]
+        deposit_amount = sum(p.amount for p in deposit_payments)
+        
+        main_payments = [p for p in payments if p.payment_type != PaymentType.REFUND]
+        refund_payments = [p for p in payments if p.payment_type == PaymentType.REFUND]
+        
+        total_paid = sum(p.amount for p in main_payments) - sum(p.amount for p in refund_payments)
+        outstanding_amount = max(0, rental.total_amount - total_paid)
+        
+        last_payment = db.query(Payment).filter(
+            and_(
+                Payment.rental_id == rental_id,
+                Payment.status == PaymentStatus.COMPLETED
+            )
+        ).order_by(desc(Payment.completed_at)).first()
+        
+        payment_methods = list(set(p.payment_method for p in payments if p.payment_method))
+        
+        is_overdue = False
+        if rental.check_in_time and outstanding_amount > 0:
+            days_since_checkin = (datetime.now(timezone.utc) - rental.check_in_time).days
+            is_overdue = days_since_checkin > 3
+        
+        return PaymentStatusResponse(
+            rental_id=str(rental_id),
+            total_amount=rental.total_amount,
+            paid_amount=total_paid,
+            outstanding_amount=outstanding_amount,
+            deposit_amount=deposit_amount,
+            payment_completion_percentage=round((total_paid / rental.total_amount) * 100, 2) if rental.total_amount > 0 else 0,
+            last_payment_date=last_payment.completed_at if last_payment else None,
+            payment_count=len(payments),
+            payment_methods_used=payment_methods,
+            is_fully_paid=outstanding_amount <= 0,
+            is_overdue=is_overdue
+        )

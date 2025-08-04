@@ -609,7 +609,10 @@
   transform: translateY(-1px);
 }
 
-/* Статистика */
+
+/* frontend/src/pages/Manager/Pages.css - Дополнительные стили для платежей */
+
+/* Стили для статистики с акцентом на проблемные платежи */
 .rentals-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -617,333 +620,207 @@
   margin-bottom: 24px;
 }
 
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  border-left: 4px solid #3498db;
-  transition: transform 0.2s;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-}
-
 .stat-card.alert {
-  border-left-color: #dc2626;
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border-left: 4px solid #dc2626;
+  animation: pulse-red 2s infinite;
 }
 
 .stat-card.warning {
-  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border-left: 4px solid #d97706;
+  animation: pulse-yellow 2s infinite;
 }
 
-.stat-card h3 {
-  font-size: 14px;
-  color: #666;
-  margin: 0 0 8px 0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+@keyframes pulse-red {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+  }
+  50% { 
+    box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+  }
 }
 
-.stat-number {
-  font-size: 28px;
-  font-weight: 700;
-  color: #2c3e50;
-  margin: 0;
+@keyframes pulse-yellow {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.7);
+  }
+  50% { 
+    box-shadow: 0 0 0 10px rgba(217, 119, 6, 0);
+  }
 }
 
-/* Таблица */
-.rentals-table-wrapper {
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  margin-bottom: 24px;
-}
-
-.rentals-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.rentals-table th {
-  text-align: left;
-  padding: 16px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
-  font-size: 13px;
-  font-weight: 600;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.rentals-table td {
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  font-size: 14px;
-  color: #2c3e50;
-  vertical-align: top;
-}
-
-.rentals-table tbody tr:hover {
-  background: #f8f9fa;
-}
-
-/* Информация в ячейках */
-.property-info .property-number {
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.property-info .property-name {
-  font-size: 12px;
-  color: #666;
-  margin-top: 2px;
-}
-
-.client-info .client-name {
-  font-weight: 500;
-  color: #2c3e50;
-}
-
-.client-info .client-phone {
-  font-size: 12px;
-  color: #666;
-  margin-top: 2px;
-}
-
-.period-info .period-dates {
-  font-weight: 500;
-  color: #2c3e50;
-}
-
-.period-info .check-times {
-  font-size: 12px;
-  color: #666;
-  margin-top: 2px;
-}
-
+/* Стили для колонки статуса с оплатой */
 .status-column {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.status-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 20px;
+.payment-status {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
   text-align: center;
 }
 
-.status-badge.active {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status-badge.pending_checkin {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-badge.completed {
-  background: #e5e7eb;
-  color: #374151;
-}
-
-.status-badge.expired {
-  background: #fecaca;
-  color: #991b1b;
-}
-
-.payment-status {
-  font-size: 11px;
-  font-weight: 500;
-}
-
 .payment-status.unpaid {
+  background: #fef2f2;
   color: #dc2626;
+  border: 1px solid #fecaca;
 }
 
 .payment-status.partial {
-  color: #f59e0b;
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fed7aa;
 }
 
 .payment-status.paid {
-  color: #10b981;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
 }
 
-.type-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  background: #e3f2fd;
-  color: #1976d2;
-}
-
+/* Улучшенные стили для информации о сумме */
 .amount-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 140px;
 }
 
-.amount-info .total-amount {
+.total-amount {
   font-weight: 600;
-  color: #2c3e50;
+  color: #1f2937;
 }
 
-.amount-info .paid-amount {
-  font-size: 12px;
-  color: #10b981;
+.paid-amount {
+  font-size: 13px;
+  color: #059669;
 }
 
-.amount-info .outstanding-amount {
-  font-size: 12px;
+.outstanding-amount {
+  font-size: 13px;
   font-weight: 600;
+  color: #dc2626;
+  background: #fef2f2;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #fecaca;
 }
 
+/* Прогресс-бар оплаты */
 .payment-progress {
   margin-top: 4px;
 }
 
-/* Действия */
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+/* Стили для кнопок действий с платежами */
 .rental-actions {
   display: flex;
   gap: 4px;
-  flex-wrap: wrap;
   align-items: center;
+  flex-wrap: wrap;
 }
 
-.btn-icon {
-  padding: 8px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
+.btn-icon.payment.critical {
+  background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+  animation: attention-red 3s infinite;
+}
+
+.btn-icon.payment.warning {
+  background: linear-gradient(135deg, #d97706, #b45309) !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.3);
+}
+
+.btn-icon.payment-manager {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+@keyframes attention-red {
+  0%, 100% { 
+    transform: scale(1);
+  }
+  50% { 
+    transform: scale(1.05);
+  }
 }
 
 .btn-icon:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Пустое состояние */
-.no-rentals {
-  padding: 60px 20px;
+/* Стили для фильтров с эмодзи */
+.filter-group select option {
+  padding: 8px 12px;
 }
 
-.empty-state {
-  text-align: center;
-  color: #666;
+/* Улучшенные стили для таблицы */
+.rentals-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.empty-state svg {
-  color: #d1d5db;
-  margin-bottom: 16px;
-}
-
-.empty-state h3 {
-  font-size: 20px;
+.rentals-table th {
+  background: #f8fafc;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
   color: #374151;
-  margin: 0 0 8px 0;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.empty-state p {
-  margin: 0 0 20px 0;
-  color: #6b7280;
+.rentals-table td {
+  padding: 12px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: top;
 }
 
-/* Loading состояние */
-.rentals-page.loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;
+.rentals-table tr:hover {
+  background: #f9fafb;
 }
 
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #e9ecef;
-  border-top: 4px solid #3498db;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
+/* Стили для строк с критическими проблемами оплаты */
+.rentals-table tr[data-payment-status="unpaid"] {
+  background: linear-gradient(90deg, #fef2f2 0%, #ffffff 100%);
+  border-left: 4px solid #dc2626;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.rentals-table tr[data-payment-status="partial"] {
+  background: linear-gradient(90deg, #fffbeb 0%, #ffffff 100%);
+  border-left: 4px solid #d97706;
 }
 
 /* Адаптивность */
 @media (max-width: 768px) {
-  .rentals-page {
-    padding: 16px;
-  }
-  
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-  
-  .page-header h1 {
-    font-size: 24px;
-  }
-  
-  .header-controls {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  .search-box {
-    flex: 1;
-    min-width: 200px;
-  }
-  
   .rentals-stats {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
-  }
-  
-  .stat-card {
-    padding: 16px;
-  }
-  
-  .stat-number {
-    font-size: 24px;
-  }
-  
-  /* Таблица на мобильных */
-  .rentals-table {
-    font-size: 12px;
-  }
-  
-  .rentals-table th,
-  .rentals-table td {
-    padding: 12px 8px;
-  }
-  
-  /* Скрываем некоторые колонки на мобильных */
-  .rentals-table th:nth-child(3),
-  .rentals-table td:nth-child(3),
-  .rentals-table th:nth-child(4),
-  .rentals-table td:nth-child(4) {
-    display: none;
   }
   
   .rental-actions {
@@ -953,39 +830,153 @@
   
   .btn-icon {
     width: 100%;
-    justify-content: flex-start;
-    padding: 6px 8px;
+    justify-content: center;
+    padding: 8px 12px;
+  }
+  
+  .amount-info {
+    min-width: auto;
+  }
+  
+  .outstanding-amount {
     font-size: 12px;
   }
 }
 
 @media (max-width: 480px) {
-  .page-header h1 {
-    font-size: 20px;
-  }
-  
-  .header-controls {
-    flex-direction: column;
-    gap: 12px;
-  }
-  
   .rentals-stats {
     grid-template-columns: 1fr;
   }
   
-  .btn-primary {
-    width: 100%;
-    justify-content: center;
+  .rentals-table {
+    font-size: 14px;
   }
   
-  .filter-group,
-  .search-box {
-    width: 100%;
+  .rentals-table th,
+  .rentals-table td {
+    padding: 8px;
+  }
+}
+
+/* Стили для пустого состояния */
+.no-rentals {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  background: white;
+  border-radius: 8px;
+  border: 2px dashed #d1d5db;
+}
+
+.empty-state {
+  text-align: center;
+  color: #6b7280;
+}
+
+.empty-state svg {
+  color: #d1d5db;
+  margin-bottom: 16px;
+}
+
+.empty-state h3 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0 0 16px 0;
+  color: #6b7280;
+}
+
+/* Анимации для привлечения внимания к проблемным платежам */
+.critical-payment {
+  animation: glow-red 2s infinite alternate;
+}
+
+.warning-payment {
+  animation: glow-yellow 2s infinite alternate;
+}
+
+@keyframes glow-red {
+  from {
+    box-shadow: 0 0 5px rgba(220, 38, 38, 0.5);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.8);
+  }
+}
+
+@keyframes glow-yellow {
+  from {
+    box-shadow: 0 0 5px rgba(217, 119, 6, 0.5);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(217, 119, 6, 0.8);
+  }
+}
+
+/* Улучшения для мобильных устройств */
+@media (max-width: 1024px) {
+  .rentals-table-wrapper {
+    overflow-x: auto;
   }
   
-  /* Еще больше упрощаем таблицу */
-  .rentals-table th:nth-child(5),
-  .rentals-table td:nth-child(5) {
-    display: none;
+  .rentals-table {
+    min-width: 800px;
   }
+}
+
+/* Стили для уведомлений о платежах */
+.payment-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #10b981;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  animation: slideInRight 0.3s ease;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Стили для тултипов */
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
 }

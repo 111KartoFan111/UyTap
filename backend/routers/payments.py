@@ -18,6 +18,7 @@ from services.payment_service import PaymentService
 from services.rental_service import RentalService
 from services.auth_service import AuthService
 from utils.dependencies import get_current_active_user
+from sqlalchemy import and_
 
 router = APIRouter(prefix="/api/rentals", tags=["Rental Payments"])
 
@@ -30,7 +31,7 @@ async def process_checkin_payment(
 ):
     """Обработка платежа при заселении"""
     
-    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions to process payments"
@@ -118,6 +119,11 @@ async def add_payment_to_rental(
 ):
     """Добавление платежа к аренде"""
     
+    # ОТЛАДКА: Логируем входящие данные
+    print(f"🔍 Received payment_request: {payment_request}")
+    print(f"🔍 payment_type value: {payment_request.payment_type}")
+    print(f"🔍 payment_type type: {type(payment_request.payment_type)}")
+    
     if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -132,13 +138,71 @@ async def add_payment_to_rental(
             detail="Invalid rental ID format"
         )
     
-    try:
-        payment = PaymentService.process_payment(
-            db=db,
-            rental_id=rental_uuid,
-            payment_request=payment_request,
-            organization_id=current_user.organization_id
+    # ОТЛАДКА: Проверяем что аренда существует
+    rental = db.query(Rental).filter(
+        and_(
+            Rental.id == rental_uuid,
+            Rental.organization_id == current_user.organization_id
         )
+    ).first()
+    
+    if not rental:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rental not found"
+        )
+    
+    print(f"🔍 Found rental: {rental.id}")
+    
+    # ОТЛАДКА: Создаем платеж напрямую без сервиса
+    try:
+        # Конвертируем enum значение в строку если нужно
+        payment_type_value = payment_request.payment_type
+        if hasattr(payment_type_value, 'value'):
+            payment_type_value = payment_type_value.value
+            
+        print(f"🔍 Using payment_type_value: {payment_type_value}")
+        
+        # Создаем платеж напрямую
+        payment = Payment(
+            id=uuid.uuid4(),
+            organization_id=current_user.organization_id,
+            rental_id=rental_uuid,
+            payment_type=payment_type_value,  # Используем строковое значение
+            amount=payment_request.payment_amount,
+            currency="KZT",
+            payment_method=payment_request.payment_method,
+            description=payment_request.description,
+            payer_name=payment_request.payer_name,
+            payer_phone=payment_request.payer_phone,
+            payer_email=payment_request.payer_email,
+            reference_number=payment_request.reference_number,
+            card_last4=payment_request.card_last4,
+            bank_name=payment_request.bank_name,
+            status="pending",  # Используем строку напрямую
+            notes=getattr(payment_request, 'notes', None)
+        )
+        
+        print(f"🔍 Created payment object: {payment}")
+        
+        db.add(payment)
+        db.flush()  # Проверяем ошибки до коммита
+        
+        print(f"🔍 Payment added to session successfully")
+        
+        # Обновляем статус если нужно автозавершение
+        if payment_request.auto_complete:
+            payment.status = "completed"
+            payment.completed_at = datetime.now(timezone.utc)
+            
+            # Обновляем paid_amount в аренде
+            if payment.payment_type != "refund":
+                rental.paid_amount += payment.amount
+        
+        db.commit()
+        db.refresh(payment)
+        
+        print(f"🔍 Payment committed successfully: {payment.id}")
         
         # Логируем действие
         AuthService.log_user_action(
@@ -151,22 +215,20 @@ async def add_payment_to_rental(
             details={
                 "rental_id": rental_id,
                 "amount": payment_request.payment_amount,
-                "type": payment_request.payment_type.value,
+                "type": payment_type_value,
                 "method": payment_request.payment_method
             }
         )
         
         return PaymentResponse.from_orm(payment)
         
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
     except Exception as e:
+        print(f"❌ Error creating payment: {str(e)}")
+        print(f"❌ Error type: {type(e)}")
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Payment processing failed: {str(e)}"
+            detail=f"Payment creation failed: {str(e)}"
         )
 
 @router.post("/{rental_id}/check-in-with-payment")
