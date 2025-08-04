@@ -520,3 +520,472 @@
   flex-direction: column;
 }
 
+/* Дополнительные стили для компонента Rentals */
+
+.rentals-page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 32px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  min-width: 250px;
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-size: 14px;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.filter-group select {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+}
+
+/* Статистика */
+.rentals-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-left: 4px solid #3498db;
+  transition: transform 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.stat-card.alert {
+  border-left-color: #dc2626;
+}
+
+.stat-card.warning {
+  border-left-color: #f59e0b;
+}
+
+.stat-card h3 {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0;
+}
+
+/* Таблица */
+.rentals-table-wrapper {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  margin-bottom: 24px;
+}
+
+.rentals-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rentals-table th {
+  text-align: left;
+  padding: 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rentals-table td {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+  color: #2c3e50;
+  vertical-align: top;
+}
+
+.rentals-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+/* Информация в ячейках */
+.property-info .property-number {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.property-info .property-name {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.client-info .client-name {
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.client-info .client-phone {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.period-info .period-dates {
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.period-info .check-times {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.status-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.status-badge.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.pending_checkin {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.completed {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.status-badge.expired {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.payment-status {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.payment-status.unpaid {
+  color: #dc2626;
+}
+
+.payment-status.partial {
+  color: #f59e0b;
+}
+
+.payment-status.paid {
+  color: #10b981;
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.amount-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.amount-info .total-amount {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.amount-info .paid-amount {
+  font-size: 12px;
+  color: #10b981;
+}
+
+.amount-info .outstanding-amount {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.payment-progress {
+  margin-top: 4px;
+}
+
+/* Действия */
+.rental-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn-icon {
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.btn-icon:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Пустое состояние */
+.no-rentals {
+  padding: 60px 20px;
+}
+
+.empty-state {
+  text-align: center;
+  color: #666;
+}
+
+.empty-state svg {
+  color: #d1d5db;
+  margin-bottom: 16px;
+}
+
+.empty-state h3 {
+  font-size: 20px;
+  color: #374151;
+  margin: 0 0 8px 0;
+}
+
+.empty-state p {
+  margin: 0 0 20px 0;
+  color: #6b7280;
+}
+
+/* Loading состояние */
+.rentals-page.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e9ecef;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .rentals-page {
+    padding: 16px;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .page-header h1 {
+    font-size: 24px;
+  }
+  
+  .header-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+  }
+  
+  .rentals-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .stat-card {
+    padding: 16px;
+  }
+  
+  .stat-number {
+    font-size: 24px;
+  }
+  
+  /* Таблица на мобильных */
+  .rentals-table {
+    font-size: 12px;
+  }
+  
+  .rentals-table th,
+  .rentals-table td {
+    padding: 12px 8px;
+  }
+  
+  /* Скрываем некоторые колонки на мобильных */
+  .rentals-table th:nth-child(3),
+  .rentals-table td:nth-child(3),
+  .rentals-table th:nth-child(4),
+  .rentals-table td:nth-child(4) {
+    display: none;
+  }
+  
+  .rental-actions {
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .btn-icon {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-header h1 {
+    font-size: 20px;
+  }
+  
+  .header-controls {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .rentals-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .filter-group,
+  .search-box {
+    width: 100%;
+  }
+  
+  /* Еще больше упрощаем таблицу */
+  .rentals-table th:nth-child(5),
+  .rentals-table td:nth-child(5) {
+    display: none;
+  }
+}

@@ -3,9 +3,51 @@ import { FiPlus, FiSearch, FiFilter, FiCalendar, FiUsers, FiHome, FiEye, FiEdit2
 import { useData } from '../../contexts/DataContext';
 import RentalModal from './Floor/RentalModal';
 import RentalDetailModal from './RentalDetailModal.jsx';
-import QuickPaymentPopup from '../../components/Payments/QuickPaymentPopup';
-import { PaymentManager } from '../../components/Payments';
+import { QuickPaymentPopup, PaymentManager } from '../../components/Payments';
 import './Pages.css';
+
+// Добавляем CSS для модальных окон в head
+const modalStyles = `
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 9999 !important;
+  padding: 20px !important;
+}
+
+.quick-payment-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  z-index: 10001 !important;
+  padding-top: 100px !important;
+}
+
+body.modal-open {
+  overflow: hidden !important;
+}
+`;
+
+// Добавляем стили в head если их еще нет
+if (!document.getElementById('modal-styles')) {
+  const style = document.createElement('style');
+  style.id = 'modal-styles';
+  style.textContent = modalStyles;
+  document.head.appendChild(style);
+}
 
 const Rentals = () => {
   const { rentals, properties, clients, utils } = useData();
@@ -44,6 +86,22 @@ const Rentals = () => {
     unpaidCompletedRentals: 0,
     partiallyPaidRentals: 0
   });
+
+  // Управление блокировкой прокрутки body
+  useEffect(() => {
+    const hasOpenModal = showRentalModal || showRentalDetail || showQuickPayment || showPaymentManager;
+    
+    if (hasOpenModal) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+    }
+    
+    // Cleanup при размонтировании компонента
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  }, [showRentalModal, showRentalDetail, showQuickPayment, showPaymentManager]);
 
   // Загрузка данных при монтировании компонента
   useEffect(() => {
@@ -195,12 +253,16 @@ const Rentals = () => {
 
   // Функция для открытия деталей аренды
   const handleViewRentalDetails = (rental) => {
+    console.log('Opening rental details for:', rental);
     setSelectedRental(rental);
     setShowRentalDetail(true);
   };
 
   // Функция для быстрого платежа
   const handleQuickPayment = (rental, event) => {
+    console.log('Opening quick payment for:', rental);
+    event.stopPropagation(); // Предотвращаем всплытие события
+    
     const rect = event.target.getBoundingClientRect();
     const position = {
       x: rect.left + rect.width / 2,
@@ -217,7 +279,10 @@ const Rentals = () => {
   };
 
   // Функция для открытия полного менеджера платежей
-  const handleOpenPaymentManager = (rental) => {
+  const handleOpenPaymentManager = (rental, event) => {
+    console.log('Opening payment manager for:', rental);
+    event.stopPropagation(); // Предотвращаем всплытие события
+    
     setSelectedRentalForPayment({
       ...rental,
       client: clientsList.find(c => c.id === rental.client_id),
@@ -473,6 +538,7 @@ const Rentals = () => {
               <button 
                 className="clear-search"
                 onClick={() => setSearchTerm('')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
               >
                 <FiX />
               </button>
@@ -524,6 +590,7 @@ const Rentals = () => {
           <button 
             className="btn-primary"
             onClick={() => {
+              console.log('Opening new rental modal');
               setSelectedRental(null);
               setShowRentalModal(true);
             }}
@@ -666,13 +733,21 @@ const Rentals = () => {
                           </div>
                         )}
                         <div className="payment-progress">
-                          <div className="progress-bar">
+                          <div className="progress-bar" style={{ 
+                            width: '100%', 
+                            height: '4px', 
+                            backgroundColor: '#e5e7eb', 
+                            borderRadius: '2px',
+                            overflow: 'hidden'
+                          }}>
                             <div 
                               className="progress-fill"
                               style={{ 
                                 width: `${Math.min(((rental.paid_amount || 0) / rental.total_amount) * 100, 100)}%`,
+                                height: '100%',
                                 backgroundColor: paymentStatus.status === 'paid' ? '#10b981' : 
-                                                paymentStatus.status === 'partial' ? '#f59e0b' : '#ef4444'
+                                                paymentStatus.status === 'partial' ? '#f59e0b' : '#ef4444',
+                                transition: 'width 0.3s ease'
                               }}
                             />
                           </div>
@@ -680,7 +755,7 @@ const Rentals = () => {
                       </div>
                     </td>
                     <td>
-                      <div className="rental-actions">
+                      <div className="rental-actions" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                         {/* Кнопки для работы с платежами */}
                         {outstanding > 0 && (
                           <>
@@ -697,14 +772,14 @@ const Rentals = () => {
                                 padding: '8px',
                                 borderRadius: '4px',
                                 cursor: 'pointer',
-                                marginRight: '4px'
+                                fontSize: '14px'
                               }}
                             >
                               <FiDollarSign />
                             </button>
                             <button 
                               className="btn-icon payment-manager"
-                              onClick={() => handleOpenPaymentManager(rental)}
+                              onClick={(e) => handleOpenPaymentManager(rental, e)}
                               title="Управление платежами"
                               style={{
                                 backgroundColor: '#3b82f6',
@@ -713,7 +788,7 @@ const Rentals = () => {
                                 padding: '8px',
                                 borderRadius: '4px',
                                 cursor: 'pointer',
-                                marginRight: '4px'
+                                fontSize: '14px'
                               }}
                             >
                               <FiCreditCard />
@@ -721,10 +796,13 @@ const Rentals = () => {
                           </>
                         )}
                         
-                        {/* Кнопка подробнее - ОБНОВЛЕНО */}
+                        {/* Кнопка подробнее */}
                         <button 
                           className="btn-icon view"
-                          onClick={() => handleViewRentalDetails(rental)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewRentalDetails(rental);
+                          }}
                           title="Подробная информация"
                           style={{
                             backgroundColor: '#6b7280',
@@ -733,7 +811,7 @@ const Rentals = () => {
                             padding: '8px',
                             borderRadius: '4px',
                             cursor: 'pointer',
-                            marginRight: '4px'
+                            fontSize: '14px'
                           }}
                         >
                           <FiEye />
@@ -743,8 +821,20 @@ const Rentals = () => {
                         {status === 'pending_checkin' && (
                           <button 
                             className="btn-icon checkin"
-                            onClick={() => handleCheckIn(rental)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCheckIn(rental);
+                            }}
                             title="Заселить"
+                            style={{
+                              backgroundColor: '#10b981',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
                           >
                             <FiLogIn />
                           </button>
@@ -754,15 +844,39 @@ const Rentals = () => {
                           <>
                             <button 
                               className="btn-icon checkout"
-                              onClick={() => handleCheckOut(rental)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCheckOut(rental);
+                              }}
                               title="Выселить"
+                              style={{
+                                backgroundColor: '#f59e0b',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                              }}
                             >
                               <FiLogOut />
                             </button>
                             <button 
                               className="btn-icon extend"
-                              onClick={() => handleExtendRental(rental, 1)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExtendRental(rental, 1);
+                              }}
                               title="Продлить на 1 день"
+                              style={{
+                                backgroundColor: '#8b5cf6',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                              }}
                             >
                               <FiClock />
                             </button>
@@ -771,11 +885,22 @@ const Rentals = () => {
                         
                         <button 
                           className="btn-icon edit"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            console.log('Opening edit modal for rental:', rental);
                             setSelectedRental(rental);
                             setShowRentalModal(true);
                           }}
                           title="Редактировать"
+                          style={{
+                            backgroundColor: '#6366f1',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
                         >
                           <FiEdit2 />
                         </button>
@@ -783,8 +908,20 @@ const Rentals = () => {
                         {rental.is_active && (
                           <button 
                             className="btn-icon cancel"
-                            onClick={() => handleCancelRental(rental)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancelRental(rental);
+                            }}
                             title="Отменить"
+                            style={{
+                              backgroundColor: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
                           >
                             <FiX />
                           </button>
@@ -830,13 +967,28 @@ const Rentals = () => {
 
       {/* Быстрые действия для проблемных оплат */}
       {(stats.unpaidCompletedRentals > 0 || stats.partiallyPaidRentals > 0) && (
-        <div className="payment-alerts">
-          <h3>⚠️ Требуют внимания:</h3>
-          <div className="alert-actions">
+        <div className="payment-alerts" style={{
+          backgroundColor: '#fef3c7',
+          border: '1px solid #f59e0b',
+          borderRadius: '8px',
+          padding: '16px',
+          marginTop: '24px'
+        }}>
+          <h3 style={{ margin: '0 0 12px 0', color: '#92400e' }}>⚠️ Требуют внимания:</h3>
+          <div className="alert-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             {stats.unpaidCompletedRentals > 0 && (
               <button 
                 className="alert-btn critical"
                 onClick={() => setStatusFilter('unpaid_completed')}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
               >
                 🔴 {stats.unpaidCompletedRentals} завершенных без оплаты
               </button>
@@ -845,6 +997,15 @@ const Rentals = () => {
               <button 
                 className="alert-btn warning"
                 onClick={() => setStatusFilter('partially_paid')}
+                style={{
+                  backgroundColor: '#f59e0b',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
               >
                 🟡 {stats.partiallyPaidRentals} частично оплаченных
               </button>
@@ -855,77 +1016,98 @@ const Rentals = () => {
 
       {/* Модальные окна */}
       {showQuickPayment && selectedRentalForPayment && (
-        <QuickPaymentPopup
-          rental={selectedRentalForPayment}
-          position={selectedRentalForPayment.popupPosition}
-          onClose={() => {
+        <div 
+          className="quick-payment-overlay"
+          onClick={() => {
+            console.log('Closing quick payment popup via overlay');
             setShowQuickPayment(false);
             setSelectedRentalForPayment(null);
           }}
-          onPaymentAdd={handlePaymentAdd}
-        />
+        >
+          <QuickPaymentPopup
+            rental={selectedRentalForPayment}
+            position={selectedRentalForPayment.popupPosition}
+            onClose={() => {
+              console.log('Closing quick payment popup');
+              setShowQuickPayment(false);
+              setSelectedRentalForPayment(null);
+            }}
+            onPaymentAdd={handlePaymentAdd}
+          />
+        </div>
       )}
 
       {/* Полный менеджер платежей */}
       {showPaymentManager && selectedRentalForPayment && (
-        <PaymentManager
-          rental={selectedRentalForPayment}
-          onClose={() => {
-            setShowPaymentManager(false);
-            setSelectedRentalForPayment(null);
-          }}
-          onPaymentUpdate={(updatedRental) => {
-            const updateRental = (rental) => {
-              if (rental.id === updatedRental.id) {
-                return updatedRental;
-              }
-              return rental;
-            };
-            
-            setRentalsList(prev => prev.map(updateRental));
-            setFilteredRentals(prev => prev.map(updateRental));
-            
-            loadData();
-          }}
-        />
+        <div className="modal-overlay">
+          <PaymentManager
+            rental={selectedRentalForPayment}
+            onClose={() => {
+              console.log('Closing payment manager');
+              setShowPaymentManager(false);
+              setSelectedRentalForPayment(null);
+            }}
+            onPaymentUpdate={(updatedRental) => {
+              console.log('Payment updated:', updatedRental);
+              const updateRental = (rental) => {
+                if (rental.id === updatedRental.id) {
+                  return updatedRental;
+                }
+                return rental;
+              };
+              
+              setRentalsList(prev => prev.map(updateRental));
+              setFilteredRentals(prev => prev.map(updateRental));
+              
+              loadData();
+            }}
+          />
+        </div>
       )}
 
       {/* Модальное окно создания/редактирования аренды */}
       {showRentalModal && (
-        <RentalModal
-          rental={selectedRental}
-          room={selectedProperty}
-          onClose={() => {
-            setShowRentalModal(false);
-            setSelectedRental(null);
-            setSelectedProperty(null);
-          }}
-          onSubmit={selectedRental ? handleUpdateRental : handleCreateRental}
-        />
+        <div className="modal-overlay">
+          <RentalModal
+            rental={selectedRental}
+            room={selectedProperty}
+            onClose={() => {
+              console.log('Closing rental modal');
+              setShowRentalModal(false);
+              setSelectedRental(null);
+              setSelectedProperty(null);
+            }}
+            onSubmit={selectedRental ? handleUpdateRental : handleCreateRental}
+          />
+        </div>
       )}
 
-      {/* НОВОЕ: Модальное окно деталей аренды */}
+      {/* Модальное окно деталей аренды */}
       {showRentalDetail && selectedRental && (
-        <RentalDetailModal
-          rental={selectedRental}
-          onClose={() => {
-            setShowRentalDetail(false);
-            setSelectedRental(null);
-          }}
-          onPaymentUpdate={(updatedRental) => {
-            const updateRental = (rental) => {
-              if (rental.id === updatedRental.id) {
-                return updatedRental;
-              }
-              return rental;
-            };
-            
-            setRentalsList(prev => prev.map(updateRental));
-            setFilteredRentals(prev => prev.map(updateRental));
-            
-            loadData();
-          }}
-        />
+        <div className="modal-overlay">
+          <RentalDetailModal
+            rental={selectedRental}
+            onClose={() => {
+              console.log('Closing rental detail modal');
+              setShowRentalDetail(false);
+              setSelectedRental(null);
+            }}
+            onPaymentUpdate={(updatedRental) => {
+              console.log('Payment updated from detail modal:', updatedRental);
+              const updateRental = (rental) => {
+                if (rental.id === updatedRental.id) {
+                  return updatedRental;
+                }
+                return rental;
+              };
+              
+              setRentalsList(prev => prev.map(updateRental));
+              setFilteredRentals(prev => prev.map(updateRental));
+              
+              loadData();
+            }}
+          />
+        </div>
       )}
     </div>
   );
