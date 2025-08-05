@@ -83,63 +83,6 @@ const Reports = () => {
     }
   };
 
-  // Функция для отладки данных отчетов
-  const handleDebugReports = async () => {
-    try {
-      const startDateTime = dateRange.start + 'T00:00:00';
-      const endDateTime = dateRange.end + 'T23:59:59';
-      
-      console.log('=== ОТЛАДКА ДАННЫХ ОТЧЕТОВ ===');
-      
-      // Получаем отладочную информацию через прямой API вызов
-      const { reportsAPI } = await import('../../services/api');
-      const debugData = await reportsAPI.debugDataSources(startDateTime, endDateTime);
-      console.log('Debug data sources:', debugData);
-      
-      // Показываем информацию пользователю
-      const message = `
-Период отчета: ${debugData.report_period.start_date.split('T')[0]} - ${debugData.report_period.end_date.split('T')[0]}
-Продолжительность: ${debugData.report_period.duration_days} дней
-
-Данные в системе:
-- Пользователи: ${debugData.data_sources.users?.count || 0}
-- Аренды за период: ${debugData.data_sources.rentals?.count || 0}
-- Выполненные задачи: ${debugData.data_sources.tasks?.count || 0}
-- Зарплаты за период: ${debugData.data_sources.payrolls?.count || 0}
-- Выплаченные зарплаты: ${debugData.data_sources.payrolls?.paid_count || 0}
-- Общая сумма выплат: ₸ ${debugData.data_sources.payrolls?.total_paid_amount?.toLocaleString() || 0}
-- Клиенты: ${debugData.data_sources.clients?.count || 0}
-- Помещения: ${debugData.data_sources.properties?.count || 0}
-
-Проблемы:
-${debugData.data_sources.payrolls?.count === 0 ? '⚠️ Нет зарплат за выбранный период' : ''}
-${debugData.data_sources.payrolls?.paid_count === 0 ? '⚠️ Нет выплаченных зарплат' : ''}
-${debugData.data_sources.rentals?.count === 0 ? '⚠️ Нет аренд за период' : ''}
-      `.trim();
-      
-      alert(message);
-      
-      // Если есть проблемы с зарплатами, показываем детали по каждому сотруднику
-      if (reportsData.employeePerformance && reportsData.employeePerformance.length > 0) {
-        for (const emp of reportsData.employeePerformance) {
-          if (emp.earnings === 0) {
-            console.log(`Debugging employee ${emp.user_name}...`);
-            try {
-              const empDebug = await reportsAPI.debugEmployeeEarnings(emp.user_id, startDateTime, endDateTime);
-              console.log(`Employee debug for ${emp.user_name}:`, empDebug);
-            } catch (error) {
-              console.error(`Failed to debug employee ${emp.user_name}:`, error);
-            }
-          }
-        }
-      }
-      
-    } catch (error) {
-      console.error('Debug failed:', error);
-      utils.showError('Не удалось получить отладочную информацию');
-    }
-  };
-
   // Универсальная функция для экспорта с улучшенной отладкой
   const handleExport = async (reportType, format = 'xlsx') => {
     const exportKey = `${reportType}_${format}`;
@@ -278,17 +221,6 @@ ${debugData.data_sources.rentals?.count === 0 ? '⚠️ Нет аренд за �
               disabled={loading}
             />
           </div>
-          {process.env.NODE_ENV === 'development' && (
-            <button 
-              className="btn-outline debug-btn"
-              onClick={handleDebugReports}
-              disabled={loading}
-              title="Отладка данных отчетов"
-              style={{ backgroundColor: '#ff6b6b', color: 'white', border: '1px solid #ff5252' }}
-            >
-              🐛 Debug
-            </button>
-          )}
           <button 
             className="btn-outline"
             onClick={loadReportsData}

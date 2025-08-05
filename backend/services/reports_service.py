@@ -1,4 +1,4 @@
-# backend/services/reports_service.py
+# backend/services/reports_service.py - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -23,7 +23,220 @@ from schemas.reports import (
 
 
 class ReportsService:
-    """Сервис для генерации отчетов и аналитики"""
+    """Исправленный сервис для генерации отчетов и аналитики"""
+    
+    @staticmethod
+    def debug_report_data(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> Dict[str, Any]:
+        """Отладочная информация о данных для отчетов"""
+        
+        debug_info = {
+            "period": {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "duration_days": (end_date - start_date).days
+            },
+            "data_counts": {},
+            "sample_data": {},
+            "date_ranges": {}
+        }
+        
+        # Проверяем все основные таблицы
+        tables_to_check = [
+            ("rentals", Rental),
+            ("clients", Client),
+            ("properties", Property),
+            ("tasks", Task),
+            ("room_orders", RoomOrder),
+            ("payrolls", Payroll),
+            ("users", User)
+        ]
+        
+        for table_name, model in tables_to_check:
+            # Общее количество записей в организации
+            total_count = db.query(model).filter(
+                model.organization_id == organization_id
+            ).count()
+            
+            debug_info["data_counts"][f"{table_name}_total"] = total_count
+            
+            if hasattr(model, 'created_at'):
+                # Записи за период
+                period_count = db.query(model).filter(
+                    and_(
+                        model.organization_id == organization_id,
+                        model.created_at >= start_date,
+                        model.created_at <= end_date
+                    )
+                ).count()
+                debug_info["data_counts"][f"{table_name}_period"] = period_count
+                
+                # Диапазон дат в таблице
+                date_range = db.query(
+                    func.min(model.created_at),
+                    func.max(model.created_at)
+                ).filter(model.organization_id == organization_id).first()
+                
+                debug_info["date_ranges"][table_name] = {
+                    "min_date": date_range[0].isoformat() if date_range[0] else None,
+                    "max_date": date_range[1].isoformat() if date_range[1] else None
+                }
+                
+                # Последние 3 записи для примера
+                sample_records = db.query(model).filter(
+                    model.organization_id == organization_id
+                ).order_by(desc(model.created_at)).limit(3).all()
+                
+                debug_info["sample_data"][table_name] = [
+                    {
+                        "id": str(record.id),
+                        "created_at": record.created_at.isoformat() if record.created_at else None,
+                        "details": ReportsService._get_record_details(record)
+                    }
+                    for record in sample_records
+                ]
+        
+        # Специальная проверка для платежей (paid_amount в аренде)
+        rental_payments = db.query(
+            func.sum(Rental.paid_amount),
+            func.count(Rental.id),
+            func.avg(Rental.paid_amount)
+        ).filter(
+            and_(
+                Rental.organization_id == organization_id,
+                Rental.paid_amount > 0
+            )
+        ).first()
+        
+        debug_info["payments"] = {
+            "total_paid_amount": float(rental_payments[0] or 0),
+            "rentals_with_payments": rental_payments[1] or 0,
+            "average_payment": float(rental_payments[2] or 0)
+        }
+        
+        return debug_info
+    
+    @staticmethod
+    def _get_record_details(record) -> Dict[str, Any]:
+        """Получить детали записи для отладки"""
+        details = {}
+        
+        if isinstance(record, Rental):
+            details = {
+                "total_amount": record.total_amount,
+                "paid_amount": record.paid_amount,
+                "is_active": record.is_active,
+                "start_date": record.start_date.isoformat() if record.start_date else None,
+                "end_date": record.end_date.isoformat() if record.end_date else None
+            }
+        elif isinstance(record, Client):
+            details = {
+                "name": f"{record.first_name} {record.last_name}",
+                "total_rentals": record.total_rentals,
+                "total_spent": record.total_spent
+            }
+        elif isinstance(record, Property):
+            details = {
+                "name": record.name,
+                "status": record.status.value if record.status else None,
+                "is_active": record.is_active
+            }
+        elif isinstance(record, Task):
+            details = {
+                "title": record.title,
+                "status": record.status.value if record.status else None,
+                "payment_amount": record.payment_amount
+            }
+        
+        return details
+    
+    @staticmethod
+    def debug_payroll_data(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> Dict[str, Any]:
+        """Отладка данных зарплат"""
+        
+        print(f"🔍 Отладка зарплат для организации {organization_id}")
+        print(f"📅 Отчетный период: {start_date} - {end_date}")
+        
+        # Получаем все зарплаты в организации
+        all_payrolls = db.query(Payroll).filter(
+            Payroll.organization_id == organization_id
+        ).all()
+        
+        debug_info = {
+            "total_payrolls": len(all_payrolls),
+            "paid_payrolls": len([p for p in all_payrolls if p.is_paid]),
+            "unpaid_payrolls": len([p for p in all_payrolls if not p.is_paid]),
+            "payroll_details": [],
+            "period_analysis": {
+                "report_start": start_date.isoformat(),
+                "report_end": end_date.isoformat(),
+                "overlapping_payrolls": 0,
+                "total_expense_in_period": 0
+            }
+        }
+        
+        total_expense = 0
+        overlapping_count = 0
+        
+        for payroll in all_payrolls:
+            # Убираем часовой пояс для сравнения
+            payroll_start = payroll.period_start.replace(tzinfo=None) if payroll.period_start.tzinfo else payroll.period_start
+            payroll_end = payroll.period_end.replace(tzinfo=None) if payroll.period_end.tzinfo else payroll.period_end
+            report_start = start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
+            report_end = end_date.replace(tzinfo=None) if end_date.tzinfo else end_date
+            
+            # Проверяем пересечение
+            has_overlap = payroll_start <= report_end and payroll_end >= report_start
+            
+            payroll_detail = {
+                "id": str(payroll.id),
+                "user_name": f"{payroll.user.first_name} {payroll.user.last_name}" if payroll.user else "Unknown",
+                "period_start": payroll_start.isoformat(),
+                "period_end": payroll_end.isoformat(),
+                "net_amount": payroll.net_amount,
+                "is_paid": payroll.is_paid,
+                "has_overlap": has_overlap,
+                "expense_in_period": 0
+            }
+            
+            if has_overlap and payroll.is_paid:
+                overlapping_count += 1
+                
+                # Вычисляем пересечение
+                overlap_start = max(payroll_start, report_start)
+                overlap_end = min(payroll_end, report_end)
+                
+                if overlap_end > overlap_start:
+                    overlap_days = (overlap_end - overlap_start).days + 1
+                    total_payroll_days = (payroll_end - payroll_start).days + 1
+                    
+                    if total_payroll_days > 0:
+                        proportion = overlap_days / total_payroll_days
+                        expense_for_period = payroll.net_amount * proportion
+                        total_expense += expense_for_period
+                        payroll_detail["expense_in_period"] = expense_for_period
+                        payroll_detail["proportion"] = proportion
+                        payroll_detail["overlap_days"] = overlap_days
+                        payroll_detail["total_payroll_days"] = total_payroll_days
+            
+            debug_info["payroll_details"].append(payroll_detail)
+        
+        debug_info["period_analysis"]["overlapping_payrolls"] = overlapping_count
+        debug_info["period_analysis"]["total_expense_in_period"] = total_expense
+        
+        print(f"📊 Найдено {overlapping_count} пересекающихся зарплат")
+        print(f"💰 Общие расходы за период: {total_expense}")
+        
+        return debug_info
     
     @staticmethod
     def generate_financial_summary(
@@ -32,74 +245,131 @@ class ReportsService:
         start_date: datetime,
         end_date: datetime
     ) -> FinancialSummaryReport:
-        """Генерация финансового сводного отчета"""
+        """ИСПРАВЛЕННАЯ генерация финансового сводного отчета"""
         
-        # Доходы от аренды
-        rental_revenue = db.query(func.sum(Rental.paid_amount)).filter(
+        print(f"🔍 Генерация финансового отчета для организации {organization_id}")
+        print(f"📅 Период: {start_date} - {end_date}")
+        
+        # ИСПРАВЛЕНО: Используем правильное поле created_at и диапазон дат
+        rental_revenue_query = db.query(func.sum(Rental.paid_amount)).filter(
             and_(
                 Rental.organization_id == organization_id,
                 Rental.created_at >= start_date,
-                Rental.created_at <= end_date
+                Rental.created_at <= end_date,
+                Rental.paid_amount > 0  # Только оплаченные аренды
             )
-        ).scalar() or 0.0
+        )
+        rental_revenue = rental_revenue_query.scalar() or 0.0
         
-        # Доходы от заказов в номер
-        orders_revenue = db.query(func.sum(RoomOrder.total_amount)).filter(
+        print(f"💰 Выручка от аренды: {rental_revenue}")
+        
+        # ИСПРАВЛЕНО: Заказы в номер - проверяем правильные поля
+        orders_revenue_query = db.query(func.sum(RoomOrder.total_amount)).filter(
             and_(
                 RoomOrder.organization_id == organization_id,
                 RoomOrder.is_paid == True,
-                RoomOrder.requested_at >= start_date,
-                RoomOrder.requested_at <= end_date
+                RoomOrder.created_at >= start_date,  # Используем created_at вместо requested_at
+                RoomOrder.created_at <= end_date
             )
-        ).scalar() or 0.0
+        )
+        orders_revenue = orders_revenue_query.scalar() or 0.0
         
-        # Общая выручка
+        print(f"🛎️ Выручка от заказов: {orders_revenue}")
+        
         total_revenue = rental_revenue + orders_revenue
+        print(f"💵 Общая выручка: {total_revenue}")
         
-        # Расходы на персонал
-        staff_expenses = db.query(func.sum(Payroll.net_amount)).filter(
+        # ИСПРАВЛЕНО: Расходы на персонал - правильный расчет с пересечением периодов
+        all_payrolls = db.query(Payroll).filter(
             and_(
                 Payroll.organization_id == organization_id,
-                Payroll.period_start >= start_date,
-                Payroll.period_end <= end_date,
                 Payroll.is_paid == True
             )
-        ).scalar() or 0.0
+        ).all()
         
-        # Расходы на материалы (через движения инвентаря)
-        from models.extended_models import InventoryMovement
-        material_expenses = db.query(func.sum(InventoryMovement.total_cost)).filter(
-            and_(
-                InventoryMovement.organization_id == organization_id,
-                InventoryMovement.movement_type == "out",
-                InventoryMovement.created_at >= start_date,
-                InventoryMovement.created_at <= end_date
+        staff_expenses = 0
+        print(f"💼 Всего зарплат в организации: {len(all_payrolls)}")
+        
+        for payroll in all_payrolls:
+            # Убираем часовой пояс для сравнения
+            payroll_start = payroll.period_start.replace(tzinfo=None) if payroll.period_start.tzinfo else payroll.period_start
+            payroll_end = payroll.period_end.replace(tzinfo=None) if payroll.period_end.tzinfo else payroll.period_end
+            report_start = start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
+            report_end = end_date.replace(tzinfo=None) if end_date.tzinfo else end_date
+            
+            # Проверяем пересечение периодов
+            if payroll_start <= report_end and payroll_end >= report_start:
+                # Вычисляем пересечение
+                overlap_start = max(payroll_start, report_start)
+                overlap_end = min(payroll_end, report_end)
+                
+                if overlap_end > overlap_start:
+                    # Длительность пересечения
+                    overlap_days = (overlap_end - overlap_start).days + 1
+                    # Длительность всего периода зарплаты
+                    total_payroll_days = (payroll_end - payroll_start).days + 1
+                    
+                    if total_payroll_days > 0:
+                        # Пропорциональная часть зарплаты
+                        proportion = overlap_days / total_payroll_days
+                        expense_for_period = payroll.net_amount * proportion
+                        staff_expenses += expense_for_period
+                        
+                        print(f"💰 Зарплата {payroll.id}: {payroll.net_amount} ₸ (пропорция: {proportion:.2f}, добавлено: {expense_for_period:.2f})")
+        
+        print(f"👥 Расходы на персонал (исправлено): {staff_expenses}")
+        
+        # ИСПРАВЛЕНО: Расходы на материалы
+        try:
+            from models.extended_models import InventoryMovement
+            material_expenses_query = db.query(func.sum(InventoryMovement.total_cost)).filter(
+                and_(
+                    InventoryMovement.organization_id == organization_id,
+                    InventoryMovement.movement_type == "out",
+                    InventoryMovement.created_at >= start_date,
+                    InventoryMovement.created_at <= end_date,
+                    InventoryMovement.total_cost > 0
+                )
             )
-        ).scalar() or 0.0
+            material_expenses = material_expenses_query.scalar() or 0.0
+        except Exception as e:
+            print(f"⚠️ Ошибка при получении расходов на материалы: {e}")
+            material_expenses = 0.0
         
-        # Общие расходы
+        print(f"📦 Расходы на материалы: {material_expenses}")
+        
         total_expenses = staff_expenses + material_expenses
-        
-        # Чистая прибыль
         net_profit = total_revenue - total_expenses
         
-        # Загруженность помещений
+        print(f"📊 Общие расходы: {total_expenses}")
+        print(f"💡 Чистая прибыль: {net_profit}")
+        
+        # ИСПРАВЛЕНО: Загруженность помещений
         occupancy_rate = ReportsService._calculate_occupancy_rate(
             db, organization_id, start_date, end_date
         )
         
         # Количество помещений
         properties_count = db.query(Property).filter(
-            Property.organization_id == organization_id
+            and_(
+                Property.organization_id == organization_id,
+                Property.is_active == True
+            )
         ).count()
         
-        # Активные аренды
+        # ИСПРАВЛЕНО: Активные аренды на текущий момент
+        now = datetime.now(timezone.utc)
         active_rentals = db.query(Rental).filter(
             and_(
                 Rental.organization_id == organization_id,
-                Rental.is_active == True
+                Rental.is_active == True,
+                Rental.start_date <= now,
+                Rental.end_date >= now
             )
         ).count()
+        
+        print(f"🏢 Помещений: {properties_count}, Активных аренд: {active_rentals}")
+        print(f"📈 Загруженность: {occupancy_rate}%")
         
         return FinancialSummaryReport(
             period_start=start_date,
@@ -124,9 +394,17 @@ class ReportsService:
         end_date: datetime,
         property_id: Optional[uuid.UUID] = None
     ) -> List[PropertyOccupancyReport]:
-        """Генерация отчета по загруженности помещений"""
+        """ИСПРАВЛЕННАЯ генерация отчета по загруженности помещений"""
         
-        query = db.query(Property).filter(Property.organization_id == organization_id)
+        print(f"🏢 Генерация отчета по загруженности помещений")
+        print(f"📅 Период: {start_date} - {end_date}")
+        
+        query = db.query(Property).filter(
+            and_(
+                Property.organization_id == organization_id,
+                Property.is_active == True
+            )
+        )
         
         if property_id:
             query = query.filter(Property.id == property_id)
@@ -134,37 +412,57 @@ class ReportsService:
         properties = query.all()
         reports = []
         
-        period_days = (end_date - start_date).days
+        period_days = (end_date - start_date).days + 1  # +1 чтобы включить последний день
+        print(f"📊 Период составляет {period_days} дней")
         
         for prop in properties:
-            # Находим все аренды для данного помещения в указанный период
-            rentals = db.query(Rental).filter(
+            print(f"🔍 Анализ помещения: {prop.name} ({prop.number})")
+            
+            # ИСПРАВЛЕНО: Находим аренды с учетом пересечения периодов
+            rentals_query = db.query(Rental).filter(
                 and_(
                     Rental.property_id == prop.id,
-                    or_(
-                        and_(Rental.start_date <= start_date, Rental.end_date > start_date),
-                        and_(Rental.start_date < end_date, Rental.end_date >= end_date),
-                        and_(Rental.start_date >= start_date, Rental.end_date <= end_date)
-                    )
+                    Rental.organization_id == organization_id,
+                    # Аренда пересекается с отчетным периодом
+                    Rental.start_date < end_date,
+                    Rental.end_date > start_date
                 )
-            ).all()
+            )
+            
+            rentals = rentals_query.all()
+            print(f"📝 Найдено аренд: {len(rentals)}")
             
             # Вычисляем занятые дни
             occupied_days = 0
-            for rental in rentals:
-                overlap_start = max(rental.start_date, start_date)
-                overlap_end = min(rental.end_date, end_date)
-                if overlap_end > overlap_start:
-                    occupied_days += (overlap_end - overlap_start).days
+            total_revenue = 0
             
-            # Вычисляем доходы
-            revenue = sum(
-                rental.paid_amount for rental in rentals
-                if rental.start_date >= start_date and rental.end_date <= end_date
-            )
+            for rental in rentals:
+                # Пересечение аренды с отчетным периодом
+                overlap_start = max(rental.start_date.replace(tzinfo=None), start_date.replace(tzinfo=None))
+                overlap_end = min(rental.end_date.replace(tzinfo=None), end_date.replace(tzinfo=None))
+                
+                if overlap_end > overlap_start:
+                    days_in_period = (overlap_end - overlap_start).days + 1
+                    occupied_days += days_in_period
+                    
+                    # ИСПРАВЛЕНО: Пропорциональный расчет дохода
+                    total_rental_days = (rental.end_date - rental.start_date).days + 1
+                    if total_rental_days > 0:
+                        revenue_per_day = rental.paid_amount / total_rental_days
+                        total_revenue += revenue_per_day * days_in_period
+                    
+                    print(f"  ⏰ Аренда {rental.id}: {overlap_start} - {overlap_end} ({days_in_period} дней)")
             
             # Коэффициент загруженности
             occupancy_rate = (occupied_days / period_days * 100) if period_days > 0 else 0
+            
+            # Ограничиваем максимум 100%
+            if occupancy_rate > 100:
+                print(f"⚠️ Загруженность превышает 100% ({occupancy_rate:.2f}%), ограничиваем")
+                occupied_days = period_days
+                occupancy_rate = 100.0
+            
+            print(f"  📊 Занятых дней: {occupied_days}/{period_days}, загруженность: {occupancy_rate:.2f}%")
             
             reports.append(PropertyOccupancyReport(
                 property_id=str(prop.id),
@@ -173,12 +471,11 @@ class ReportsService:
                 total_days=period_days,
                 occupied_days=occupied_days,
                 occupancy_rate=round(occupancy_rate, 2),
-                revenue=revenue
+                revenue=round(total_revenue, 2)
             ))
         
         return sorted(reports, key=lambda x: x.occupancy_rate, reverse=True)
     
-
     @staticmethod
     def generate_employee_performance_report(
         db: Session,
@@ -188,7 +485,10 @@ class ReportsService:
         role: Optional[UserRole] = None,
         user_id: Optional[uuid.UUID] = None
     ) -> List[EmployeePerformanceReport]:
-        """Генерация отчета по производительности сотрудников"""
+        """ИСПРАВЛЕННАЯ генерация отчета по производительности сотрудников"""
+        
+        print(f"👥 Генерация отчета по производительности сотрудников")
+        print(f"📅 Период: {start_date} - {end_date}")
         
         query = db.query(User).filter(User.organization_id == organization_id)
         
@@ -199,10 +499,14 @@ class ReportsService:
             query = query.filter(User.id == user_id)
         
         employees = query.all()
+        print(f"👤 Найдено сотрудников: {len(employees)}")
+        
         reports = []
         
         for employee in employees:
-            # Выполненные задачи
+            print(f"🔍 Анализ сотрудника: {employee.first_name} {employee.last_name}")
+            
+            # Выполненные задачи за период
             completed_tasks = db.query(Task).filter(
                 and_(
                     Task.assigned_to == employee.id,
@@ -211,6 +515,8 @@ class ReportsService:
                     Task.completed_at <= end_date
                 )
             ).all()
+            
+            print(f"✅ Выполненных задач: {len(completed_tasks)}")
             
             # Среднее время выполнения
             avg_completion_time = None
@@ -229,47 +535,57 @@ class ReportsService:
             ]
             avg_quality = sum(quality_ratings) / len(quality_ratings) if quality_ratings else None
             
-            # ИСПРАВЛЕНО: Заработок берем из ЗАРПЛАТ за период, а не только из задач
+            # ИСПРАВЛЕНО: Правильный расчет заработка
             total_earnings = 0
             
-            # 1. Заработок из зарплат за период
-            payroll_earnings = db.query(func.sum(Payroll.net_amount)).filter(
+            # 1. Получаем ВСЕ зарплаты сотрудника
+            all_payrolls = db.query(Payroll).filter(
                 and_(
                     Payroll.user_id == employee.id,
                     Payroll.organization_id == organization_id,
-                    # Проверяем пересечение периодов зарплаты с отчетным периодом
-                    or_(
-                        # Зарплата полностью в периоде
-                        and_(
-                            Payroll.period_start >= start_date,
-                            Payroll.period_end <= end_date
-                        ),
-                        # Зарплата начинается в периоде
-                        and_(
-                            Payroll.period_start >= start_date,
-                            Payroll.period_start <= end_date
-                        ),
-                        # Зарплата заканчивается в периоде
-                        and_(
-                            Payroll.period_end >= start_date,
-                            Payroll.period_end <= end_date
-                        ),
-                        # Зарплата охватывает весь период
-                        and_(
-                            Payroll.period_start <= start_date,
-                            Payroll.period_end >= end_date
-                        )
-                    ),
-                    Payroll.is_paid == True  # Только выплаченные зарплаты
+                    Payroll.is_paid == True
                 )
-            ).scalar() or 0
+            ).all()
             
-            # 2. Дополнительный заработок из задач (если есть индивидуальные доплаты)
+            print(f"💰 Всего зарплат у сотрудника: {len(all_payrolls)}")
+            
+            # 2. Фильтруем зарплаты с пересечением периодов
+            for payroll in all_payrolls:
+                # Убираем часовой пояс для сравнения
+                payroll_start = payroll.period_start.replace(tzinfo=None) if payroll.period_start.tzinfo else payroll.period_start
+                payroll_end = payroll.period_end.replace(tzinfo=None) if payroll.period_end.tzinfo else payroll.period_end
+                report_start = start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
+                report_end = end_date.replace(tzinfo=None) if end_date.tzinfo else end_date
+                
+                # Проверяем пересечение периодов
+                if payroll_start <= report_end and payroll_end >= report_start:
+                    # Вычисляем пересечение
+                    overlap_start = max(payroll_start, report_start)
+                    overlap_end = min(payroll_end, report_end)
+                    
+                    if overlap_end > overlap_start:
+                        # Длительность пересечения
+                        overlap_days = (overlap_end - overlap_start).days + 1
+                        # Длительность всего периода зарплаты
+                        total_payroll_days = (payroll_end - payroll_start).days + 1
+                        
+                        if total_payroll_days > 0:
+                            # Пропорциональная часть зарплаты
+                            proportion = overlap_days / total_payroll_days
+                            earnings_for_period = payroll.net_amount * proportion
+                            total_earnings += earnings_for_period
+                            
+                            print(f"💵 Зарплата {payroll.id}: {payroll.net_amount} ₸ (пропорция: {proportion:.2f}, добавлено: {earnings_for_period:.2f})")
+            
+            # 3. Дополнительный заработок из задач
             task_earnings = sum(task.payment_amount or 0 for task in completed_tasks if task.is_paid)
+            if task_earnings > 0:
+                total_earnings += task_earnings
+                print(f"🎯 Доплата за задачи: {task_earnings}")
             
-            # 3. Операции зарплаты за период (премии, штрафы и т.д.)
+            # 4. Проверяем операции зарплаты (если есть)
             try:
-                from models.extended_models import PayrollOperation
+                from models.payroll_operation import PayrollOperation
                 operation_earnings = db.query(func.sum(PayrollOperation.amount)).filter(
                     and_(
                         PayrollOperation.user_id == employee.id,
@@ -277,13 +593,19 @@ class ReportsService:
                         PayrollOperation.created_at >= start_date,
                         PayrollOperation.created_at <= end_date,
                         PayrollOperation.is_applied == True,
-                        PayrollOperation.operation_type.in_(['bonus', 'overtime', 'allowance'])  # Только доходы
+                        PayrollOperation.operation_type.in_(['bonus', 'overtime', 'allowance'])
                     )
                 ).scalar() or 0
-            except ImportError:
+                
+                if operation_earnings > 0:
+                    total_earnings += operation_earnings
+                    print(f"🎁 Дополнительные выплаты: {operation_earnings}")
+                    
+            except (ImportError, Exception) as e:
+                print(f"⚠️ Не удалось получить операции зарплаты: {e}")
                 operation_earnings = 0
             
-            total_earnings = payroll_earnings + task_earnings + operation_earnings
+            print(f"💎 Итого заработок сотрудника {employee.first_name}: {total_earnings:.2f} ₸")
             
             reports.append(EmployeePerformanceReport(
                 user_id=str(employee.id),
@@ -295,9 +617,9 @@ class ReportsService:
                 earnings=total_earnings
             ))
         
+        print(f"📊 Сформирован отчет по {len(reports)} сотрудникам")
         return sorted(reports, key=lambda x: x.earnings, reverse=True)
     
-
     @staticmethod
     def get_payroll_period_earnings(
         db: Session,
@@ -675,45 +997,123 @@ class ReportsService:
         start_date: datetime,
         end_date: datetime
     ) -> float:
-        """Вычислить коэффициент загруженности помещений"""
+        """ИСПРАВЛЕННОЕ вычисление коэффициента загруженности помещений"""
         
-        # Общее количество помещений
-        total_properties = db.query(Property).filter(
-            Property.organization_id == organization_id
-        ).count()
+        print(f"📊 Расчет загруженности помещений")
+        print(f"📅 Период: {start_date} - {end_date}")
+        
+        # Получаем активные помещения
+        active_properties = db.query(Property).filter(
+            and_(
+                Property.organization_id == organization_id,
+                Property.is_active == True
+            )
+        ).all()
+        
+        total_properties = len(active_properties)
+        print(f"🏢 Активных помещений: {total_properties}")
         
         if total_properties == 0:
             return 0.0
         
         # Общее количество дней в периоде
-        total_days = (end_date - start_date).days
+        total_days = (end_date - start_date).days + 1  # +1 чтобы включить последний день
         if total_days <= 0:
             return 0.0
         
+        print(f"📅 Дней в периоде: {total_days}")
+        
         # Общее количество доступных дней (помещения × дни)
         total_available_days = total_properties * total_days
+        print(f"🎯 Общее количество доступных дней: {total_available_days}")
         
-        # Занятые дни
-        rentals = db.query(Rental).filter(
-            and_(
-                Rental.organization_id == organization_id,
-                or_(
-                    and_(Rental.start_date <= start_date, Rental.end_date > start_date),
-                    and_(Rental.start_date < end_date, Rental.end_date >= end_date),
-                    and_(Rental.start_date >= start_date, Rental.end_date <= end_date)
+        # Считаем занятые дни для каждого помещения
+        total_occupied_days = 0
+        
+        for prop in active_properties:
+            print(f"🔍 Анализ помещения: {prop.name}")
+            
+            # Получаем аренды для этого помещения, которые пересекаются с периодом
+            rentals = db.query(Rental).filter(
+                and_(
+                    Rental.property_id == prop.id,
+                    Rental.organization_id == organization_id,
+                    # Аренда пересекается с отчетным периодом
+                    Rental.start_date < end_date,
+                    Rental.end_date > start_date
                 )
-            )
-        ).all()
+            ).all()
+            
+            print(f"📝 Найдено аренд для помещения: {len(rentals)}")
+            
+            property_occupied_days = 0
+            rental_periods = []
+            
+            for rental in rentals:
+                # Убираем часовой пояс для вычислений
+                rental_start = rental.start_date.replace(tzinfo=None) if rental.start_date.tzinfo else rental.start_date
+                rental_end = rental.end_date.replace(tzinfo=None) if rental.end_date.tzinfo else rental.end_date
+                period_start = start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
+                period_end = end_date.replace(tzinfo=None) if end_date.tzinfo else end_date
+                
+                # Пересечение аренды с отчетным периодом
+                overlap_start = max(rental_start, period_start)
+                overlap_end = min(rental_end, period_end)
+                
+                if overlap_end > overlap_start:
+                    overlap_days = (overlap_end - overlap_start).days + 1
+                    rental_periods.append((overlap_start, overlap_end, overlap_days))
+                    print(f"  ⏰ Аренда {rental.id}: {overlap_start} - {overlap_end} ({overlap_days} дней)")
+            
+            # ИСПРАВЛЕНО: Объединяем пересекающиеся периоды аренды 
+            # чтобы избежать двойного подсчета одних и тех же дней
+            if rental_periods:
+                # Сортируем периоды по дате начала
+                rental_periods.sort(key=lambda x: x[0])
+                
+                merged_periods = []
+                current_start, current_end, _ = rental_periods[0]
+                
+                for start, end, _ in rental_periods[1:]:
+                    if start <= current_end:
+                        # Периоды пересекаются или соприкасаются - объединяем
+                        current_end = max(current_end, end)
+                    else:
+                        # Новый период - сохраняем предыдущий и начинаем новый
+                        merged_periods.append((current_start, current_end))
+                        current_start, current_end = start, end
+                
+                # Добавляем последний период
+                merged_periods.append((current_start, current_end))
+                
+                # Подсчитываем общее количество занятых дней
+                for start, end in merged_periods:
+                    period_days = (end - start).days + 1
+                    property_occupied_days += period_days
+                    print(f"  📊 Объединенный период: {start} - {end} ({period_days} дней)")
+            
+            # Проверяем, что не превышаем максимум дней для помещения
+            max_days_for_property = total_days
+            if property_occupied_days > max_days_for_property:
+                print(f"⚠️ Занятых дней ({property_occupied_days}) больше максимума ({max_days_for_property}), обрезаем")
+                property_occupied_days = max_days_for_property
+            
+            total_occupied_days += property_occupied_days
+            print(f"  🎯 Итого занятых дней для помещения: {property_occupied_days}")
         
-        occupied_days = 0
-        for rental in rentals:
-            overlap_start = max(rental.start_date, start_date)
-            overlap_end = min(rental.end_date, end_date)
-            if overlap_end > overlap_start:
-                occupied_days += (overlap_end - overlap_start).days
+        print(f"📈 Общее количество занятых дней: {total_occupied_days}")
+        print(f"📈 Общее количество доступных дней: {total_available_days}")
         
         # Коэффициент загруженности в процентах
-        return round((occupied_days / total_available_days) * 100, 2)
+        occupancy_rate = (total_occupied_days / total_available_days) * 100
+        
+        # Ограничиваем максимум 100%
+        if occupancy_rate > 100:
+            print(f"⚠️ Загруженность превышает 100% ({occupancy_rate:.2f}%), ограничиваем до 100%")
+            occupancy_rate = 100.0
+        
+        print(f"🎯 Итоговая загруженность: {occupancy_rate:.2f}%")
+        return round(occupancy_rate, 2)
     
     @staticmethod
     def generate_financial_pdf(
@@ -1439,287 +1839,3 @@ class ReportsService:
             recommendations.append("Показатели стабильны - продолжайте мониторинг ключевых метрик")
         
         return recommendations
-    @staticmethod
-    def export_property_occupancy_excel(
-        db: Session,
-        organization_id: uuid.UUID,
-        start_date: datetime,
-        end_date: datetime,
-        property_id: Optional[uuid.UUID] = None
-    ) -> bytes:
-        """Экспорт отчета по загруженности помещений в Excel"""
-        
-        # Генерируем отчет
-        report = ReportsService.generate_property_occupancy_report(
-            db, organization_id, start_date, end_date, property_id
-        )
-        
-        output = io.BytesIO()
-        
-        try:
-            import xlsxwriter
-            workbook = xlsxwriter.Workbook(output, {'in_memory': True})
-            worksheet = workbook.add_worksheet("Загруженность помещений")
-            
-            # Стили
-            header_format = workbook.add_format({
-                'bold': True,
-                'bg_color': '#D7E4BC',
-                'border': 1,
-                'align': 'center'
-            })
-            percent_format = workbook.add_format({'num_format': '0.00"%"'})
-            money_format = workbook.add_format({'num_format': '#,##0.00" ₸"'})
-            
-            # Заголовок
-            worksheet.write('A1', 'Отчет по загруженности помещений', header_format)
-            worksheet.write('A2', f'Период: {start_date.strftime("%d.%m.%Y")} - {end_date.strftime("%d.%m.%Y")}')
-            
-            # Заголовки таблицы
-            headers = ['Помещение', 'Номер', 'Всего дней', 'Занято дней', 'Загруженность %', 'Выручка']
-            for col, header in enumerate(headers):
-                worksheet.write(3, col, header, header_format)
-            
-            # Данные
-            for row, prop in enumerate(report, 4):
-                worksheet.write(row, 0, prop.property_name)
-                worksheet.write(row, 1, prop.property_number)
-                worksheet.write(row, 2, prop.total_days)
-                worksheet.write(row, 3, prop.occupied_days)
-                worksheet.write(row, 4, prop.occupancy_rate / 100, percent_format)
-                worksheet.write(row, 5, prop.revenue, money_format)
-            
-            # Итоговая строка
-            if report:
-                total_row = len(report) + 4
-                worksheet.write(total_row, 0, 'ИТОГО:', header_format)
-                worksheet.write(total_row, 1, '', header_format)
-                worksheet.write(total_row, 2, sum(p.total_days for p in report), header_format)
-                worksheet.write(total_row, 3, sum(p.occupied_days for p in report), header_format)
-                avg_occupancy = sum(p.occupancy_rate for p in report) / len(report) if report else 0
-                worksheet.write(total_row, 4, avg_occupancy / 100, percent_format)
-                worksheet.write(total_row, 5, sum(p.revenue for p in report), money_format)
-            
-            # Автоширина колонок
-            worksheet.set_column('A:A', 25)
-            worksheet.set_column('B:B', 12)
-            worksheet.set_column('C:D', 15)
-            worksheet.set_column('E:E', 18)
-            worksheet.set_column('F:F', 18)
-            
-            workbook.close()
-            output.seek(0)
-            return output.getvalue()
-            
-        except ImportError:
-            raise Exception("xlsxwriter не установлен")
-        except Exception as e:
-            raise Exception(f"Ошибка создания Excel файла: {str(e)}")
-
-    @staticmethod
-    def export_client_analytics_excel(
-        db: Session,
-        organization_id: uuid.UUID,
-        start_date: datetime,
-        end_date: datetime
-    ) -> bytes:
-        """Экспорт клиентской аналитики в Excel"""
-        
-        # Генерируем отчет
-        report = ReportsService.generate_client_analytics_report(
-            db, organization_id, start_date, end_date
-        )
-        
-        output = io.BytesIO()
-        
-        try:
-            import xlsxwriter
-            workbook = xlsxwriter.Workbook(output, {'in_memory': True})
-            worksheet = workbook.add_worksheet("Клиентская аналитика")
-            
-            # Стили
-            header_format = workbook.add_format({
-                'bold': True,
-                'bg_color': '#D7E4BC',
-                'border': 1,
-                'align': 'center'
-            })
-            money_format = workbook.add_format({'num_format': '#,##0.00" ₸"'})
-            
-            # Заголовок
-            worksheet.write('A1', 'Клиентская аналитика', header_format)
-            worksheet.write('A2', f'Период: {start_date.strftime("%d.%m.%Y")} - {end_date.strftime("%d.%m.%Y")}')
-            
-            # Основная статистика
-            row = 4
-            worksheet.write(row, 0, 'Показатель', header_format)
-            worksheet.write(row, 1, 'Значение', header_format)
-            
-            stats = [
-                ('Всего клиентов', report.total_clients),
-                ('Новые клиенты', report.new_clients),
-                ('Постоянные клиенты', report.returning_clients),
-                ('Средняя продолжительность пребывания (дни)', f'{report.average_stay_duration:.1f}'),
-                ('Средние траты', f'{report.average_spending:,.2f} ₸')
-            ]
-            
-            for stat_name, stat_value in stats:
-                row += 1
-                worksheet.write(row, 0, stat_name)
-                worksheet.write(row, 1, stat_value)
-            
-            # Топ клиенты
-            if report.top_clients:
-                row += 3
-                worksheet.write(row, 0, 'Топ клиенты', header_format)
-                worksheet.write(row, 1, '', header_format)
-                worksheet.write(row, 2, '', header_format)
-                
-                row += 1
-                worksheet.write(row, 0, 'Имя клиента', header_format)
-                worksheet.write(row, 1, 'Потрачено', header_format)
-                worksheet.write(row, 2, 'Средняя длительность (дни)', header_format)
-                
-                for client in report.top_clients[:10]:
-                    row += 1
-                    worksheet.write(row, 0, client['client_name'])
-                    worksheet.write(row, 1, client['spending'], money_format)
-                    worksheet.write(row, 2, f"{client['stay_duration']:.1f}")
-            
-            # Источники клиентов
-            if report.client_sources:
-                row += 3
-                worksheet.write(row, 0, 'Источники клиентов', header_format)
-                worksheet.write(row, 1, '', header_format)
-                
-                row += 1
-                worksheet.write(row, 0, 'Источник', header_format)
-                worksheet.write(row, 1, 'Количество клиентов', header_format)
-                
-                for source, count in report.client_sources.items():
-                    row += 1
-                    worksheet.write(row, 0, source if source != 'unknown' else 'Неизвестно')
-                    worksheet.write(row, 1, count)
-            
-            # Автоширина колонок
-            worksheet.set_column('A:A', 35)
-            worksheet.set_column('B:B', 20)
-            worksheet.set_column('C:C', 25)
-            
-            workbook.close()
-            output.seek(0)
-            return output.getvalue()
-            
-        except ImportError:
-            raise Exception("xlsxwriter не установлен")
-        except Exception as e:
-            raise Exception(f"Ошибка создания Excel файла: {str(e)}")
-
-    @staticmethod
-    def export_employee_performance_excel(
-        db: Session,
-        organization_id: uuid.UUID,
-        start_date: datetime,
-        end_date: datetime,
-        role: Optional[UserRole] = None,
-        user_id: Optional[uuid.UUID] = None
-    ) -> bytes:
-        """Экспорт отчета по производительности сотрудников в Excel"""
-        
-        # Генерируем отчет
-        report = ReportsService.generate_employee_performance_report(
-            db, organization_id, start_date, end_date, role, user_id
-        )
-        
-        output = io.BytesIO()
-        
-        try:
-            import xlsxwriter
-            workbook = xlsxwriter.Workbook(output, {'in_memory': True})
-            worksheet = workbook.add_worksheet("Производительность сотрудников")
-            
-            # Стили
-            header_format = workbook.add_format({
-                'bold': True,
-                'bg_color': '#D7E4BC',
-                'border': 1,
-                'align': 'center'
-            })
-            money_format = workbook.add_format({'num_format': '#,##0.00" ₸"'})
-            number_format = workbook.add_format({'num_format': '0.00'})
-            
-            # Заголовок
-            worksheet.write('A1', 'Отчет по производительности сотрудников', header_format)
-            worksheet.write('A2', f'Период: {start_date.strftime("%d.%m.%Y")} - {end_date.strftime("%d.%m.%Y")}')
-            
-            # Заголовки таблицы
-            headers = ['Сотрудник', 'Роль', 'Задач выполнено', 'Среднее время (мин)', 'Рейтинг качества', 'Заработано']
-            for col, header in enumerate(headers):
-                worksheet.write(3, col, header, header_format)
-            
-            # Данные
-            for row, emp in enumerate(report, 4):
-                worksheet.write(row, 0, emp.user_name)
-                
-                # Переводим роли на русский
-                role_translations = {
-                    'admin': 'Администратор',
-                    'manager': 'Менеджер',
-                    'technical_staff': 'Технический персонал',
-                    'cleaner': 'Уборщик',
-                    'accountant': 'Бухгалтер',
-                    'storekeeper': 'Кладовщик'
-                }
-                worksheet.write(row, 1, role_translations.get(emp.role, emp.role))
-                worksheet.write(row, 2, emp.tasks_completed)
-                worksheet.write(row, 3, emp.average_completion_time or 0, number_format)
-                worksheet.write(row, 4, emp.quality_rating or 0, number_format)
-                worksheet.write(row, 5, emp.earnings, money_format)
-            
-            # Итоговая строка
-            if report:
-                total_row = len(report) + 4
-                worksheet.write(total_row, 0, 'ИТОГО:', header_format)
-                worksheet.write(total_row, 1, f'{len(report)} сотрудников', header_format)
-                worksheet.write(total_row, 2, sum(e.tasks_completed for e in report), header_format)
-                
-                # Средние значения
-                avg_time = sum(e.average_completion_time or 0 for e in report) / len(report) if report else 0
-                worksheet.write(total_row, 3, avg_time, number_format)
-                
-                ratings = [e.quality_rating for e in report if e.quality_rating]
-                avg_rating = sum(ratings) / len(ratings) if ratings else 0
-                worksheet.write(total_row, 4, avg_rating, number_format)
-                
-                worksheet.write(total_row, 5, sum(e.earnings for e in report), money_format)
-            
-            # Автоширина колонок
-            worksheet.set_column('A:A', 25)
-            worksheet.set_column('B:B', 20)
-            worksheet.set_column('C:C', 18)
-            worksheet.set_column('D:D', 20)
-            worksheet.set_column('E:E', 18)
-            worksheet.set_column('F:F', 18)
-            
-            workbook.close()
-            output.seek(0)
-            return output.getvalue()
-            
-        except ImportError:
-            raise Exception("xlsxwriter не установлен")
-        except Exception as e:
-            raise Exception(f"Ошибка создания Excel файла: {str(e)}")
-
-    # Также добавить проверку на наличие данных
-    @staticmethod
-    def validate_export_data(report_data, report_type: str):
-
-        """Валидация данных перед экспортом"""
-        
-        if not report_data:
-            raise ValueError(f"Нет данных для экспорта отчета '{report_type}'")
-        
-        if isinstance(report_data, list) and len(report_data) == 0:
-            raise ValueError(f"Отчет '{report_type}' не содержит данных за указанный период")
-        
-        return True
