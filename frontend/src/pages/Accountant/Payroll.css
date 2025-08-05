@@ -1677,43 +1677,27 @@
 
 /* ==================== DARK MODE SUPPORT ==================== */
 
-@media (prefers-color-scheme: dark) {
-  .payroll-page {
-    background: #0f172a;
-    color: #e2e8f0;
-  }
-  
+@media (prefers-color-scheme: dark) { 
   .page-header,
   .payroll-statistics,
   .payroll-quick-actions,
   .payroll-filters,
   .payroll-table-container {
-    background: #1e293b;
     border-color: #334155;
-  }
-  
-  .payroll-table th {
-    background: #334155;
-    color: #e2e8f0;
   }
   
   .payroll-table td {
     border-color: #334155;
   }
-  
-  .payroll-row:hover {
-    background: #334155;
-  }
-  
   .search-box input,
   .filter-select {
-    background: #334155;
+    
     border-color: #475569;
     color: #e2e8f0;
   }
   
   .btn-secondary {
-    background: #334155;
+    
     color: #e2e8f0;
     border-color: #475569;
   }
