@@ -26,6 +26,7 @@ from utils.dependencies import get_current_active_user
 router = APIRouter(prefix="/api/payroll", tags=["Payroll"])
 
 
+# backend/routers/payroll.py - ИСПРАВЛЕНИЕ
 @router.get("", response_model=List[PayrollResponse])
 async def get_payrolls(
     skip: int = Query(0, ge=0),
@@ -49,17 +50,34 @@ async def get_payrolls(
     # Фильтры
     if user_id:
         query = query.filter(Payroll.user_id == uuid.UUID(user_id))
-    if period_start:
-        query = query.filter(Payroll.period_start >= period_start)
-    if period_end:
-        query = query.filter(Payroll.period_end <= period_end)
+    
+    # ИСПРАВЛЕНО: Правильная фильтрация по периодам с пересечением
+    if period_start and period_end:
+        # Ищем зарплаты, которые пересекаются с запрашиваемым периодом
+        query = query.filter(
+            and_(
+                # Период зарплаты пересекается с запрашиваемым периодом
+                Payroll.period_start < period_end,
+                Payroll.period_end > period_start
+            )
+        )
+    elif period_start:
+        # Зарплаты, которые заканчиваются после начала запрашиваемого периода
+        query = query.filter(Payroll.period_end >= period_start)
+    elif period_end:
+        # Зарплаты, которые начинаются до конца запрашиваемого периода
+        query = query.filter(Payroll.period_start <= period_end)
+    
     if is_paid is not None:
         query = query.filter(Payroll.is_paid == is_paid)
     
     payrolls = query.order_by(desc(Payroll.period_start)).offset(skip).limit(limit).all()
     
+    print(f"🔍 Найдено зарплат: {len(payrolls)} для периода {period_start} - {period_end}")
+    for p in payrolls:
+        print(f"  💰 Зарплата {p.id}: период {p.period_start} - {p.period_end}, сумма: {p.net_amount}")
+    
     return payrolls
-
 
 @router.post("/pay", response_model=PayrollResponse)
 async def create_payroll(

@@ -5,12 +5,30 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc, text
 import uuid
 import io
-from reportlab.lib.pagesizes import letter, A4
+import io
+from datetime import datetime
+
+from reportlab.lib import colors
+from reportlab.lib.colors import black, darkblue, gray
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.colors import black, darkblue, gray
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    Image,
+)
+
+
+# Регистрируем Unicode-шрифт, поддерживающий кириллицу
+pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+
+styles = getSampleStyleSheet()
 
 from models.extended_models import (
     Property, Rental, Client, Task, RoomOrder, Payroll, User, Organization,
@@ -574,10 +592,10 @@ class ReportsService:
         role: Optional[UserRole] = None,
         user_id: Optional[uuid.UUID] = None
     ) -> List[EmployeePerformanceReport]:
-        """ИСПРАВЛЕННАЯ генерация отчета по производительности сотрудников"""
+        """УЛУЧШЕННАЯ генерация отчета с обработкой дублирующих зарплат"""
         
         print(f"👥 Генерация отчета по производительности сотрудников")
-        print(f"📅 Период: {start_date} - {end_date}")
+        print(f"📅 Период отчета: {start_date} - {end_date}")
         
         query = db.query(User).filter(User.organization_id == organization_id)
         
@@ -593,7 +611,7 @@ class ReportsService:
         reports = []
         
         for employee in employees:
-            print(f"🔍 Анализ сотрудника: {employee.first_name} {employee.last_name}")
+            print(f"\n🔍 Анализ сотрудника: {employee.first_name} {employee.last_name}")
             
             # Выполненные задачи за период
             completed_tasks = db.query(Task).filter(
@@ -624,77 +642,18 @@ class ReportsService:
             ]
             avg_quality = sum(quality_ratings) / len(quality_ratings) if quality_ratings else None
             
-            # ИСПРАВЛЕНО: Правильный расчет заработка
-            total_earnings = 0
+            # УЛУЧШЕННЫЙ РАСЧЕТ ЗАРАБОТКА
+            total_earnings = ReportsService._calculate_smart_earnings(
+                db, employee.id, organization_id, start_date, end_date
+            )
             
-            # 1. Получаем ВСЕ зарплаты сотрудника
-            all_payrolls = db.query(Payroll).filter(
-                and_(
-                    Payroll.user_id == employee.id,
-                    Payroll.organization_id == organization_id,
-                    Payroll.is_paid == True
-                )
-            ).all()
-            
-            print(f"💰 Всего зарплат у сотрудника: {len(all_payrolls)}")
-            
-            # 2. Фильтруем зарплаты с пересечением периодов
-            for payroll in all_payrolls:
-                # Убираем часовой пояс для сравнения
-                payroll_start = payroll.period_start.replace(tzinfo=None) if payroll.period_start.tzinfo else payroll.period_start
-                payroll_end = payroll.period_end.replace(tzinfo=None) if payroll.period_end.tzinfo else payroll.period_end
-                report_start = start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
-                report_end = end_date.replace(tzinfo=None) if end_date.tzinfo else end_date
-                
-                # Проверяем пересечение периодов
-                if payroll_start <= report_end and payroll_end >= report_start:
-                    # Вычисляем пересечение
-                    overlap_start = max(payroll_start, report_start)
-                    overlap_end = min(payroll_end, report_end)
-                    
-                    if overlap_end > overlap_start:
-                        # Длительность пересечения
-                        overlap_days = (overlap_end - overlap_start).days + 1
-                        # Длительность всего периода зарплаты
-                        total_payroll_days = (payroll_end - payroll_start).days + 1
-                        
-                        if total_payroll_days > 0:
-                            # Пропорциональная часть зарплаты
-                            proportion = overlap_days / total_payroll_days
-                            earnings_for_period = payroll.net_amount * proportion
-                            total_earnings += earnings_for_period
-                            
-                            print(f"💵 Зарплата {payroll.id}: {payroll.net_amount} ₸ (пропорция: {proportion:.2f}, добавлено: {earnings_for_period:.2f})")
-            
-            # 3. Дополнительный заработок из задач
+            # Дополнительные выплаты за задачи
             task_earnings = sum(task.payment_amount or 0 for task in completed_tasks if task.is_paid)
             if task_earnings > 0:
                 total_earnings += task_earnings
-                print(f"🎯 Доплата за задачи: {task_earnings}")
+                print(f"🎯 Дополнительные выплаты за задачи: {task_earnings}₸")
             
-            # 4. Проверяем операции зарплаты (если есть)
-            try:
-                from models.payroll_operation import PayrollOperation
-                operation_earnings = db.query(func.sum(PayrollOperation.amount)).filter(
-                    and_(
-                        PayrollOperation.user_id == employee.id,
-                        PayrollOperation.organization_id == organization_id,
-                        PayrollOperation.created_at >= start_date,
-                        PayrollOperation.created_at <= end_date,
-                        PayrollOperation.is_applied == True,
-                        PayrollOperation.operation_type.in_(['bonus', 'overtime', 'allowance'])
-                    )
-                ).scalar() or 0
-                
-                if operation_earnings > 0:
-                    total_earnings += operation_earnings
-                    print(f"🎁 Дополнительные выплаты: {operation_earnings}")
-                    
-            except (ImportError, Exception) as e:
-                print(f"⚠️ Не удалось получить операции зарплаты: {e}")
-                operation_earnings = 0
-            
-            print(f"💎 Итого заработок сотрудника {employee.first_name}: {total_earnings:.2f} ₸")
+            print(f"💎 ИТОГО заработок сотрудника {employee.first_name}: {total_earnings:.2f}₸")
             
             reports.append(EmployeePerformanceReport(
                 user_id=str(employee.id),
@@ -703,12 +662,198 @@ class ReportsService:
                 tasks_completed=len(completed_tasks),
                 average_completion_time=avg_completion_time,
                 quality_rating=round(avg_quality, 2) if avg_quality else None,
-                earnings=total_earnings
+                earnings=round(total_earnings, 2)
             ))
         
-        print(f"📊 Сформирован отчет по {len(reports)} сотрудникам")
+        print(f"\n📊 Сформирован отчет по {len(reports)} сотрудникам")
         return sorted(reports, key=lambda x: x.earnings, reverse=True)
-    
+
+
+    @staticmethod
+    def _calculate_smart_earnings(
+        db: Session,
+        user_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> float:
+        """
+        Умный расчет заработка с обработкой дублирующих и перекрывающихся зарплат
+        """
+        
+        print(f"💰 Умный расчет заработка для периода: {start_date} - {end_date}")
+        
+        # Получаем все выплаченные зарплаты с пересечением
+        payrolls = db.query(Payroll).filter(
+            and_(
+                Payroll.user_id == user_id,
+                Payroll.organization_id == organization_id,
+                Payroll.is_paid == True,
+                Payroll.period_start < end_date,
+                Payroll.period_end > start_date
+            )
+        ).order_by(Payroll.period_start, desc(Payroll.net_amount)).all()
+        
+        print(f"💼 Найдено зарплатных записей: {len(payrolls)}")
+        
+        if not payrolls:
+            return 0.0
+        
+        # СТРАТЕГИЯ 1: Простое суммирование без учета перекрытий (если зарплат мало)
+        if len(payrolls) <= 2:
+            return ReportsService._simple_earnings_calculation(payrolls, start_date, end_date)
+        
+        # СТРАТЕГИЯ 2: Группировка по месяцам (для многочисленных записей)
+        return ReportsService._monthly_grouped_earnings_calculation(payrolls, start_date, end_date)
+
+
+    @staticmethod
+    def _simple_earnings_calculation(payrolls: List[Payroll], start_date: datetime, end_date: datetime) -> float:
+        """Простой расчет для небольшого количества зарплат"""
+        
+        total_earnings = 0
+        print(f"📊 Простой расчет для {len(payrolls)} зарплат")
+        
+        for payroll in payrolls:
+            earnings = ReportsService._calculate_payroll_proportion(payroll, start_date, end_date)
+            total_earnings += earnings
+        
+        return total_earnings
+
+
+    @staticmethod
+    def _monthly_grouped_earnings_calculation(payrolls: List[Payroll], start_date: datetime, end_date: datetime) -> float:
+        """Расчет с группировкой по месяцам для избежания дублей"""
+        
+        print(f"📊 Группированный расчет для {len(payrolls)} зарплат")
+        
+        # Группируем зарплаты по месяцам
+        monthly_groups = {}
+        
+        for payroll in payrolls:
+            # Определяем месяц по началу периода зарплаты
+            month_key = payroll.period_start.strftime("%Y-%m")
+            
+            if month_key not in monthly_groups:
+                monthly_groups[month_key] = []
+            
+            monthly_groups[month_key].append(payroll)
+        
+        print(f"📅 Найдено месячных групп: {len(monthly_groups)}")
+        
+        total_earnings = 0
+        
+        for month_key, month_payrolls in monthly_groups.items():
+            print(f"\n📅 Месяц {month_key}: {len(month_payrolls)} зарплат")
+            
+            if len(month_payrolls) == 1:
+                # Одна зарплата за месяц - простой расчет
+                payroll = month_payrolls[0]
+                earnings = ReportsService._calculate_payroll_proportion(payroll, start_date, end_date)
+                total_earnings += earnings
+                print(f"  💰 Единственная зарплата: {payroll.net_amount}₸ → {earnings:.2f}₸")
+                
+            else:
+                # Несколько зарплат за месяц - берем самую большую или последнюю по дате создания
+                print(f"  ⚠️ Найдено {len(month_payrolls)} зарплат за месяц - применяем логику дедубликации")
+                
+                # Сортируем: сначала по сумме (больше), потом по дате создания (новее)
+                sorted_payrolls = sorted(
+                    month_payrolls, 
+                    key=lambda p: (p.net_amount, p.created_at), 
+                    reverse=True
+                )
+                
+                # Берем самую большую и новую
+                selected_payroll = sorted_payrolls[0]
+                earnings = ReportsService._calculate_payroll_proportion(selected_payroll, start_date, end_date)
+                total_earnings += earnings
+                
+                print(f"  ❌ Пропущено {len(month_payrolls) - 1} дублирующих зарплат")
+        
+        return total_earnings
+
+
+    @staticmethod
+    def _calculate_payroll_proportion(payroll: Payroll, start_date: datetime, end_date: datetime) -> float:
+        """Расчет пропорциональной части зарплаты для отчетного периода"""
+        
+        # Нормализуем даты
+        payroll_start = payroll.period_start.replace(tzinfo=None) if payroll.period_start.tzinfo else payroll.period_start
+        payroll_end = payroll.period_end.replace(tzinfo=None) if payroll.period_end.tzinfo else payroll.period_end
+        report_start = start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
+        report_end = end_date.replace(tzinfo=None) if end_date.tzinfo else end_date
+        
+        # Пересечение периодов
+        overlap_start = max(payroll_start, report_start)
+        overlap_end = min(payroll_end, report_end)
+        
+        if overlap_end <= overlap_start:
+            return 0.0
+        
+        # Дни в пересечении
+        overlap_days = (overlap_end - overlap_start).days + 1
+        total_payroll_days = (payroll_end - payroll_start).days + 1
+        
+        if total_payroll_days <= 0:
+            return 0.0
+        
+        # Пропорция (максимум 100%)
+        proportion = min(1.0, overlap_days / total_payroll_days)
+        
+        return payroll.net_amount * proportion
+
+
+    # ДОПОЛНИТЕЛЬНЫЙ ENDPOINT ДЛЯ ВЫБОРА СТРАТЕГИИ РАСЧЕТА
+    @staticmethod
+    def calculate_earnings_with_strategy(
+        db: Session,
+        user_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime,
+        strategy: str = "smart"  # "simple", "smart", "monthly_max", "latest_only"
+    ) -> Dict[str, Any]:
+        """Расчет earnings с различными стратегиями"""
+        
+        payrolls = db.query(Payroll).filter(
+            and_(
+                Payroll.user_id == user_id,
+                Payroll.organization_id == organization_id,
+                Payroll.is_paid == True,
+                Payroll.period_start < end_date,
+                Payroll.period_end > start_date
+            )
+        ).order_by(Payroll.period_start).all()
+        
+        strategies_results = {}
+        
+        # Простое суммирование (текущий метод)
+        strategies_results["simple"] = ReportsService._simple_earnings_calculation(payrolls, start_date, end_date)
+        
+        # Группировка по месяцам
+        strategies_results["monthly_grouped"] = ReportsService._monthly_grouped_earnings_calculation(payrolls, start_date, end_date)
+        
+        # Только самая большая зарплата за весь период
+        if payrolls:
+            max_payroll = max(payrolls, key=lambda p: p.net_amount)
+            strategies_results["max_only"] = ReportsService._calculate_payroll_proportion(max_payroll, start_date, end_date)
+        else:
+            strategies_results["max_only"] = 0
+        
+        # Только последняя по дате создания
+        if payrolls:
+            latest_payroll = max(payrolls, key=lambda p: p.created_at)
+            strategies_results["latest_only"] = ReportsService._calculate_payroll_proportion(latest_payroll, start_date, end_date)
+        else:
+            strategies_results["latest_only"] = 0
+        
+        return {
+            "payrolls_count": len(payrolls),
+            "strategies": strategies_results,
+            "recommended": strategies_results.get(strategy, strategies_results["monthly_grouped"])
+        }
+
     @staticmethod
     def get_payroll_period_earnings(
         db: Session,
@@ -1206,33 +1351,51 @@ class ReportsService:
     
     @staticmethod
     def generate_financial_pdf(
-        report: FinancialSummaryReport,
+        report,
         start_date: datetime,
-        end_date: datetime
+        end_date: datetime,
+        organization_name: str,
+        user_fullname: str
     ) -> bytes:
-        """Генерация PDF финансового отчета"""
-        
+        """Генерация официального PDF финансового отчета"""
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                rightMargin=40, leftMargin=40,
+                                topMargin=60, bottomMargin=40)
         styles = getSampleStyleSheet()
         story = []
-        
-        # Заголовок
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=18,
-            spaceAfter=30,
-            textColor=darkblue
-        )
-        
-        story.append(Paragraph("Финансовый отчет", title_style))
-        story.append(Paragraph(f"Период: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}", styles['Normal']))
-        story.append(Spacer(1, 20))
-        
-        # Таблица с данными
+
+        # --- Шапка с гербом/логотипом (если есть)
+        # Можно вставить изображение: Image("emblem.png", width=50, height=50)
+        story.append(Paragraph(f"{organization_name}", ParagraphStyle(
+            name='Header',
+            fontName='STSong-Light',
+            fontSize=12,
+            alignment=1,  # по центру
+            spaceAfter=4
+        )))
+        story.append(Paragraph("ФИНАНСОВЫЙ ОТЧЕТ", ParagraphStyle(
+            name='Title',
+            fontName='STSong-Light',
+            fontSize=16,
+            alignment=1,
+            spaceAfter=10,
+            leading=20
+        )))
+        story.append(Paragraph(
+            f"Период: {start_date.strftime('%d.%m.%Y')} — {end_date.strftime('%d.%m.%Y')}",
+            ParagraphStyle(
+                name='Period',
+                fontName='STSong-Light',
+                fontSize=11,
+                alignment=1,
+                spaceAfter=20
+            )
+        ))
+
+        # --- Таблица с основными показателями
         data = [
-            ['Показатель', 'Сумма (₸)'],
+            ['Наименование показателя', 'Сумма (₸)'],
             ['Общая выручка', f"{report.total_revenue:,.2f}"],
             ['Выручка от аренды', f"{report.rental_revenue:,.2f}"],
             ['Выручка от заказов', f"{report.orders_revenue:,.2f}"],
@@ -1241,47 +1404,55 @@ class ReportsService:
             ['Расходы на материалы', f"{report.material_expenses:,.2f}"],
             ['Чистая прибыль', f"{report.net_profit:,.2f}"],
         ]
-        
-        table = Table(data, colWidths=[3*inch, 2*inch])
+
+        table = Table(data, colWidths=[4*inch, 2*inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, -1), 'STSong-Light'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
         ]))
-        
         story.append(table)
         story.append(Spacer(1, 20))
-        
-        # Дополнительная информация
+
+        # --- Дополнительные показатели
         additional_data = [
-            ['Показатель', 'Значение'],
+            ['Дополнительный показатель', 'Значение'],
             ['Загруженность помещений', f"{report.occupancy_rate:.1f}%"],
             ['Количество помещений', str(report.properties_count)],
             ['Активные аренды', str(report.active_rentals)],
         ]
-        
-        additional_table = Table(additional_data, colWidths=[3*inch, 2*inch])
+
+        additional_table = Table(additional_data, colWidths=[4*inch, 2*inch])
         additional_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 0), (-1, -1), 'STSong-Light'),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
         ]))
-        
         story.append(additional_table)
-        
-        # Построение документа
+
+        # --- Подпись
+        story.append(Spacer(1, 40))
+        story.append(Paragraph(f"Руководитель отдела: {user_fullname}", ParagraphStyle(
+            name='Signature',
+            fontName='STSong-Light',
+            fontSize=11,
+            spaceAfter=12
+        )))
+        story.append(Paragraph(f"Дата: {datetime.now(timezone.utc).strftime('%d.%m.%Y')}", ParagraphStyle(
+            name='Date',
+            fontName='STSong-Light',
+            fontSize=11
+        )))
+
         doc.build(story)
         buffer.seek(0)
-        
         return buffer.getvalue()
-    
+
     @staticmethod
     def export_data_to_excel(
         db: Session,

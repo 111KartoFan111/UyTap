@@ -20,6 +20,7 @@ from utils.dependencies import get_current_active_user
 from services.auth_service import AuthService
 from services.reports_service import ReportsService
 from models.extended_models import Payroll,Task,TaskStatus
+from models.models import Organization
 from sqlalchemy import and_, desc, or_ 
 
 
@@ -303,7 +304,16 @@ async def export_financial_summary(
         
         elif format == "pdf":
             # Генерируем PDF
-            pdf_content = ReportsService.generate_financial_pdf(report, start_date, end_date)
+            organization = db.query(Organization).get(current_user.organization_id)
+            organization_name = organization.name if organization else "Неизвестная организация"
+
+            pdf_content = ReportsService.generate_financial_pdf(
+                report=report,
+                start_date=start_date,
+                end_date=end_date,
+                organization_name=organization_name,
+                user_fullname=current_user.first_name + " " + current_user.last_name
+            )
             
             return Response(
                 content=pdf_content,
@@ -1019,3 +1029,134 @@ async def export_comparative_analysis(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to export comparative analysis: {str(e)}"
         )
+    
+# Добавить в backend/routers/reports.py
+
+@router.get("/debug/earnings-strategies/{user_id}")
+async def test_earnings_strategies(
+    user_id: str,
+    start_date: datetime = Query(...),
+    end_date: datetime = Query(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Тестирование разных стратегий расчета earnings"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    
+    try:
+        user_uuid = uuid.UUID(user_id)
+        
+        strategies_result = ReportsService.calculate_earnings_with_strategy(
+            db=db,
+            user_id=user_uuid,
+            organization_id=current_user.organization_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        return {
+            "user_id": user_id,
+            "period": {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat()
+            },
+            "analysis": strategies_result,
+            "recommendation": {
+                "current_method": strategies_result["strategies"]["simple"],
+                "improved_method": strategies_result["strategies"]["monthly_grouped"],
+                "difference": strategies_result["strategies"]["monthly_grouped"] - strategies_result["strategies"]["simple"],
+                "suggested_strategy": "monthly_grouped" if strategies_result["payrolls_count"] > 2 else "simple"
+            }
+        }
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/debug/cleanup-duplicate-payrolls")
+async def cleanup_duplicate_payrolls(
+    user_id: str,
+    dry_run: bool = Query(True, description="Только показать, что будет удалено"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Очистка дублирующих зарплат (ОСТОРОЖНО!)"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(status_code=403, detail="Only admins can cleanup payrolls")
+    
+    try:
+        user_uuid = uuid.UUID(user_id)
+        
+        # Находим все зарплаты пользователя
+        all_payrolls = db.query(Payroll).filter(
+            and_(
+                Payroll.user_id == user_uuid,
+                Payroll.organization_id == current_user.organization_id
+            )
+        ).order_by(Payroll.period_start, desc(Payroll.net_amount), desc(Payroll.created_at)).all()
+        
+        # Группируем по месяцам
+        monthly_groups = {}
+        for payroll in all_payrolls:
+            month_key = payroll.period_start.strftime("%Y-%m")
+            if month_key not in monthly_groups:
+                monthly_groups[month_key] = []
+            monthly_groups[month_key].append(payroll)
+        
+        # Находим дубликаты
+        duplicates_to_remove = []
+        kept_payrolls = []
+        
+        for month_key, month_payrolls in monthly_groups.items():
+            if len(month_payrolls) > 1:
+                # Оставляем самую большую и новую
+                sorted_payrolls = sorted(
+                    month_payrolls,
+                    key=lambda p: (p.net_amount, p.created_at),
+                    reverse=True
+                )
+                
+                kept_payrolls.append(sorted_payrolls[0])
+                duplicates_to_remove.extend(sorted_payrolls[1:])
+            else:
+                kept_payrolls.extend(month_payrolls)
+        
+        cleanup_result = {
+            "user_id": user_id,
+            "total_payrolls": len(all_payrolls),
+            "duplicates_found": len(duplicates_to_remove),
+            "will_keep": len(kept_payrolls),
+            "dry_run": dry_run,
+            "duplicates_details": [
+                {
+                    "id": str(p.id),
+                    "period": f"{p.period_start} - {p.period_end}",
+                    "amount": p.net_amount,
+                    "created_at": p.created_at.isoformat()
+                }
+                for p in duplicates_to_remove
+            ]
+        }
+        
+        if not dry_run and duplicates_to_remove:
+            # РЕАЛЬНОЕ УДАЛЕНИЕ (ОСТОРОЖНО!)
+            for payroll in duplicates_to_remove:
+                db.delete(payroll)
+            
+            db.commit()
+            cleanup_result["deleted"] = len(duplicates_to_remove)
+            cleanup_result["message"] = f"Deleted {len(duplicates_to_remove)} duplicate payrolls"
+        else:
+            cleanup_result["message"] = f"Found {len(duplicates_to_remove)} duplicates (dry run mode)"
+        
+        return cleanup_result
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
