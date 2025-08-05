@@ -245,30 +245,50 @@ class ReportsService:
         start_date: datetime,
         end_date: datetime
     ) -> FinancialSummaryReport:
-        """ИСПРАВЛЕННАЯ генерация финансового сводного отчета"""
+        """УНИФИЦИРОВАННАЯ генерация финансового отчета"""
         
-        print(f"🔍 Генерация финансового отчета для организации {organization_id}")
+        print(f"🔍 Генерация унифицированного финансового отчета для организации {organization_id}")
         print(f"📅 Период: {start_date} - {end_date}")
         
-        # ИСПРАВЛЕНО: Используем правильное поле created_at и диапазон дат
-        rental_revenue_query = db.query(func.sum(Rental.paid_amount)).filter(
+        # ИСПРАВЛЕНО: Используем тот же метод расчета выручки, что и в отчете по помещениям
+        rental_revenue = 0
+        
+        # Получаем все аренды, которые пересекаются с отчетным периодом
+        rentals = db.query(Rental).filter(
             and_(
                 Rental.organization_id == organization_id,
-                Rental.created_at >= start_date,
-                Rental.created_at <= end_date,
-                Rental.paid_amount > 0  # Только оплаченные аренды
+                Rental.start_date < end_date,  # Аренда пересекается с периодом
+                Rental.end_date > start_date,
+                Rental.paid_amount > 0
             )
-        )
-        rental_revenue = rental_revenue_query.scalar() or 0.0
+        ).all()
         
-        print(f"💰 Выручка от аренды: {rental_revenue}")
+        print(f"🏠 Найдено аренд с пересечением периода: {len(rentals)}")
         
-        # ИСПРАВЛЕНО: Заказы в номер - проверяем правильные поля
+        for rental in rentals:
+            # Пропорциональный расчет дохода (как в отчете по помещениям)
+            overlap_start = max(rental.start_date.replace(tzinfo=None), start_date.replace(tzinfo=None))
+            overlap_end = min(rental.end_date.replace(tzinfo=None), end_date.replace(tzinfo=None))
+            
+            if overlap_end > overlap_start:
+                days_in_period = (overlap_end - overlap_start).days + 1
+                total_rental_days = (rental.end_date - rental.start_date).days + 1
+                
+                if total_rental_days > 0:
+                    revenue_per_day = rental.paid_amount / total_rental_days
+                    period_revenue = revenue_per_day * days_in_period
+                    rental_revenue += period_revenue
+                    
+                    print(f"  💰 Аренда {rental.id}: {rental.paid_amount} ₸ за {total_rental_days} дней, в периоде {days_in_period} дней = {period_revenue:.2f} ₸")
+        
+        print(f"💰 Итого выручка от аренды: {rental_revenue}")
+        
+        # ИСПРАВЛЕНО: Заказы в номер - используем тот же принцип пересечения
         orders_revenue_query = db.query(func.sum(RoomOrder.total_amount)).filter(
             and_(
                 RoomOrder.organization_id == organization_id,
                 RoomOrder.is_paid == True,
-                RoomOrder.created_at >= start_date,  # Используем created_at вместо requested_at
+                RoomOrder.created_at >= start_date,
                 RoomOrder.created_at <= end_date
             )
         )
@@ -317,7 +337,7 @@ class ReportsService:
                         
                         print(f"💰 Зарплата {payroll.id}: {payroll.net_amount} ₸ (пропорция: {proportion:.2f}, добавлено: {expense_for_period:.2f})")
         
-        print(f"👥 Расходы на персонал (исправлено): {staff_expenses}")
+        print(f"👥 Расходы на персонал: {staff_expenses}")
         
         # ИСПРАВЛЕНО: Расходы на материалы
         try:
@@ -344,8 +364,8 @@ class ReportsService:
         print(f"📊 Общие расходы: {total_expenses}")
         print(f"💡 Чистая прибыль: {net_profit}")
         
-        # ИСПРАВЛЕНО: Загруженность помещений
-        occupancy_rate = ReportsService._calculate_occupancy_rate(
+        # ИСПРАВЛЕНО: Используем унифицированный расчет загруженности
+        occupancy_rate = ReportsService._calculate_unified_occupancy_rate(
             db, organization_id, start_date, end_date
         )
         
@@ -385,7 +405,79 @@ class ReportsService:
             properties_count=properties_count,
             active_rentals=active_rentals
         )
-    
+
+    @staticmethod
+    def _calculate_unified_occupancy_rate(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> float:
+        """ЕДИНЫЙ метод расчета загруженности для всех отчетов"""
+        
+        print(f"📊 Расчет унифицированной загруженности помещений")
+        print(f"📅 Период: {start_date} - {end_date}")
+        
+        # Получаем отчет по загруженности помещений (используем существующий проверенный метод)
+        occupancy_reports = ReportsService.generate_property_occupancy_report(
+            db, organization_id, start_date, end_date
+        )
+        
+        if not occupancy_reports:
+            print("⚠️ Нет данных по помещениям")
+            return 0.0
+        
+        # Взвешенное среднее по общему количеству дней
+        total_days = sum(report.total_days for report in occupancy_reports)
+        total_occupied_days = sum(report.occupied_days for report in occupancy_reports)
+        
+        print(f"🎯 Общих дней: {total_days}, занятых дней: {total_occupied_days}")
+        
+        if total_days == 0:
+            return 0.0
+        
+        unified_occupancy_rate = round((total_occupied_days / total_days) * 100, 2)
+        print(f"📈 Унифицированная загруженность: {unified_occupancy_rate}%")
+        
+        return unified_occupancy_rate
+
+    @staticmethod
+    def get_unified_revenue_for_period(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> float:
+        """ЕДИНЫЙ метод расчета выручки для всех отчетов"""
+        
+        total_revenue = 0
+        
+        # Получаем все аренды, которые пересекаются с отчетным периодом
+        rentals = db.query(Rental).filter(
+            and_(
+                Rental.organization_id == organization_id,
+                Rental.start_date < end_date,
+                Rental.end_date > start_date,
+                Rental.paid_amount > 0
+            )
+        ).all()
+        
+        for rental in rentals:
+            # Пропорциональный расчет дохода по пересечению
+            overlap_start = max(rental.start_date.replace(tzinfo=None), start_date.replace(tzinfo=None))
+            overlap_end = min(rental.end_date.replace(tzinfo=None), end_date.replace(tzinfo=None))
+            
+            if overlap_end > overlap_start:
+                days_in_period = (overlap_end - overlap_start).days + 1
+                total_rental_days = (rental.end_date - rental.start_date).days + 1
+                
+                if total_rental_days > 0:
+                    revenue_per_day = rental.paid_amount / total_rental_days
+                    total_revenue += revenue_per_day * days_in_period
+        
+        return total_revenue
+
+    # Обновляем отчет по помещениям, чтобы использовать ту же логику
     @staticmethod
     def generate_property_occupancy_report(
         db: Session,
@@ -394,10 +486,7 @@ class ReportsService:
         end_date: datetime,
         property_id: Optional[uuid.UUID] = None
     ) -> List[PropertyOccupancyReport]:
-        """ИСПРАВЛЕННАЯ генерация отчета по загруженности помещений"""
-        
-        print(f"🏢 Генерация отчета по загруженности помещений")
-        print(f"📅 Период: {start_date} - {end_date}")
+        """Отчет по загруженности с унифицированной логикой"""
         
         query = db.query(Property).filter(
             and_(
@@ -412,57 +501,21 @@ class ReportsService:
         properties = query.all()
         reports = []
         
-        period_days = (end_date - start_date).days + 1  # +1 чтобы включить последний день
-        print(f"📊 Период составляет {period_days} дней")
+        period_days = (end_date - start_date).days + 1
         
         for prop in properties:
-            print(f"🔍 Анализ помещения: {prop.name} ({prop.number})")
-            
-            # ИСПРАВЛЕНО: Находим аренды с учетом пересечения периодов
-            rentals_query = db.query(Rental).filter(
-                and_(
-                    Rental.property_id == prop.id,
-                    Rental.organization_id == organization_id,
-                    # Аренда пересекается с отчетным периодом
-                    Rental.start_date < end_date,
-                    Rental.end_date > start_date
-                )
+            # Используем тот же метод расчета выручки
+            property_revenue = ReportsService._get_property_revenue_for_period(
+                db, prop.id, organization_id, start_date, end_date
             )
             
-            rentals = rentals_query.all()
-            print(f"📝 Найдено аренд: {len(rentals)}")
+            # Расчет занятых дней (без изменений)
+            occupied_days = ReportsService._get_property_occupied_days(
+                db, prop.id, start_date, end_date
+            )
             
-            # Вычисляем занятые дни
-            occupied_days = 0
-            total_revenue = 0
-            
-            for rental in rentals:
-                # Пересечение аренды с отчетным периодом
-                overlap_start = max(rental.start_date.replace(tzinfo=None), start_date.replace(tzinfo=None))
-                overlap_end = min(rental.end_date.replace(tzinfo=None), end_date.replace(tzinfo=None))
-                
-                if overlap_end > overlap_start:
-                    days_in_period = (overlap_end - overlap_start).days + 1
-                    occupied_days += days_in_period
-                    
-                    # ИСПРАВЛЕНО: Пропорциональный расчет дохода
-                    total_rental_days = (rental.end_date - rental.start_date).days + 1
-                    if total_rental_days > 0:
-                        revenue_per_day = rental.paid_amount / total_rental_days
-                        total_revenue += revenue_per_day * days_in_period
-                    
-                    print(f"  ⏰ Аренда {rental.id}: {overlap_start} - {overlap_end} ({days_in_period} дней)")
-            
-            # Коэффициент загруженности
             occupancy_rate = (occupied_days / period_days * 100) if period_days > 0 else 0
-            
-            # Ограничиваем максимум 100%
-            if occupancy_rate > 100:
-                print(f"⚠️ Загруженность превышает 100% ({occupancy_rate:.2f}%), ограничиваем")
-                occupied_days = period_days
-                occupancy_rate = 100.0
-            
-            print(f"  📊 Занятых дней: {occupied_days}/{period_days}, загруженность: {occupancy_rate:.2f}%")
+            occupancy_rate = min(occupancy_rate, 100.0)  # Ограничиваем 100%
             
             reports.append(PropertyOccupancyReport(
                 property_id=str(prop.id),
@@ -471,11 +524,47 @@ class ReportsService:
                 total_days=period_days,
                 occupied_days=occupied_days,
                 occupancy_rate=round(occupancy_rate, 2),
-                revenue=round(total_revenue, 2)
+                revenue=round(property_revenue, 2)
             ))
         
         return sorted(reports, key=lambda x: x.occupancy_rate, reverse=True)
-    
+
+    @staticmethod
+    def _get_property_revenue_for_period(
+        db: Session,
+        property_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> float:
+        """Получить выручку помещения за период"""
+        
+        rentals = db.query(Rental).filter(
+            and_(
+                Rental.property_id == property_id,
+                Rental.organization_id == organization_id,
+                Rental.start_date < end_date,
+                Rental.end_date > start_date,
+                Rental.paid_amount > 0
+            )
+        ).all()
+        
+        total_revenue = 0
+        
+        for rental in rentals:
+            overlap_start = max(rental.start_date.replace(tzinfo=None), start_date.replace(tzinfo=None))
+            overlap_end = min(rental.end_date.replace(tzinfo=None), end_date.replace(tzinfo=None))
+            
+            if overlap_end > overlap_start:
+                days_in_period = (overlap_end - overlap_start).days + 1
+                total_rental_days = (rental.end_date - rental.start_date).days + 1
+                
+                if total_rental_days > 0:
+                    revenue_per_day = rental.paid_amount / total_rental_days
+                    total_revenue += revenue_per_day * days_in_period
+        
+        return total_revenue
+
     @staticmethod
     def generate_employee_performance_report(
         db: Session,
