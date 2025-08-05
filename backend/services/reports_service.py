@@ -178,6 +178,7 @@ class ReportsService:
         
         return sorted(reports, key=lambda x: x.occupancy_rate, reverse=True)
     
+
     @staticmethod
     def generate_employee_performance_report(
         db: Session,
@@ -228,16 +229,61 @@ class ReportsService:
             ]
             avg_quality = sum(quality_ratings) / len(quality_ratings) if quality_ratings else None
             
-            # Заработок за период
-            payroll = db.query(Payroll).filter(
+            # ИСПРАВЛЕНО: Заработок берем из ЗАРПЛАТ за период, а не только из задач
+            total_earnings = 0
+            
+            # 1. Заработок из зарплат за период
+            payroll_earnings = db.query(func.sum(Payroll.net_amount)).filter(
                 and_(
                     Payroll.user_id == employee.id,
-                    Payroll.period_start >= start_date,
-                    Payroll.period_end <= end_date
+                    Payroll.organization_id == organization_id,
+                    # Проверяем пересечение периодов зарплаты с отчетным периодом
+                    or_(
+                        # Зарплата полностью в периоде
+                        and_(
+                            Payroll.period_start >= start_date,
+                            Payroll.period_end <= end_date
+                        ),
+                        # Зарплата начинается в периоде
+                        and_(
+                            Payroll.period_start >= start_date,
+                            Payroll.period_start <= end_date
+                        ),
+                        # Зарплата заканчивается в периоде
+                        and_(
+                            Payroll.period_end >= start_date,
+                            Payroll.period_end <= end_date
+                        ),
+                        # Зарплата охватывает весь период
+                        and_(
+                            Payroll.period_start <= start_date,
+                            Payroll.period_end >= end_date
+                        )
+                    ),
+                    Payroll.is_paid == True  # Только выплаченные зарплаты
                 )
-            ).all()
+            ).scalar() or 0
             
-            total_earnings = sum(p.net_amount for p in payroll if p.is_paid)
+            # 2. Дополнительный заработок из задач (если есть индивидуальные доплаты)
+            task_earnings = sum(task.payment_amount or 0 for task in completed_tasks if task.is_paid)
+            
+            # 3. Операции зарплаты за период (премии, штрафы и т.д.)
+            try:
+                from models.extended_models import PayrollOperation
+                operation_earnings = db.query(func.sum(PayrollOperation.amount)).filter(
+                    and_(
+                        PayrollOperation.user_id == employee.id,
+                        PayrollOperation.organization_id == organization_id,
+                        PayrollOperation.created_at >= start_date,
+                        PayrollOperation.created_at <= end_date,
+                        PayrollOperation.is_applied == True,
+                        PayrollOperation.operation_type.in_(['bonus', 'overtime', 'allowance'])  # Только доходы
+                    )
+                ).scalar() or 0
+            except ImportError:
+                operation_earnings = 0
+            
+            total_earnings = payroll_earnings + task_earnings + operation_earnings
             
             reports.append(EmployeePerformanceReport(
                 user_id=str(employee.id),
@@ -249,8 +295,58 @@ class ReportsService:
                 earnings=total_earnings
             ))
         
-        return sorted(reports, key=lambda x: x.tasks_completed, reverse=True)
+        return sorted(reports, key=lambda x: x.earnings, reverse=True)
     
+
+    @staticmethod
+    def get_payroll_period_earnings(
+        db: Session,
+        user_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> float:
+        """
+        Получить заработок пользователя за период с учетом пересечения периодов зарплаты
+        """
+        
+        # Находим все зарплаты, которые пересекаются с отчетным периодом
+        payrolls = db.query(Payroll).filter(
+            and_(
+                Payroll.user_id == user_id,
+                Payroll.organization_id == organization_id,
+                Payroll.is_paid == True,
+                # Пересечение периодов
+                or_(
+                    and_(Payroll.period_start <= end_date, Payroll.period_end >= start_date)
+                )
+            )
+        ).all()
+        
+        total_earnings = 0
+        
+        for payroll in payrolls:
+            # Вычисляем пересечение периодов
+            overlap_start = max(payroll.period_start, start_date)
+            overlap_end = min(payroll.period_end, end_date)
+            
+            if overlap_end > overlap_start:
+                # Длительность пересечения
+                overlap_days = (overlap_end - overlap_start).days + 1
+                # Длительность всего периода зарплаты
+                total_days = (payroll.period_end - payroll.period_start).days + 1
+                
+                # Пропорциональная часть зарплаты
+                if total_days > 0:
+                    proportion = overlap_days / total_days
+                    earnings_for_period = payroll.net_amount * proportion
+                    total_earnings += earnings_for_period
+                else:
+                    # Если период зарплаты = 1 день и он в нашем периоде
+                    total_earnings += payroll.net_amount
+        
+        return total_earnings
+
     @staticmethod
     def generate_client_analytics_report(
         db: Session,
@@ -1343,3 +1439,287 @@ class ReportsService:
             recommendations.append("Показатели стабильны - продолжайте мониторинг ключевых метрик")
         
         return recommendations
+    @staticmethod
+    def export_property_occupancy_excel(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime,
+        property_id: Optional[uuid.UUID] = None
+    ) -> bytes:
+        """Экспорт отчета по загруженности помещений в Excel"""
+        
+        # Генерируем отчет
+        report = ReportsService.generate_property_occupancy_report(
+            db, organization_id, start_date, end_date, property_id
+        )
+        
+        output = io.BytesIO()
+        
+        try:
+            import xlsxwriter
+            workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+            worksheet = workbook.add_worksheet("Загруженность помещений")
+            
+            # Стили
+            header_format = workbook.add_format({
+                'bold': True,
+                'bg_color': '#D7E4BC',
+                'border': 1,
+                'align': 'center'
+            })
+            percent_format = workbook.add_format({'num_format': '0.00"%"'})
+            money_format = workbook.add_format({'num_format': '#,##0.00" ₸"'})
+            
+            # Заголовок
+            worksheet.write('A1', 'Отчет по загруженности помещений', header_format)
+            worksheet.write('A2', f'Период: {start_date.strftime("%d.%m.%Y")} - {end_date.strftime("%d.%m.%Y")}')
+            
+            # Заголовки таблицы
+            headers = ['Помещение', 'Номер', 'Всего дней', 'Занято дней', 'Загруженность %', 'Выручка']
+            for col, header in enumerate(headers):
+                worksheet.write(3, col, header, header_format)
+            
+            # Данные
+            for row, prop in enumerate(report, 4):
+                worksheet.write(row, 0, prop.property_name)
+                worksheet.write(row, 1, prop.property_number)
+                worksheet.write(row, 2, prop.total_days)
+                worksheet.write(row, 3, prop.occupied_days)
+                worksheet.write(row, 4, prop.occupancy_rate / 100, percent_format)
+                worksheet.write(row, 5, prop.revenue, money_format)
+            
+            # Итоговая строка
+            if report:
+                total_row = len(report) + 4
+                worksheet.write(total_row, 0, 'ИТОГО:', header_format)
+                worksheet.write(total_row, 1, '', header_format)
+                worksheet.write(total_row, 2, sum(p.total_days for p in report), header_format)
+                worksheet.write(total_row, 3, sum(p.occupied_days for p in report), header_format)
+                avg_occupancy = sum(p.occupancy_rate for p in report) / len(report) if report else 0
+                worksheet.write(total_row, 4, avg_occupancy / 100, percent_format)
+                worksheet.write(total_row, 5, sum(p.revenue for p in report), money_format)
+            
+            # Автоширина колонок
+            worksheet.set_column('A:A', 25)
+            worksheet.set_column('B:B', 12)
+            worksheet.set_column('C:D', 15)
+            worksheet.set_column('E:E', 18)
+            worksheet.set_column('F:F', 18)
+            
+            workbook.close()
+            output.seek(0)
+            return output.getvalue()
+            
+        except ImportError:
+            raise Exception("xlsxwriter не установлен")
+        except Exception as e:
+            raise Exception(f"Ошибка создания Excel файла: {str(e)}")
+
+    @staticmethod
+    def export_client_analytics_excel(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> bytes:
+        """Экспорт клиентской аналитики в Excel"""
+        
+        # Генерируем отчет
+        report = ReportsService.generate_client_analytics_report(
+            db, organization_id, start_date, end_date
+        )
+        
+        output = io.BytesIO()
+        
+        try:
+            import xlsxwriter
+            workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+            worksheet = workbook.add_worksheet("Клиентская аналитика")
+            
+            # Стили
+            header_format = workbook.add_format({
+                'bold': True,
+                'bg_color': '#D7E4BC',
+                'border': 1,
+                'align': 'center'
+            })
+            money_format = workbook.add_format({'num_format': '#,##0.00" ₸"'})
+            
+            # Заголовок
+            worksheet.write('A1', 'Клиентская аналитика', header_format)
+            worksheet.write('A2', f'Период: {start_date.strftime("%d.%m.%Y")} - {end_date.strftime("%d.%m.%Y")}')
+            
+            # Основная статистика
+            row = 4
+            worksheet.write(row, 0, 'Показатель', header_format)
+            worksheet.write(row, 1, 'Значение', header_format)
+            
+            stats = [
+                ('Всего клиентов', report.total_clients),
+                ('Новые клиенты', report.new_clients),
+                ('Постоянные клиенты', report.returning_clients),
+                ('Средняя продолжительность пребывания (дни)', f'{report.average_stay_duration:.1f}'),
+                ('Средние траты', f'{report.average_spending:,.2f} ₸')
+            ]
+            
+            for stat_name, stat_value in stats:
+                row += 1
+                worksheet.write(row, 0, stat_name)
+                worksheet.write(row, 1, stat_value)
+            
+            # Топ клиенты
+            if report.top_clients:
+                row += 3
+                worksheet.write(row, 0, 'Топ клиенты', header_format)
+                worksheet.write(row, 1, '', header_format)
+                worksheet.write(row, 2, '', header_format)
+                
+                row += 1
+                worksheet.write(row, 0, 'Имя клиента', header_format)
+                worksheet.write(row, 1, 'Потрачено', header_format)
+                worksheet.write(row, 2, 'Средняя длительность (дни)', header_format)
+                
+                for client in report.top_clients[:10]:
+                    row += 1
+                    worksheet.write(row, 0, client['client_name'])
+                    worksheet.write(row, 1, client['spending'], money_format)
+                    worksheet.write(row, 2, f"{client['stay_duration']:.1f}")
+            
+            # Источники клиентов
+            if report.client_sources:
+                row += 3
+                worksheet.write(row, 0, 'Источники клиентов', header_format)
+                worksheet.write(row, 1, '', header_format)
+                
+                row += 1
+                worksheet.write(row, 0, 'Источник', header_format)
+                worksheet.write(row, 1, 'Количество клиентов', header_format)
+                
+                for source, count in report.client_sources.items():
+                    row += 1
+                    worksheet.write(row, 0, source if source != 'unknown' else 'Неизвестно')
+                    worksheet.write(row, 1, count)
+            
+            # Автоширина колонок
+            worksheet.set_column('A:A', 35)
+            worksheet.set_column('B:B', 20)
+            worksheet.set_column('C:C', 25)
+            
+            workbook.close()
+            output.seek(0)
+            return output.getvalue()
+            
+        except ImportError:
+            raise Exception("xlsxwriter не установлен")
+        except Exception as e:
+            raise Exception(f"Ошибка создания Excel файла: {str(e)}")
+
+    @staticmethod
+    def export_employee_performance_excel(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime,
+        role: Optional[UserRole] = None,
+        user_id: Optional[uuid.UUID] = None
+    ) -> bytes:
+        """Экспорт отчета по производительности сотрудников в Excel"""
+        
+        # Генерируем отчет
+        report = ReportsService.generate_employee_performance_report(
+            db, organization_id, start_date, end_date, role, user_id
+        )
+        
+        output = io.BytesIO()
+        
+        try:
+            import xlsxwriter
+            workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+            worksheet = workbook.add_worksheet("Производительность сотрудников")
+            
+            # Стили
+            header_format = workbook.add_format({
+                'bold': True,
+                'bg_color': '#D7E4BC',
+                'border': 1,
+                'align': 'center'
+            })
+            money_format = workbook.add_format({'num_format': '#,##0.00" ₸"'})
+            number_format = workbook.add_format({'num_format': '0.00'})
+            
+            # Заголовок
+            worksheet.write('A1', 'Отчет по производительности сотрудников', header_format)
+            worksheet.write('A2', f'Период: {start_date.strftime("%d.%m.%Y")} - {end_date.strftime("%d.%m.%Y")}')
+            
+            # Заголовки таблицы
+            headers = ['Сотрудник', 'Роль', 'Задач выполнено', 'Среднее время (мин)', 'Рейтинг качества', 'Заработано']
+            for col, header in enumerate(headers):
+                worksheet.write(3, col, header, header_format)
+            
+            # Данные
+            for row, emp in enumerate(report, 4):
+                worksheet.write(row, 0, emp.user_name)
+                
+                # Переводим роли на русский
+                role_translations = {
+                    'admin': 'Администратор',
+                    'manager': 'Менеджер',
+                    'technical_staff': 'Технический персонал',
+                    'cleaner': 'Уборщик',
+                    'accountant': 'Бухгалтер',
+                    'storekeeper': 'Кладовщик'
+                }
+                worksheet.write(row, 1, role_translations.get(emp.role, emp.role))
+                worksheet.write(row, 2, emp.tasks_completed)
+                worksheet.write(row, 3, emp.average_completion_time or 0, number_format)
+                worksheet.write(row, 4, emp.quality_rating or 0, number_format)
+                worksheet.write(row, 5, emp.earnings, money_format)
+            
+            # Итоговая строка
+            if report:
+                total_row = len(report) + 4
+                worksheet.write(total_row, 0, 'ИТОГО:', header_format)
+                worksheet.write(total_row, 1, f'{len(report)} сотрудников', header_format)
+                worksheet.write(total_row, 2, sum(e.tasks_completed for e in report), header_format)
+                
+                # Средние значения
+                avg_time = sum(e.average_completion_time or 0 for e in report) / len(report) if report else 0
+                worksheet.write(total_row, 3, avg_time, number_format)
+                
+                ratings = [e.quality_rating for e in report if e.quality_rating]
+                avg_rating = sum(ratings) / len(ratings) if ratings else 0
+                worksheet.write(total_row, 4, avg_rating, number_format)
+                
+                worksheet.write(total_row, 5, sum(e.earnings for e in report), money_format)
+            
+            # Автоширина колонок
+            worksheet.set_column('A:A', 25)
+            worksheet.set_column('B:B', 20)
+            worksheet.set_column('C:C', 18)
+            worksheet.set_column('D:D', 20)
+            worksheet.set_column('E:E', 18)
+            worksheet.set_column('F:F', 18)
+            
+            workbook.close()
+            output.seek(0)
+            return output.getvalue()
+            
+        except ImportError:
+            raise Exception("xlsxwriter не установлен")
+        except Exception as e:
+            raise Exception(f"Ошибка создания Excel файла: {str(e)}")
+
+    # Также добавить проверку на наличие данных
+    @staticmethod
+    def validate_export_data(report_data, report_type: str):
+
+        """Валидация данных перед экспортом"""
+        
+        if not report_data:
+            raise ValueError(f"Нет данных для экспорта отчета '{report_type}'")
+        
+        if isinstance(report_data, list) and len(report_data) == 0:
+            raise ValueError(f"Отчет '{report_type}' не содержит данных за указанный период")
+        
+        return True

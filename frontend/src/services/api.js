@@ -599,7 +599,9 @@ export const tasksAPI = {
   }
 };
 
-// Reports API
+// В файле frontend/src/services/api.js найдите и замените существующий export reportsAPI на:
+
+// Reports API (обновленная версия)
 export const reportsAPI = {
   async getFinancialSummary(startDate, endDate) {
     return apiRequest(`/api/reports/financial-summary?start_date=${startDate}&end_date=${endDate}`);
@@ -632,15 +634,287 @@ export const reportsAPI = {
     return apiRequest(`/api/reports/my-payroll?${params}`);
   },
 
+  // ИСПРАВЛЕННЫЙ метод экспорта финансового отчета
   async exportFinancialSummary(startDate, endDate, format = 'xlsx') {
-    const response = await fetch(`${API_BASE_URL}/api/reports/financial-summary/export?start_date=${startDate}&end_date=${endDate}&format=${format}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
       }
-    });
-    
-    if (!response.ok) throw new Error('Export failed');
-    return response.blob();
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/financial-summary/export?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&format=${format}`, 
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/pdf, application/octet-stream'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        let errorMessage = `Ошибка ${response.status}: ${response.statusText}`;
+        
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // Если не удается распарсить JSON, используем статус ответа
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const blob = await response.blob();
+      
+      // Проверяем, что получили файл
+      if (blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+      
+      return blob;
+    } catch (error) {
+      console.error('Export failed:', error);
+      throw error;
+    }
+  },
+
+  // Добавляем методы экспорта для других отчетов
+  async exportPropertyOccupancy(startDate, endDate, propertyId = null, format = 'xlsx') {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        format: format
+      });
+      
+      if (propertyId) {
+        params.append('property_id', propertyId);
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/property-occupancy/export?${params}`, 
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/pdf'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Ошибка экспорта: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error) {
+      console.error('Property occupancy export failed:', error);
+      throw error;
+    }
+  },
+
+  async exportClientAnalytics(startDate, endDate, format = 'xlsx') {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        format: format
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/client-analytics/export?${params}`, 
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/pdf'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Ошибка экспорта: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error) {
+      console.error('Client analytics export failed:', error);
+      throw error;
+    }
+  },
+
+  async exportEmployeePerformance(startDate, endDate, role = null, userId = null, format = 'xlsx') {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        format: format
+      });
+      
+      if (role) params.append('role', role);
+      if (userId) params.append('user_id', userId);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/employee-performance/export?${params}`, 
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/pdf'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Ошибка экспорта: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error) {
+      console.error('Employee performance export failed:', error);
+      throw error;
+    }
+  },
+
+  // НОВЫЕ методы экспорта
+  async exportGeneralStatistics(startDate, endDate, format = 'xlsx') {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        format: format
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/general-statistics/export?${params}`, 
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/pdf'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Ошибка экспорта: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error) {
+      console.error('General statistics export failed:', error);
+      throw error;
+    }
+  },
+
+  async exportComparativeAnalysis(startDate, endDate, format = 'xlsx') {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        format: format
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/comparative-analysis/export?${params}`, 
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/pdf'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Ошибка экспорта: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error) {
+      console.error('Comparative analysis export failed:', error);
+      throw error;
+    }
+  },
+
+  // Методы отладки
+  async debugDataSources(startDate, endDate) {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      throw new Error('Токен авторизации не найден');
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/reports/debug/data-sources?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Debug API failed: ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
+  },
+
+  async debugEmployeeEarnings(userId, startDate, endDate) {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      throw new Error('Токен авторизации не найден');
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/reports/debug/employee-earnings/${userId}?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Employee debug API failed: ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
   }
 };
 

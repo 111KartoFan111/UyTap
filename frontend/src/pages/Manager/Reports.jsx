@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { FiDownload, FiCalendar, FiUsers, FiTrendingUp, FiDollarSign, FiHome, FiBarChart2 } from 'react-icons/fi';
+import { FiDownload, FiCalendar, FiUsers, FiTrendingUp, FiDollarSign, FiHome, FiBarChart2, FiRefreshCw } from 'react-icons/fi';
 import { useData } from '../../contexts/DataContext';
+import { debugExport } from '../../utils/exportDebug';
 import './Pages.css';
 
 const Reports = () => {
@@ -16,6 +17,7 @@ const Reports = () => {
     employeePerformance: null
   });
   const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState({});
 
   // Устанавливаем даты по умолчанию (последние 30 дней)
   useEffect(() => {
@@ -63,6 +65,16 @@ const Reports = () => {
         employeePerformance: performanceData.status === 'fulfilled' ? performanceData.value : null
       });
 
+      // Показываем информацию об ошибках, если они есть
+      const errors = [financialData, occupancyData, clientData, performanceData]
+        .filter(result => result.status === 'rejected')
+        .map(result => result.reason.message);
+      
+      if (errors.length > 0) {
+        console.warn('Some reports failed to load:', errors);
+        utils.showWarning(`Не удалось загрузить некоторые отчеты: ${errors.join(', ')}`);
+      }
+
     } catch (error) {
       console.error('Failed to load reports data:', error);
       utils.showError('Не удалось загрузить данные отчетов');
@@ -71,33 +83,166 @@ const Reports = () => {
     }
   };
 
-  const handleExport = async (reportType, format = 'xlsx') => {
+  // Функция для отладки данных отчетов
+  const handleDebugReports = async () => {
     try {
       const startDateTime = dateRange.start + 'T00:00:00';
       const endDateTime = dateRange.end + 'T23:59:59';
+      
+      console.log('=== ОТЛАДКА ДАННЫХ ОТЧЕТОВ ===');
+      
+      // Получаем отладочную информацию через прямой API вызов
+      const { reportsAPI } = await import('../../services/api');
+      const debugData = await reportsAPI.debugDataSources(startDateTime, endDateTime);
+      console.log('Debug data sources:', debugData);
+      
+      // Показываем информацию пользователю
+      const message = `
+Период отчета: ${debugData.report_period.start_date.split('T')[0]} - ${debugData.report_period.end_date.split('T')[0]}
+Продолжительность: ${debugData.report_period.duration_days} дней
+
+Данные в системе:
+- Пользователи: ${debugData.data_sources.users?.count || 0}
+- Аренды за период: ${debugData.data_sources.rentals?.count || 0}
+- Выполненные задачи: ${debugData.data_sources.tasks?.count || 0}
+- Зарплаты за период: ${debugData.data_sources.payrolls?.count || 0}
+- Выплаченные зарплаты: ${debugData.data_sources.payrolls?.paid_count || 0}
+- Общая сумма выплат: ₸ ${debugData.data_sources.payrolls?.total_paid_amount?.toLocaleString() || 0}
+- Клиенты: ${debugData.data_sources.clients?.count || 0}
+- Помещения: ${debugData.data_sources.properties?.count || 0}
+
+Проблемы:
+${debugData.data_sources.payrolls?.count === 0 ? '⚠️ Нет зарплат за выбранный период' : ''}
+${debugData.data_sources.payrolls?.paid_count === 0 ? '⚠️ Нет выплаченных зарплат' : ''}
+${debugData.data_sources.rentals?.count === 0 ? '⚠️ Нет аренд за период' : ''}
+      `.trim();
+      
+      alert(message);
+      
+      // Если есть проблемы с зарплатами, показываем детали по каждому сотруднику
+      if (reportsData.employeePerformance && reportsData.employeePerformance.length > 0) {
+        for (const emp of reportsData.employeePerformance) {
+          if (emp.earnings === 0) {
+            console.log(`Debugging employee ${emp.user_name}...`);
+            try {
+              const empDebug = await reportsAPI.debugEmployeeEarnings(emp.user_id, startDateTime, endDateTime);
+              console.log(`Employee debug for ${emp.user_name}:`, empDebug);
+            } catch (error) {
+              console.error(`Failed to debug employee ${emp.user_name}:`, error);
+            }
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error('Debug failed:', error);
+      utils.showError('Не удалось получить отладочную информацию');
+    }
+  };
+
+  // Универсальная функция для экспорта с улучшенной отладкой
+  const handleExport = async (reportType, format = 'xlsx') => {
+    const exportKey = `${reportType}_${format}`;
+    
+    try {
+      setExportLoading(prev => ({ ...prev, [exportKey]: true }));
+      
+      const startDateTime = dateRange.start + 'T00:00:00';
+      const endDateTime = dateRange.end + 'T23:59:59';
+
+      console.log(`Starting export: ${reportType} (${format})`);
+      console.log('Date range:', { startDateTime, endDateTime });
 
       let blob;
+      let filename;
+      
       switch (reportType) {
         case 'financial':
           blob = await reports.exportFinancialSummary(startDateTime, endDateTime, format);
+          filename = `financial_report_${dateRange.start}_${dateRange.end}.${format}`;
           break;
+          
+        case 'property_occupancy':
+          blob = await reports.exportPropertyOccupancy(startDateTime, endDateTime, null, format);
+          filename = `property_occupancy_${dateRange.start}_${dateRange.end}.${format}`;
+          break;
+          
+        case 'client_analytics':
+          blob = await reports.exportClientAnalytics(startDateTime, endDateTime, format);
+          filename = `client_analytics_${dateRange.start}_${dateRange.end}.${format}`;
+          break;
+          
+        case 'employee_performance':
+          blob = await reports.exportEmployeePerformance(startDateTime, endDateTime, null, null, format);
+          filename = `employee_performance_${dateRange.start}_${dateRange.end}.${format}`;
+          break;
+          
+        case 'general_statistics':
+          // Импортируем API напрямую для новых методов
+          const { reportsAPI } = await import('../../services/api');
+          blob = await reportsAPI.exportGeneralStatistics(startDateTime, endDateTime, format);
+          filename = `general_statistics_${dateRange.start}_${dateRange.end}.${format}`;
+          break;
+          
+        case 'comparative_analysis':
+          const { reportsAPI: reportsAPI2 } = await import('../../services/api');
+          blob = await reportsAPI2.exportComparativeAnalysis(startDateTime, endDateTime, format);
+          filename = `comparative_analysis_${dateRange.start}_${dateRange.end}.${format}`;
+          break;
+          
         default:
-          utils.showWarning('Экспорт для этого отчета пока не доступен');
-          return;
+          throw new Error('Неподдерживаемый тип отчета');
       }
 
-      // Создаем ссылку для скачивания
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${reportType}_report_${dateRange.start}_${dateRange.end}.${format}`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      // Проверяем blob с помощью отладочной утилиты
+      if (!blob || blob.size === 0) {
+        console.error('Received empty blob');
+        throw new Error('Получен пустой файл');
+      }
+
+      // Логируем информацию о файле
+      debugExport.logBlobInfo(blob, filename);
       
-      utils.showSuccess('Отчет успешно экспортирован');
+      // Проверяем MIME тип
+      debugExport.validateMimeType(blob);
+
+      // Используем улучшенную функцию скачивания
+      const downloadSuccess = debugExport.downloadBlob(blob, filename);
+      
+      if (!downloadSuccess) {
+        throw new Error('Не удалось скачать файл');
+      }
+      
+      utils.showSuccess('Отчет успешно скачан');
+      
     } catch (error) {
-      console.error('Failed to export report:', error);
-      utils.showError('Не удалось экспортировать отчет');
+      console.error('Export failed:', error);
+      
+      let errorMessage = 'Не удалось экспортировать отчет';
+      if (error.message) {
+        if (error.message.includes('404')) {
+          errorMessage = 'Эндпоинт экспорта не найден. Проверьте, что бэкенд поддерживает экспорт.';
+        } else if (error.message.includes('500')) {
+          errorMessage = 'Ошибка сервера при генерации отчета. Попробуйте позже.';
+        } else if (error.message.includes('403')) {
+          errorMessage = 'Нет прав для экспорта отчетов';
+        } else {
+          errorMessage += `: ${error.message}`;
+        }
+      }
+      
+      utils.showError(errorMessage);
+      
+      // Дополнительная информация для отладки
+      console.log('Error details:', {
+        reportType,
+        format,
+        dateRange,
+        error: error.message,
+        stack: error.stack
+      });
+    } finally {
+      setExportLoading(prev => ({ ...prev, [exportKey]: false }));
     }
   };
 
@@ -109,24 +254,49 @@ const Reports = () => {
     return value ? `${Math.round(value)}%` : '0%';
   };
 
+  const isExportLoading = (reportType, format = 'xlsx') => {
+    return exportLoading[`${reportType}_${format}`] || false;
+  };
+
   return (
     <div className="reports-page">
       <div className="page-header">
         <h1>Отчеты и аналитика</h1>
-        <div className="date-range-picker">
-          <input 
-            type="date"
-            value={dateRange.start}
-            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+        <div className="header-controls">
+          <div className="date-range-picker">
+            <input 
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+              disabled={loading}
+            />
+            <span>—</span>
+            <input 
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+              disabled={loading}
+            />
+          </div>
+          {process.env.NODE_ENV === 'development' && (
+            <button 
+              className="btn-outline debug-btn"
+              onClick={handleDebugReports}
+              disabled={loading}
+              title="Отладка данных отчетов"
+              style={{ backgroundColor: '#ff6b6b', color: 'white', border: '1px solid #ff5252' }}
+            >
+              🐛 Debug
+            </button>
+          )}
+          <button 
+            className="btn-outline"
+            onClick={loadReportsData}
             disabled={loading}
-          />
-          <span>—</span>
-          <input 
-            type="date"
-            value={dateRange.end}
-            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-            disabled={loading}
-          />
+          >
+            <FiRefreshCw className={loading ? 'spinning' : ''} />
+            Обновить
+          </button>
         </div>
       </div>
 
@@ -158,13 +328,24 @@ const Reports = () => {
                 <span>Нет данных за выбранный период</span>
               </div>
             )}
-            <button 
-              className="btn-outline"
-              onClick={() => handleExport('financial', 'xlsx')}
-              disabled={!reportsData.financialSummary}
-            >
-              <FiDownload /> Скачать
-            </button>
+            <div className="export-buttons">
+              <button 
+                className="btn-outline"
+                onClick={() => handleExport('financial', 'xlsx')}
+                disabled={!reportsData.financialSummary || isExportLoading('financial', 'xlsx')}
+              >
+                {isExportLoading('financial', 'xlsx') ? <FiRefreshCw className="spinning" /> : <FiDownload />}
+                {isExportLoading('financial', 'xlsx') ? 'Экспорт...' : 'Excel'}
+              </button>
+              <button 
+                className="btn-outline"
+                onClick={() => handleExport('financial', 'pdf')}
+                disabled={!reportsData.financialSummary || isExportLoading('financial', 'pdf')}
+              >
+                {isExportLoading('financial', 'pdf') ? <FiRefreshCw className="spinning" /> : <FiDownload />}
+                {isExportLoading('financial', 'pdf') ? 'Экспорт...' : 'PDF'}
+              </button>
+            </div>
           </div>
 
           {/* Загруженность помещений */}
@@ -189,12 +370,16 @@ const Reports = () => {
                 <span>Нет данных за выбранный период</span>
               </div>
             )}
-            <button 
-              className="btn-outline"
-              onClick={() => utils.showInfo('Экспорт отчета по загруженности будет добавлен в следующей версии')}
-            >
-              <FiDownload /> Скачать
-            </button>
+            <div className="export-buttons">
+              <button 
+                className="btn-outline"
+                onClick={() => handleExport('property_occupancy', 'xlsx')}
+                disabled={!reportsData.propertyOccupancy || isExportLoading('property_occupancy', 'xlsx')}
+              >
+                {isExportLoading('property_occupancy', 'xlsx') ? <FiRefreshCw className="spinning" /> : <FiDownload />}
+                {isExportLoading('property_occupancy', 'xlsx') ? 'Экспорт...' : 'Excel'}
+              </button>
+            </div>
           </div>
 
           {/* Клиентская аналитика */}
@@ -216,12 +401,16 @@ const Reports = () => {
                 <span>Нет данных за выбранный период</span>
               </div>
             )}
-            <button 
-              className="btn-outline"
-              onClick={() => utils.showInfo('Экспорт клиентской аналитики будет добавлен в следующей версии')}
-            >
-              <FiDownload /> Скачать
-            </button>
+            <div className="export-buttons">
+              <button 
+                className="btn-outline"
+                onClick={() => handleExport('client_analytics', 'xlsx')}
+                disabled={!reportsData.clientAnalytics || isExportLoading('client_analytics', 'xlsx')}
+              >
+                {isExportLoading('client_analytics', 'xlsx') ? <FiRefreshCw className="spinning" /> : <FiDownload />}
+                {isExportLoading('client_analytics', 'xlsx') ? 'Экспорт...' : 'Excel'}
+              </button>
+            </div>
           </div>
 
           {/* Производительность сотрудников */}
@@ -248,15 +437,19 @@ const Reports = () => {
                 <span>Нет данных за выбранный период</span>
               </div>
             )}
-            <button 
-              className="btn-outline"
-              onClick={() => utils.showInfo('Экспорт отчета по производительности будет добавлен в следующей версии')}
-            >
-              <FiDownload /> Скачать
-            </button>
+            <div className="export-buttons">
+              <button 
+                className="btn-outline"
+                onClick={() => handleExport('employee_performance', 'xlsx')}
+                disabled={!reportsData.employeePerformance || isExportLoading('employee_performance', 'xlsx')}
+              >
+                {isExportLoading('employee_performance', 'xlsx') ? <FiRefreshCw className="spinning" /> : <FiDownload />}
+                {isExportLoading('employee_performance', 'xlsx') ? 'Экспорт...' : 'Excel'}
+              </button>
+            </div>
           </div>
 
-          {/* Детальная аналитика */}
+          {/* Общая статистика */}
           <div className="report-card">
             <div className="report-icon">
               <FiTrendingUp />
@@ -277,12 +470,16 @@ const Reports = () => {
                 <span>Нет данных за выбранный период</span>
               )}
             </div>
-            <button 
-              className="btn-outline"
-              onClick={() => utils.showInfo('Комплексный отчет будет добавлен в следующей версии')}
-            >
-              <FiDownload /> Скачать
-            </button>
+            <div className="export-buttons">
+              <button 
+                className="btn-outline"
+                onClick={() => handleExport('general_statistics', 'xlsx')}
+                disabled={!reportsData.financialSummary || isExportLoading('general_statistics', 'xlsx')}
+              >
+                {isExportLoading('general_statistics', 'xlsx') ? <FiRefreshCw className="spinning" /> : <FiDownload />}
+                {isExportLoading('general_statistics', 'xlsx') ? 'Экспорт...' : 'Скачать'}
+              </button>
+            </div>
           </div>
 
           {/* Сравнительная аналитика */}
@@ -298,13 +495,16 @@ const Reports = () => {
               <span>Эффективность персонала: В разработке</span>
               <span>Сезонные тренды: В разработке</span>
             </div>
-            <button 
-              className="btn-outline"
-              onClick={() => utils.showInfo('Сравнительная аналитика будет добавлена в следующей версии')}
-              disabled
-            >
-              <FiDownload /> Скачать
-            </button>
+            <div className="export-buttons">
+              <button 
+                className="btn-outline"
+                onClick={() => handleExport('comparative_analysis', 'xlsx')}
+                disabled={!reportsData.financialSummary || isExportLoading('comparative_analysis', 'xlsx')}
+              >
+                {isExportLoading('comparative_analysis', 'xlsx') ? <FiRefreshCw className="spinning" /> : <FiDownload />}
+                {isExportLoading('comparative_analysis', 'xlsx') ? 'Экспорт...' : 'Скачать'}
+              </button>
+            </div>
           </div>
         </div>
       )}

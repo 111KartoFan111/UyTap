@@ -283,14 +283,73 @@ export const DataProvider = ({ children }) => {
     export: (format, year, month) => payrollAPI.exportData(format, year, month)
   };
 
-  // Enhanced reports operations
   const reports = {
-    getFinancialSummary: (startDate, endDate) => withLoading(() => reportsAPI.getFinancialSummary(startDate, endDate)),
-    getPropertyOccupancy: (startDate, endDate, propertyId) => withLoading(() => reportsAPI.getPropertyOccupancy(startDate, endDate, propertyId)),
-    getEmployeePerformance: (startDate, endDate, role, userId) => withLoading(() => reportsAPI.getEmployeePerformance(startDate, endDate, role, userId)),
-    getClientAnalytics: (startDate, endDate) => withLoading(() => reportsAPI.getClientAnalytics(startDate, endDate)),
-    getMyPayroll: (periodStart, periodEnd) => withLoading(() => reportsAPI.getMyPayroll(periodStart, periodEnd)),
-    exportFinancialSummary: (startDate, endDate, format) => withLoading(() => reportsAPI.exportFinancialSummary(startDate, endDate, format))
+  getFinancialSummary: (startDate, endDate) => withLoading(() => reportsAPI.getFinancialSummary(startDate, endDate)),
+  getPropertyOccupancy: (startDate, endDate, propertyId) => withLoading(() => reportsAPI.getPropertyOccupancy(startDate, endDate, propertyId)),
+  getEmployeePerformance: (startDate, endDate, role, userId) => withLoading(() => reportsAPI.getEmployeePerformance(startDate, endDate, role, userId)),
+  getClientAnalytics: (startDate, endDate) => withLoading(() => reportsAPI.getClientAnalytics(startDate, endDate)),
+  getMyPayroll: (periodStart, periodEnd) => withLoading(() => reportsAPI.getMyPayroll(periodStart, periodEnd)),
+  
+  // ИСПРАВЛЕННЫЕ методы экспорта с правильной обработкой ошибок
+  exportFinancialSummary: async (startDate, endDate, format = 'xlsx') => {
+    try {
+      const blob = await reportsAPI.exportFinancialSummary(startDate, endDate, format);
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+      
+      return blob;
+    } catch (error) {
+      console.error('Financial summary export failed:', error);
+      throw new Error(`Ошибка экспорта финансового отчета: ${error.message}`);
+    }
+  },
+
+  exportPropertyOccupancy: async (startDate, endDate, propertyId = null, format = 'xlsx') => {
+    try {
+      const blob = await reportsAPI.exportPropertyOccupancy(startDate, endDate, propertyId, format);
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+      
+      return blob;
+    } catch (error) {
+      console.error('Property occupancy export failed:', error);
+      throw new Error(`Ошибка экспорта отчета по загруженности: ${error.message}`);
+    }
+  },
+
+  exportClientAnalytics: async (startDate, endDate, format = 'xlsx') => {
+    try {
+      const blob = await reportsAPI.exportClientAnalytics(startDate, endDate, format);
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+      
+      return blob;
+    } catch (error) {
+      console.error('Client analytics export failed:', error);
+      throw new Error(`Ошибка экспорта клиентской аналитики: ${error.message}`);
+    }
+  },
+
+  exportEmployeePerformance: async (startDate, endDate, role = null, userId = null, format = 'xlsx') => {
+    try {
+      const blob = await reportsAPI.exportEmployeePerformance(startDate, endDate, role, userId, format);
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+      
+      return blob;
+    } catch (error) {
+      console.error('Employee performance export failed:', error);
+      throw new Error(`Ошибка экспорта отчета по производительности: ${error.message}`);
+    }
+  }
   };
 
   // Enhanced organization operations
