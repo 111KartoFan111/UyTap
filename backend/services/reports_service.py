@@ -1928,3 +1928,83 @@ class ReportsService:
             recommendations.append("Показатели стабильны - продолжайте мониторинг ключевых метрик")
         
         return recommendations
+    
+    @staticmethod
+    def _get_property_occupied_days(
+        db: Session,
+        property_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> int:
+        """
+        Подсчет количества дней, когда помещение было занято в указанном периоде
+        
+        Args:
+            db: Сессия базы данных
+            property_id: ID помещения
+            start_date: Начало периода
+            end_date: Конец периода
+            
+        Returns:
+            Количество занятых дней
+        """
+        
+        # Получаем все аренды для этого помещения, которые пересекаются с отчетным периодом
+        rentals = db.query(Rental).filter(
+            and_(
+                Rental.property_id == property_id,
+                # Аренда пересекается с отчетным периодом
+                Rental.start_date < end_date,
+                Rental.end_date > start_date
+            )
+        ).all()
+        
+        if not rentals:
+            return 0
+        
+        # Собираем все периоды занятости
+        occupied_periods = []
+        
+        for rental in rentals:
+            # Убираем часовой пояс для вычислений
+            rental_start = rental.start_date.replace(tzinfo=None) if rental.start_date.tzinfo else rental.start_date
+            rental_end = rental.end_date.replace(tzinfo=None) if rental.end_date.tzinfo else rental.end_date
+            period_start = start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
+            period_end = end_date.replace(tzinfo=None) if end_date.tzinfo else end_date
+            
+            # Пересечение аренды с отчетным периодом
+            overlap_start = max(rental_start, period_start)
+            overlap_end = min(rental_end, period_end)
+            
+            if overlap_end > overlap_start:
+                occupied_periods.append((overlap_start, overlap_end))
+        
+        if not occupied_periods:
+            return 0
+        
+        # Объединяем пересекающиеся периоды чтобы избежать двойного подсчета
+        # Сортируем периоды по дате начала
+        occupied_periods.sort(key=lambda x: x[0])
+        
+        merged_periods = []
+        current_start, current_end = occupied_periods[0]
+        
+        for start, end in occupied_periods[1:]:
+            if start <= current_end:
+                # Периоды пересекаются или соприкасаются - объединяем
+                current_end = max(current_end, end)
+            else:
+                # Новый период - сохраняем предыдущий и начинаем новый
+                merged_periods.append((current_start, current_end))
+                current_start, current_end = start, end
+        
+        # Добавляем последний период
+        merged_periods.append((current_start, current_end))
+        
+        # Подсчитываем общее количество занятых дней
+        total_occupied_days = 0
+        for start, end in merged_periods:
+            days = (end - start).days + 1  # +1 чтобы включить последний день
+            total_occupied_days += days
+        
+        return total_occupied_days
