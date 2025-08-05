@@ -23,6 +23,7 @@ from reportlab.platypus import (
     TableStyle,
     Image,
 )
+from collections import defaultdict
 
 
 # Регистрируем Unicode-шрифт, поддерживающий кириллицу
@@ -1017,80 +1018,85 @@ class ReportsService:
         user_id: uuid.UUID,
         period_start: datetime,
         period_end: datetime
-    ) -> Dict[str, Any]:
-        """Получить зарплатную ведомость пользователя"""
+    ) -> List[Dict[str, Any]]:  # Изменяем тип возвращаемого значения на список
+        """Получить зарплатные ведомости пользователя за период"""
         
-        payroll = db.query(Payroll).filter(
+        # Преобразуем aware-даты в naive UTC
+        if period_start.tzinfo is not None:
+            period_start = period_start.astimezone(timezone.utc).replace(tzinfo=None)
+        if period_end.tzinfo is not None:
+            period_end = period_end.astimezone(timezone.utc).replace(tzinfo=None)
+
+        # Получаем ВСЕ ведомости за период
+        payrolls = db.query(Payroll).filter(
             and_(
                 Payroll.user_id == user_id,
-                Payroll.period_start >= period_start,
-                Payroll.period_end <= period_end
+                Payroll.period_start <= period_end,
+                Payroll.period_end >= period_start
             )
-        ).first()
+        ).order_by(Payroll.period_start.desc()).all()  # Получаем все записи
+
+        # Если ведомостей нет - возвращаем пустой список
+        if not payrolls:
+            return []
+
+        # Собираем ID всех ведомостей для фильтрации задач
+        payroll_ids = [payroll.id for payroll in payrolls]
         
-        if not payroll:
-            return {
-                "period_start": period_start,
-                "period_end": period_end,
-                "payroll_type": "not_found",
-                "base_rate": 0,
-                "hours_worked": 0,
-                "tasks_completed": 0,
-                "tasks_payment": 0,
-                "bonus": 0,
-                "tips": 0,
-                "other_income": 0,
-                "deductions": 0,
-                "taxes": 0,
-                "gross_amount": 0,
-                "net_amount": 0,
-                "is_paid": False,
-                "breakdown": []
-            }
-        
-        # Детализация задач
+        # Получаем ВСЕ задачи за период для всех ведомостей
         tasks = db.query(Task).filter(
             and_(
                 Task.assigned_to == user_id,
                 Task.status == TaskStatus.COMPLETED,
                 Task.is_paid == True,
                 Task.completed_at >= period_start,
-                Task.completed_at <= period_end
-            )
-        ).all()
-        
-        task_breakdown = [
-            {
-                "task_id": str(task.id),
-                "title": task.title,
-                "task_type": task.task_type.value,
-                "completed_at": task.completed_at,
-                "payment_amount": task.payment_amount,
-                "quality_rating": task.quality_rating
-            }
-            for task in tasks
-        ]
-        
-        return {
-            "period_start": payroll.period_start,
-            "period_end": payroll.period_end,
-            "payroll_type": payroll.payroll_type.value,
-            "base_rate": payroll.base_rate or 0,
-            "hours_worked": payroll.hours_worked,
-            "tasks_completed": payroll.tasks_completed,
-            "tasks_payment": payroll.tasks_payment,
-            "bonus": payroll.bonus,
-            "tips": payroll.tips,
-            "other_income": payroll.other_income,
-            "deductions": payroll.deductions,
-            "taxes": payroll.taxes,
-            "gross_amount": payroll.gross_amount,
-            "net_amount": payroll.net_amount,
-            "is_paid": payroll.is_paid,
-            "paid_at": payroll.paid_at,
-            "breakdown": task_breakdown
-        }
-    
+                Task.completed_at <= period_end,
+                Task.payroll_id.in_(payroll_ids)  # Фильтруем по ведомостям
+        ).all())
+
+        # Группируем задачи по ID ведомостей
+        tasks_by_payroll = defaultdict(list)
+        for task in tasks:
+            tasks_by_payroll[task.payroll_id].append(task)
+
+        result = []
+        for payroll in payrolls:
+            # Формируем breakdown для текущей ведомости
+            task_breakdown = [
+                {
+                    "task_id": str(task.id),
+                    "title": task.title,
+                    "task_type": task.task_type.value,
+                    "completed_at": task.completed_at,
+                    "payment_amount": task.payment_amount,
+                    "quality_rating": task.quality_rating
+                }
+                for task in tasks_by_payroll.get(payroll.id, [])
+            ]
+
+            result.append({
+                "payroll_id": str(payroll.id),
+                "period_start": payroll.period_start,
+                "period_end": payroll.period_end,
+                "payroll_type": payroll.payroll_type.value,
+                "base_rate": payroll.base_rate or 0,
+                "hours_worked": payroll.hours_worked,
+                "tasks_completed": payroll.tasks_completed,
+                "tasks_payment": payroll.tasks_payment,
+                "bonus": payroll.bonus,
+                "tips": payroll.tips,
+                "other_income": payroll.other_income,
+                "deductions": payroll.deductions,
+                "taxes": payroll.taxes,
+                "gross_amount": payroll.gross_amount,
+                "net_amount": payroll.net_amount,
+                "is_paid": payroll.is_paid,
+                "paid_at": payroll.paid_at,
+                "breakdown": task_breakdown
+            })
+
+        return result
+
     @staticmethod
     def generate_dashboard_summary(
         db: Session,

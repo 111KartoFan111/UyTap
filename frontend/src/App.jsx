@@ -35,6 +35,7 @@ import Guests from './components/Guests/Guests.jsx';
 import Tasks from './pages/TechnicalStaff/Tasks/Tasks.jsx';
 import Rooms from './components/Rooms/Rooms.jsx';
 import Employees from './components/Employees/Employees.jsx';
+import MyPayroll from './components/MyPayroll/MyPayroll.jsx';
 
 import './App.css';
 
@@ -178,6 +179,7 @@ const AppRoutes = () => {
                 <Route path="clients" element={<Clients />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="staff" element={<Staff />} />
+                <Route path="mypayroll" element={<MyPayroll />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
@@ -192,6 +194,7 @@ const AppRoutes = () => {
             <Layout>
               <Routes>
                 <Route index element={<CleanerDashboard />} />
+                <Route path="mypayroll" element={<MyPayroll />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
@@ -206,6 +209,7 @@ const AppRoutes = () => {
             <Layout>
               <Routes>
                 <Route index element={<TechnicalStaffDashboard />} />
+                <Route path="mypayroll" element={<MyPayroll />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
@@ -238,6 +242,7 @@ const AppRoutes = () => {
             <Layout>
               <Routes>
                 <Route index element={<StorekeeperDashboard />} />
+                <Route path="mypayroll" element={<MyPayroll />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

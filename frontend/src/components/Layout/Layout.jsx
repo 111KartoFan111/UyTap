@@ -57,18 +57,21 @@ const Layout = ({ children }) => {
           { path: '/manager/reports', icon: FiBarChart2, label: 'Отчеты' },
           { path: '/manager/staff', icon: FaUsersGear, label: 'Сотрудники' },
           { path: '/manager/settings', icon: LuUserCog, label: 'Настройки' },
+          { path: '/manager/mypayroll', icon: FiDollarSign, label: 'Мои зарплаты' },
         ];
       
       case 'cleaner':
         return [
           { path: '/cleaner', icon: FiHome, label: 'Мои задачи' },
           { path: '/tasks', icon: FiCheckSquare, label: 'Все задачи' },
+          { path: '/cleaner/mypayroll', icon: FiDollarSign, label: 'Мои зарплаты' },
         ];
       
       case 'technical_staff':
         return [
           { path: '/technical', icon: FiHome, label: 'Заявки' },
           { path: '/tasks', icon: FiTool, label: 'Задачи' },
+          { path: '/technical_staff/mypayroll', icon: FiDollarSign, label: 'Мои зарплаты' },
         ];
       
       case 'accountant':
@@ -84,6 +87,7 @@ const Layout = ({ children }) => {
         return [
           { path: '/storekeeper', icon: FiHome, label: 'Склад' },
           { path: '/tasks', icon: FiPackage, label: 'Поставки' },
+          { path: '/storekeeper/mypayroll', icon: FiDollarSign, label: 'Мои зарплаты' },
         ];
       
       default:
