@@ -13,6 +13,7 @@ from services.task_service import TaskService
 
 
 class RentalService:
+
     """Сервис для управления арендой"""
     
     @staticmethod
@@ -151,6 +152,62 @@ class RentalService:
         
         return rental
     
+
+    @staticmethod
+    def extend_rental_with_payment(
+        db: Session,
+        rental: Rental,
+        new_end_date: datetime,
+        additional_amount: float,
+        payment_method: str = "cash",
+        payment_notes: str = None
+    ) -> Rental:
+        """Продлить аренду с созданием платежа и уведомлением"""
+        
+        if new_end_date <= rental.end_date:
+            raise ValueError("New end date must be after current end date")
+        
+        # Обновляем аренду
+        rental.end_date = new_end_date
+        rental.total_amount += additional_amount
+        rental.updated_at = datetime.now(timezone.utc)
+        
+        # Создаем платеж за продление
+        from models.payment_models import Payment, PaymentType, PaymentStatus
+        
+        extension_payment = Payment(
+            id=uuid.uuid4(),
+            organization_id=rental.organization_id,
+            rental_id=rental.id,
+            payment_type=PaymentType.ADDITIONAL,
+            amount=additional_amount,
+            currency="KZT",
+            status=PaymentStatus.COMPLETED,
+            payment_method=payment_method,
+            description=f"Продление аренды до {new_end_date.strftime('%d.%m.%Y')}",
+            payer_name=f"{rental.client.first_name} {rental.client.last_name}" if rental.client else None,
+            completed_at=datetime.now(timezone.utc),
+            notes=payment_notes
+        )
+        
+        db.add(extension_payment)
+        
+        # Обновляем оплаченную сумму
+        rental.paid_amount += additional_amount
+        
+        # Обновляем статистику клиента
+        if rental.client:
+            rental.client.total_spent += additional_amount
+            rental.client.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        db.refresh(rental)
+        
+        # Отправляем уведомление о продлении (здесь можно добавить отправку SMS/Email)
+        RentalService._send_extension_notification(rental, new_end_date, additional_amount)
+        
+        return rental
+    
     @staticmethod
     def cancel_rental(
         db: Session,
@@ -177,29 +234,45 @@ class RentalService:
         db.commit()
     
     @staticmethod
+    def _send_extension_notification(rental: Rental, new_end_date: datetime, amount: float):
+        """Отправка уведомления о продлении аренды"""
+        try:
+            # Здесь можно интегрировать с SMS/Email сервисом
+            message = (
+                f"Аренда продлена до {new_end_date.strftime('%d.%m.%Y %H:%M')}. "
+                f"Доплата: {amount:,.0f} ₸. "
+                f"Помещение: {rental.property.name if rental.property else 'N/A'}. "
+                f"Спасибо за выбор наших услуг!"
+            )
+            
+            # Логируем уведомление
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Extension notification sent to {rental.client.phone}: {message}")
+            
+            # TODO: Интегрировать с реальным SMS/Email сервисом
+            # sms_service.send_sms(rental.client.phone, message)
+            # email_service.send_email(rental.client.email, "Продление аренды", message)
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send extension notification: {e}")
+        
+    
+    
+    
+    @staticmethod
     def extend_rental(
         db: Session,
         rental: Rental,
         new_end_date: datetime,
         additional_amount: float
     ) -> Rental:
-        """Продлить аренду"""
-        
-        if new_end_date <= rental.end_date:
-            raise ValueError("New end date must be after current end date")
-        
-        rental.end_date = new_end_date
-        rental.total_amount += additional_amount
-        rental.updated_at = datetime.now(timezone.utc)
-        
-        # Обновляем статистику клиента
-        if rental.client:
-            rental.client.total_spent += additional_amount
-        
-        db.commit()
-        db.refresh(rental)
-        
-        return rental
+        """Продлить аренду (старый метод для обратной совместимости)"""
+        return RentalService.extend_rental_with_payment(
+            db, rental, new_end_date, additional_amount
+        )
     
     @staticmethod
     def get_rental_statistics(

@@ -918,6 +918,77 @@ export const reportsAPI = {
   }
 };
 
+export const salesAPI = {
+  // Получить доступные товары для продажи  
+  async getAvailableProducts(params = {}) {
+    const searchParams = new URLSearchParams({
+      in_stock_only: true,
+      is_active: true,
+      ...params
+    });
+    return apiRequest(`/api/inventory/available-for-orders?${searchParams}`);
+  },
+
+  // Создать заказ-продажу с автоматическим списанием
+  async createSale(saleData) {
+    return apiRequest('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...saleData,
+        order_type: 'product_sale'
+      })
+    });
+  },
+
+  // Завершить продажу с списанием инвентаря
+  async completeSale(orderId, completionNotes = 'Продажа завершена') {
+    return apiRequest(`/api/orders/${orderId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({
+        completion_notes: completionNotes
+      })
+    });
+  },
+
+  // Получить историю продаж
+  async getSalesHistory(params = {}) {
+    const searchParams = new URLSearchParams({
+      order_type: 'product_sale',
+      ...params
+    });
+    return apiRequest(`/api/orders?${searchParams}`);
+  },
+
+  // Получить статистику продаж
+  async getSalesStatistics(periodDays = 30) {
+    return apiRequest(`/api/orders/statistics/overview?period_days=${periodDays}&order_type=product_sale`);
+  },
+
+  // Получить отчет о продажах инвентаря
+  async getSalesReport(startDate, endDate) {
+    return apiRequest(`/api/inventory/orders-impact-report?start_date=${startDate}&end_date=${endDate}`);
+  },
+
+  // Экспорт данных о продажах
+  async exportSalesReport(startDate, endDate, format = 'xlsx') {
+    const response = await fetch(
+      `${API_BASE_URL}/api/reports/sales-report/export?start_date=${startDate}&end_date=${endDate}&format=${format}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return response.blob();
+  }
+};
+
+
 // Orders API
 export const ordersAPI = {
   async getOrders(params = {}) {

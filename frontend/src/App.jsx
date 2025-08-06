@@ -19,7 +19,10 @@ import Reports from './pages/Manager/Reports.jsx';
 import Settings from './pages/Manager/Settings.jsx';
 import Staff from './pages/Manager/Staff.jsx';
 
+// Import Admin pages
 import AdminDashboard from './pages/Manager/AdminDashboard.jsx';
+import InventoryCheck from './pages/Manager/InventoryCheck.jsx';
+import CreateOrders from './pages/Manager/Orders/CreateOrders.jsx'; // Import Inventory Check component
 
 // Import other role pages
 import CleanerDashboard from './pages/Cleaner/CleanerDashboard.jsx';
@@ -159,8 +162,10 @@ const AppRoutes = () => {
                 <Route path="rentals" element={<Rentals />} />
                 <Route path="clients" element={<Clients />} />
                 <Route path="reports" element={<Reports />} />
+                <Route path="orders" element={<CreateOrders />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="staff" element={<Staff />} />
+                <Route path="inventory" element={<InventoryCheck />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

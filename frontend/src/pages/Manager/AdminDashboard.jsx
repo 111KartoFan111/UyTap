@@ -9,7 +9,9 @@ import {
   FiTrendingUp,
   FiCalendar,
   FiArrowRight,
-  FiRefreshCw
+  FiRefreshCw,
+  FiPackage,
+  FiShoppingCart
 } from 'react-icons/fi';
 
 import { FaUsersGear } from "react-icons/fa6";
@@ -368,6 +370,26 @@ const AdminDashboard = () => {
             </div>
             <h3>Отчеты</h3>
             <p>Аналитика и финансовые отчеты</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
+          <Link to="/admin/reports" className="action-card">
+            <div className="action-icon">
+              <FiShoppingCart />
+            </div>
+            <h3>Заказы</h3>
+            <p>Управление заказами</p>
+            <div className="action-arrow">
+              <FiArrowRight />
+            </div>
+          </Link>
+          <Link to="/admin/inventory" className="action-card">
+            <div className="action-icon">
+              <FiPackage />
+            </div>
+            <h3>Инвентарь</h3>
+            <p>Управление остатками товаров</p>
             <div className="action-arrow">
               <FiArrowRight />
             </div>

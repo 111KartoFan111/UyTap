@@ -17,6 +17,7 @@ import {
   FiPackage,
   FiTool,
   FiDollarSign,
+  FiShoppingCart
 } from 'react-icons/fi';
 import { LuUserCog } from "react-icons/lu";
 import { FaUsersGear } from "react-icons/fa6";
@@ -42,6 +43,8 @@ const Layout = ({ children }) => {
           { path: '/admin/floor-plan', icon: FiGrid, label: 'План этажа' },
           { path: '/admin/rentals', icon: FiCalendar, label: 'Аренда' },
           { path: '/admin/clients', icon: FiUsers, label: 'Клиенты' },
+          { path: '/admin/orders', icon: FiShoppingCart, label: 'Заказы' },
+          { path: '/admin/inventory', icon: FiPackage, label: 'Инвентарь' },
           { path: '/admin/reports', icon: FiBarChart2, label: 'Отчеты' },
           { path: '/admin/payroll', icon: FiDollarSign, label: 'Зарплаты' },
           { path: '/admin/staff', icon: FaUsersGear, label: 'Сотрудники' },

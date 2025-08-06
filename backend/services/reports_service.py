@@ -1018,7 +1018,7 @@ class ReportsService:
         user_id: uuid.UUID,
         period_start: datetime,
         period_end: datetime
-    ) -> List[Dict[str, Any]]:  # Изменяем тип возвращаемого значения на список
+    ) -> List[Dict[str, Any]]:
         """Получить зарплатные ведомости пользователя за период"""
         
         # Преобразуем aware-даты в naive UTC
@@ -1034,33 +1034,40 @@ class ReportsService:
                 Payroll.period_start <= period_end,
                 Payroll.period_end >= period_start
             )
-        ).order_by(Payroll.period_start.desc()).all()  # Получаем все записи
+        ).order_by(Payroll.period_start.desc()).all()
 
         # Если ведомостей нет - возвращаем пустой список
         if not payrolls:
             return []
 
-        # Собираем ID всех ведомостей для фильтрации задач
+        # ИСПРАВЛЯЕМ: Получаем задачи по временному периоду, а не по payroll_id
+        # Собираем ID всех ведомостей
         payroll_ids = [payroll.id for payroll in payrolls]
         
-        # Получаем ВСЕ задачи за период для всех ведомостей
+        # Получаем задачи за период (убираем фильтр по payroll_id пока не добавили поле)
         tasks = db.query(Task).filter(
             and_(
                 Task.assigned_to == user_id,
                 Task.status == TaskStatus.COMPLETED,
                 Task.is_paid == True,
                 Task.completed_at >= period_start,
-                Task.completed_at <= period_end,
-                Task.payroll_id.in_(payroll_ids)  # Фильтруем по ведомостям
-        ).all())
+                Task.completed_at <= period_end
+                # Временно убираем этот фильтр: Task.payroll_id.in_(payroll_ids)
+            )
+        ).all()
 
-        # Группируем задачи по ID ведомостей
-        tasks_by_payroll = defaultdict(list)
+        # Группируем задачи по месяцам (упрощенный подход)
+        tasks_by_month = defaultdict(list)
         for task in tasks:
-            tasks_by_payroll[task.payroll_id].append(task)
+            if task.completed_at:
+                month_key = task.completed_at.strftime("%Y-%m")
+                tasks_by_month[month_key].append(task)
 
         result = []
         for payroll in payrolls:
+            # Определяем месяц ведомости
+            payroll_month = payroll.period_start.strftime("%Y-%m")
+            
             # Формируем breakdown для текущей ведомости
             task_breakdown = [
                 {
@@ -1071,7 +1078,7 @@ class ReportsService:
                     "payment_amount": task.payment_amount,
                     "quality_rating": task.quality_rating
                 }
-                for task in tasks_by_payroll.get(payroll.id, [])
+                for task in tasks_by_month.get(payroll_month, [])
             ]
 
             result.append({

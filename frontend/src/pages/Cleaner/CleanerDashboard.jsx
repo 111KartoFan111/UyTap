@@ -54,7 +54,6 @@ const CleanerDashboard = () => {
     }
     return () => clearInterval(interval);
   }, [isWorking, currentTask]);
-
   const loadMyTasks = async () => {
     try {
       setLoading(true);
@@ -63,7 +62,7 @@ const CleanerDashboard = () => {
       
       // Фильтруем задачи для уборщика (cleaning, laundry, check_in, check_out)
       const cleaningTasks = assignedTasks.filter(task => 
-        ['cleaning', 'laundry', 'check_in', 'check_out'].includes(task.task_type)
+        ['cleaning', 'laundry', 'delivery','check_in', 'check_out'].includes(task.task_type)
       );
       
       // Обогащаем задачи информацией о свойствах

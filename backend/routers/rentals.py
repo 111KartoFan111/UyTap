@@ -14,8 +14,20 @@ from services.auth_service import AuthService
 from utils.dependencies import get_current_active_user
 from services.rental_service import RentalService
 from services.property_service import PropertyService
+from pydantic import BaseModel, EmailStr, Field, validator
 
 router = APIRouter(prefix="/api/rentals", tags=["Rentals"])
+
+
+# Добавить эту схему в начало файла
+from pydantic import BaseModel
+from datetime import datetime
+
+class RentalExtensionRequest(BaseModel):
+    new_end_date: datetime
+    additional_amount: float = Field(..., gt=0)
+    payment_method: str = Field(default="cash")
+    payment_notes: Optional[str] = None
 
 
 @router.get("", response_model=List[RentalResponse])
@@ -237,6 +249,80 @@ async def check_out_rental(
     checked_out_rental = RentalService.check_out(db, rental, current_user.id)
     
     return {"message": "Check-out successful", "check_out_time": checked_out_rental.check_out_time}
+
+@router.post("/{rental_id}/extend")
+async def extend_rental_with_payment(
+    rental_id: uuid.UUID,
+    extension_data: RentalExtensionRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Продлить аренду с оплатой"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to extend rentals"
+        )
+    
+    rental = RentalService.get_rental_by_id(db, rental_id, current_user.organization_id)
+    if not rental:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rental not found"
+        )
+    
+    if not rental.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot extend inactive rental"
+        )
+    
+    try:
+        # Используем новый метод с платежом
+        extended_rental = RentalService.extend_rental_with_payment(
+            db=db,
+            rental=rental,
+            new_end_date=extension_data.new_end_date,
+            additional_amount=extension_data.additional_amount,
+            payment_method=extension_data.payment_method,
+            payment_notes=extension_data.payment_notes
+        )
+        
+        # Логируем действие
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="rental_extended_with_payment",
+            organization_id=current_user.organization_id,
+            resource_type="rental",
+            resource_id=rental.id,
+            details={
+                "new_end_date": extension_data.new_end_date.isoformat(),
+                "additional_amount": extension_data.additional_amount,
+                "payment_method": extension_data.payment_method,
+                "old_end_date": rental.end_date.isoformat()
+            }
+        )
+        
+        return {
+            "message": "Аренда успешно продлена с оплатой",
+            "new_end_date": extended_rental.end_date,
+            "additional_amount": extension_data.additional_amount,
+            "total_amount": extended_rental.total_amount,
+            "notification_sent": True
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Extension failed: {str(e)}"
+        )
 
 
 @router.delete("/{rental_id}")

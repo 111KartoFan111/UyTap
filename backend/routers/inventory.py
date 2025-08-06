@@ -505,10 +505,12 @@ async def bulk_update_stock(
 async def export_inventory_data(
     format: str,
     category: Optional[str] = None,
+    in_stock_only: bool = Query(False, description="Экспортировать только товары в наличии"),
+    low_stock_only: bool = Query(False, description="Экспортировать только товары с низким остатком"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Экспорт данных инвентаря"""
+    """Экспорт данных инвентаря с расширенными фильтрами"""
     
     if current_user.role not in [UserRole.ADMIN, UserRole.STOREKEEPER, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
         raise HTTPException(
@@ -522,16 +524,30 @@ async def export_inventory_data(
             detail="Supported formats: xlsx, csv"
         )
     
-    # Получаем данные
+    # Получаем данные с фильтрами
     query = db.query(Inventory).filter(Inventory.organization_id == current_user.organization_id)
     
     if category:
         query = query.filter(Inventory.category == category)
-        filename = f"inventory_{category}.{format}"
-    else:
-        filename = f"inventory_full.{format}"
+    
+    if in_stock_only:
+        query = query.filter(Inventory.current_stock > 0)
+    
+    if low_stock_only:
+        query = query.filter(Inventory.current_stock <= Inventory.min_stock)
     
     items = query.order_by(Inventory.name).all()
+    
+    # Формируем имя файла
+    filename_parts = ["inventory"]
+    if category:
+        filename_parts.append(f"category_{category}")
+    if in_stock_only:
+        filename_parts.append("in_stock")
+    if low_stock_only:
+        filename_parts.append("low_stock")
+    
+    filename = f"{'_'.join(filename_parts)}.{format}"
     
     if format == "xlsx":
         import xlsxwriter
@@ -541,32 +557,74 @@ async def export_inventory_data(
         workbook = xlsxwriter.Workbook(output)
         worksheet = workbook.add_worksheet("Инвентарь")
         
-        # Заголовки
+        # Стили
+        header_format = workbook.add_format({
+            'bold': True,
+            'bg_color': '#D7E4BC',
+            'border': 1,
+            'align': 'center'
+        })
+        money_format = workbook.add_format({'num_format': '#,##0.00" ₸"'})
+        number_format = workbook.add_format({'num_format': '#,##0.00'})
+        
+        # Заголовки с дополнительными полями
         headers = [
             'Название', 'Описание', 'Категория', 'SKU', 'Единица измерения',
             'Текущий остаток', 'Мин. остаток', 'Макс. остаток', 'Цена за единицу',
-            'Общая стоимость', 'Поставщик', 'Активен', 'Создан', 'Обновлен'
+            'Общая стоимость', 'Поставщик', 'Контакты поставщика', 'Активен', 
+            'Статус остатка', 'Создан', 'Обновлен', 'Последнее пополнение'
         ]
         
         for col, header in enumerate(headers):
-            worksheet.write(0, col, header)
+            worksheet.write(0, col, header, header_format)
         
         # Данные
         for row, item in enumerate(items, 1):
+            # Определяем статус остатка
+            if item.current_stock == 0:
+                stock_status = "Нет в наличии"
+            elif item.current_stock <= item.min_stock:
+                stock_status = "Низкий остаток"
+            elif item.max_stock and item.current_stock >= item.max_stock:
+                stock_status = "Переизбыток"
+            else:
+                stock_status = "В норме"
+            
             worksheet.write(row, 0, item.name)
             worksheet.write(row, 1, item.description or "")
             worksheet.write(row, 2, item.category or "")
             worksheet.write(row, 3, item.sku or "")
             worksheet.write(row, 4, item.unit)
-            worksheet.write(row, 5, item.current_stock)
-            worksheet.write(row, 6, item.min_stock)
-            worksheet.write(row, 7, item.max_stock or "")
-            worksheet.write(row, 8, item.cost_per_unit or 0)
-            worksheet.write(row, 9, item.total_value)
+            worksheet.write(row, 5, item.current_stock, number_format)
+            worksheet.write(row, 6, item.min_stock, number_format)
+            worksheet.write(row, 7, item.max_stock or 0, number_format)
+            worksheet.write(row, 8, item.cost_per_unit or 0, money_format)
+            worksheet.write(row, 9, item.total_value, money_format)
             worksheet.write(row, 10, item.supplier or "")
-            worksheet.write(row, 11, "Да" if item.is_active else "Нет")
-            worksheet.write(row, 12, item.created_at.strftime('%d.%m.%Y'))
-            worksheet.write(row, 13, item.updated_at.strftime('%d.%m.%Y'))
+            worksheet.write(row, 11, item.supplier_contact or "")
+            worksheet.write(row, 12, "Да" if item.is_active else "Нет")
+            worksheet.write(row, 13, stock_status)
+            worksheet.write(row, 14, item.created_at.strftime('%d.%m.%Y'))
+            worksheet.write(row, 15, item.updated_at.strftime('%d.%m.%Y'))
+            worksheet.write(row, 16, item.last_restock_date.strftime('%d.%m.%Y') if item.last_restock_date else "")
+        
+        # Автоширина колонок
+        worksheet.set_column('A:A', 25)  # Название
+        worksheet.set_column('B:B', 30)  # Описание
+        worksheet.set_column('C:C', 15)  # Категория
+        worksheet.set_column('D:D', 12)  # SKU
+        worksheet.set_column('E:E', 12)  # Единица
+        worksheet.set_column('F:H', 12)  # Остатки
+        worksheet.set_column('I:J', 15)  # Стоимость
+        worksheet.set_column('K:L', 20)  # Поставщик
+        worksheet.set_column('M:N', 15)  # Статусы
+        worksheet.set_column('O:Q', 12)  # Даты
+        
+        # Итоговая строка
+        last_row = len(items) + 2
+        worksheet.write(last_row, 0, "ИТОГО:", header_format)
+        worksheet.write(last_row, 5, f"=SUM(F2:F{len(items)+1})", number_format)
+        worksheet.write(last_row, 9, f"=SUM(J2:J{len(items)+1})", money_format)
         
         workbook.close()
         output.seek(0)
@@ -582,17 +640,28 @@ async def export_inventory_data(
         import io
         
         output = io.StringIO()
-        writer = csv.writer(output)
+        writer = csv.writer(output, delimiter=';')  # Используем ; для лучшей совместимости с Excel
         
         # Заголовки
         writer.writerow([
             'Название', 'Описание', 'Категория', 'SKU', 'Единица измерения',
             'Текущий остаток', 'Мин. остаток', 'Макс. остаток', 'Цена за единицу',
-            'Общая стоимость', 'Поставщик', 'Активен', 'Создан', 'Обновлен'
+            'Общая стоимость', 'Поставщик', 'Контакты поставщика', 'Активен',
+            'Статус остатка', 'Создан', 'Обновлен', 'Последнее пополнение'
         ])
         
         # Данные
         for item in items:
+            # Определяем статус остатка
+            if item.current_stock == 0:
+                stock_status = "Нет в наличии"
+            elif item.current_stock <= item.min_stock:
+                stock_status = "Низкий остаток"
+            elif item.max_stock and item.current_stock >= item.max_stock:
+                stock_status = "Переизбыток"
+            else:
+                stock_status = "В норме"
+            
             writer.writerow([
                 item.name,
                 item.description or "",
@@ -601,17 +670,20 @@ async def export_inventory_data(
                 item.unit,
                 item.current_stock,
                 item.min_stock,
-                item.max_stock or "",
+                item.max_stock or 0,
                 item.cost_per_unit or 0,
                 item.total_value,
                 item.supplier or "",
+                item.supplier_contact or "",
                 "Да" if item.is_active else "Нет",
+                stock_status,
                 item.created_at.strftime('%d.%m.%Y'),
-                item.updated_at.strftime('%d.%m.%Y')
+                item.updated_at.strftime('%d.%m.%Y'),
+                item.last_restock_date.strftime('%d.%m.%Y') if item.last_restock_date else ""
             ])
         
         output.seek(0)
-        content = output.getvalue().encode('utf-8-sig')
+        content = output.getvalue().encode('utf-8-sig')  # BOM для корректного отображения в Excel
         
         return Response(
             content=content,
@@ -619,6 +691,140 @@ async def export_inventory_data(
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
 
+@router.get("/{item_id}/movements/export/{format}")
+async def export_inventory_movements(
+    item_id: uuid.UUID,
+    format: str,
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    movement_type: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Экспорт движений конкретного товара"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.STOREKEEPER, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to export movements"
+        )
+    
+    if format not in ["xlsx", "csv"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Supported formats: xlsx, csv"
+        )
+    
+    # Проверяем существование товара
+    item = db.query(Inventory).filter(
+        and_(
+            Inventory.id == item_id,
+            Inventory.organization_id == current_user.organization_id
+        )
+    ).first()
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Inventory item not found"
+        )
+    
+    # Получаем движения
+    query = db.query(InventoryMovement).filter(InventoryMovement.inventory_id == item_id)
+    
+    if start_date:
+        query = query.filter(InventoryMovement.created_at >= start_date)
+    if end_date:
+        query = query.filter(InventoryMovement.created_at <= end_date)
+    if movement_type:
+        query = query.filter(InventoryMovement.movement_type == movement_type)
+    
+    movements = query.order_by(desc(InventoryMovement.created_at)).all()
+    
+    filename = f"movements_{item.name.replace(' ', '_')}_{item_id}.{format}"
+    
+    if format == "xlsx":
+        import xlsxwriter
+        import io
+        
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output)
+        worksheet = workbook.add_worksheet("Движения")
+        
+        # Стили
+        header_format = workbook.add_format({
+            'bold': True,
+            'bg_color': '#D7E4BC',
+            'border': 1,
+            'align': 'center'
+        })
+        money_format = workbook.add_format({'num_format': '#,##0.00" ₸"'})
+        
+        # Информация о товаре
+        worksheet.write('A1', 'ДВИЖЕНИЯ ТОВАРА', header_format)
+        worksheet.write('A2', f'Товар: {item.name}')
+        worksheet.write('A3', f'SKU: {item.sku or "N/A"}')
+        worksheet.write('A4', f'Текущий остаток: {item.current_stock} {item.unit}')
+        
+        # Заголовки таблицы движений
+        start_row = 6
+        headers = ['Дата', 'Тип операции', 'Количество', 'Цена за единицу', 'Общая стоимость', 'Причина', 'Остаток после', 'Примечания']
+        
+        for col, header in enumerate(headers):
+            worksheet.write(start_row, col, header, header_format)
+        
+        # Данные движений
+        for row, movement in enumerate(movements, start_row + 1):
+            movement_types = {
+                'in': 'Поступление',
+                'out': 'Расход',
+                'adjustment': 'Корректировка',
+                'writeoff': 'Списание'
+            }
+            
+            worksheet.write(row, 0, movement.created_at.strftime('%d.%m.%Y %H:%M'))
+            worksheet.write(row, 1, movement_types.get(movement.movement_type, movement.movement_type))
+            worksheet.write(row, 2, movement.quantity)
+            worksheet.write(row, 3, movement.unit_cost or 0, money_format)
+            worksheet.write(row, 4, movement.total_cost or 0, money_format)
+            worksheet.write(row, 5, movement.reason or "")
+            worksheet.write(row, 6, movement.stock_after)
+            worksheet.write(row, 7, movement.notes or "")
+        
+        # Автоширина
+        worksheet.set_column('A:A', 15)
+        worksheet.set_column('B:B', 15)
+        worksheet.set_column('C:C', 12)
+        worksheet.set_column('D:E', 15)
+        worksheet.set_column('F:F', 25)
+        worksheet.set_column('G:G', 12)
+        worksheet.set_column('H:H', 30)
+        
+        workbook.close()
+        output.seek(0)
+        
+        return Response(
+            content=output.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    
+    return {"message": "CSV export for movements not implemented yet"}
+
+# Роут для быстрого экспорта товаров в наличии
+@router.get("/quick-export/in-stock")
+async def quick_export_in_stock(
+    format: str = Query("xlsx", regex="^(xlsx|csv)$"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Быстрый экспорт товаров в наличии"""
+    return await export_inventory_data(
+        format=format,
+        in_stock_only=True,
+        current_user=current_user,
+        db=db
+    )
 
 @router.post("", response_model=InventoryResponse)
 async def create_inventory_item(

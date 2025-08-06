@@ -273,6 +273,9 @@ class Task(Base):
     assigned_to = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     
+    # ДОБАВЛЯЕМ ОТСУТСТВУЮЩЕЕ ПОЛЕ
+    payroll_id = Column(UUID(as_uuid=True), ForeignKey("payrolls.id"), nullable=True)
+    
     # Основная информация
     title = Column(String(255), nullable=False)
     description = Column(Text)
@@ -305,11 +308,15 @@ class Task(Base):
     property = relationship("Property", back_populates="tasks")
     assignee = relationship("User", foreign_keys=[assigned_to])
     creator = relationship("User", foreign_keys=[created_by])
+    
+    # ДОБАВЛЯЕМ СВЯЗЬ С ЗАРПЛАТОЙ
+    payroll = relationship("Payroll", back_populates="tasks")
 
     __table_args__ = (
         Index("idx_task_assignee", "assigned_to"),
         Index("idx_task_status", "status"),
         Index("idx_task_property", "property_id"),
+        Index("idx_task_payroll", "payroll_id"),  # Индекс для нового поля
     )
 
 
@@ -482,12 +489,9 @@ class Payroll(Base):
     # ИСПРАВЛЕННЫЕ ОТНОШЕНИЯ
     organization = relationship("Organization")
     user = relationship("User")
-    
-    # Правильная связь с шаблоном
     template = relationship("PayrollTemplate", back_populates="payroll_records")
-    
-    # Связь с операциями
     operations = relationship("PayrollOperation", back_populates="payroll", cascade="all, delete-orphan")
+    tasks = relationship("Task", back_populates="payroll")
 
     __table_args__ = (
         CheckConstraint("period_end > period_start", name="check_payroll_period"),
