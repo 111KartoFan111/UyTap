@@ -95,6 +95,20 @@ class OrderService:
         
         return order
     
+
+    @staticmethod
+    def _generate_order_number(db: Session, organization_id: uuid.UUID) -> str:
+        """Генерация уникального номера заказа"""
+        # Получаем текущее количество заказов для организации
+        count = db.query(RoomOrder).filter(
+            RoomOrder.organization_id == organization_id
+        ).count()
+        
+        # Формируем номер: ORDER-<ГГГГММДД>-<счётчик+1>
+        date_part = datetime.utcnow().strftime('%Y%m%d')
+        number_part = str(count + 1).zfill(4)  # например: 0001, 0002, ...
+        return f"ORD-{date_part}-{number_part}"
+    
     @staticmethod
     def _serialize_order_items(items: List[OrderItemBase]) -> List[Dict[str, Any]]:
         """Convert order items to JSON-serializable format"""
@@ -111,6 +125,27 @@ class OrderService:
             for item in items
         ]
     
+    @staticmethod
+    def get_order_by_id(
+        db: Session,
+        order_id: uuid.UUID,
+        organization_id: uuid.UUID
+    ) -> RoomOrderResponse:
+        """Получить заказ по ID с привязкой к организации"""
+        
+        order = db.query(RoomOrder).filter(
+            and_(
+                RoomOrder.id == order_id,
+                RoomOrder.organization_id == organization_id
+            )
+        ).first()
+        
+        if not order:
+            raise ValueError(f"Order with ID {order_id} not found")
+
+        # Преобразование ORM-модели в Pydantic-модель
+        return RoomOrderResponse.from_orm(order)
+
     @staticmethod
     def _reserve_inventory_item(
         db: Session,
@@ -149,6 +184,11 @@ class OrderService:
     ) -> RoomOrder:
         """Complete order with automatic inventory deduction"""
         
+        # ✅ Автоматический переход в IN_PROGRESS, если заказ CONFIRMED
+        if order.status == OrderStatus.CONFIRMED:
+            order.status = OrderStatus.IN_PROGRESS
+            order.updated_at = datetime.now(timezone.utc)
+        
         if order.status != OrderStatus.IN_PROGRESS:
             raise ValueError("Order must be in progress to complete")
         
@@ -160,7 +200,6 @@ class OrderService:
                 ).first()
                 
                 if inventory_item:
-                    # Create deduction movement
                     movement = InventoryMovement(
                         id=uuid.uuid4(),
                         organization_id=order.organization_id,
@@ -175,7 +214,6 @@ class OrderService:
                         created_at=datetime.now(timezone.utc)
                     )
                     
-                    # Update inventory stock
                     inventory_item.current_stock -= item_data['quantity']
                     inventory_item.total_value = inventory_item.current_stock * (inventory_item.cost_per_unit or 0)
                     inventory_item.updated_at = datetime.now(timezone.utc)
@@ -197,7 +235,7 @@ class OrderService:
         db.refresh(order)
         
         return order
-    
+
     @staticmethod
     def _process_order_payment(db: Session, order: RoomOrder):
         """Process payment for completed order"""

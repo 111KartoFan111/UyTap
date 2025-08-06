@@ -1,3 +1,5 @@
+// frontend/src/pages/Manager/Floor/PropertyDetailsModal.jsx - Исправленная версия
+
 import { useState, useEffect } from 'react';
 import { 
   FiX, 
@@ -28,12 +30,11 @@ const PropertyDetailsModal = ({
   onCreateRental, 
   onCreateTask, 
   onEdit,
-  onExtendRental,
   onCheckIn,
   onCheckOut,
   onCancelRental
 }) => {
-  const { tasks, utils ,properties } = useData();
+  const { tasks, utils, properties } = useData();
   const [activeTab, setActiveTab] = useState('overview');
   const [propertyTasks, setPropertyTasks] = useState([]);
   const [propertyHistory, setPropertyHistory] = useState([]);
@@ -56,7 +57,81 @@ const PropertyDetailsModal = ({
 
   const handleChange = (e) => {
     const newStatus = e.target.value;
-    properties.updateStatus(property.id, newStatus); // вызываем с id и новым статусом
+    properties.updateStatus(property.id, newStatus);
+  };
+
+  // ДОБАВЛЯЕМ функцию продления прямо в компонент
+  const handleExtendRental = async (property, days) => {
+    try {
+      if (!property.activeRental) {
+        utils.showError('Нет активной аренды для продления');
+        return;
+      }
+
+      // Определяем дневную ставку для расчета стоимости продления
+      let dailyRate = 0;
+      if (property.activeRental.rental_type === 'daily') {
+        dailyRate = property.activeRental.rate;
+      } else if (property.activeRental.rental_type === 'hourly') {
+        dailyRate = property.activeRental.rate * 24; // конвертируем часовую в дневную
+      } else if (property.activeRental.rental_type === 'monthly') {
+        dailyRate = property.activeRental.rate / 30; // конвертируем месячную в дневную
+      } else {
+        dailyRate = property.daily_rate || property.activeRental.rate || 0;
+      }
+
+      const additionalAmount = dailyRate * days;
+      
+      if (additionalAmount <= 0) {
+        utils.showError('Не удалось определить стоимость продления. Проверьте тарифы.');
+        return;
+      }
+
+      const confirmed = confirm(
+        `Продлить аренду на ${days} дн.?\n` +
+        `Доплата: ₸${additionalAmount.toLocaleString()}\n` +
+        `Клиенту будет создан платеж для оплаты продления.`
+      );
+
+      if (!confirmed) return;
+
+      const currentEndDate = new Date(property.activeRental.end_date);
+      const newEndDate = new Date(currentEndDate.getTime() + days * 24 * 60 * 60 * 1000);
+
+      // Отправляем запрос на продление
+      const response = await fetch(`http://localhost:8000/api/rentals/${property.activeRental.id}/extend`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          new_end_date: newEndDate.toISOString(),
+          additional_amount: additionalAmount,
+          payment_method: 'cash',
+          payment_notes: `Продление на ${days} дн.`
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Не удалось продлить аренду');
+      }
+
+      const result = await response.json();
+
+      utils.showSuccess(
+        `Аренда продлена на ${days} дн. до ${newEndDate.toLocaleDateString()}!\n` +
+        `Создан платеж на доплату: ₸${additionalAmount.toLocaleString()}`
+      );
+
+      // Закрываем модальное окно, чтобы обновились данные в родительском компоненте
+      onClose();
+
+    } catch (error) {
+      console.error('Failed to extend rental:', error);
+      utils.showError('Не удалось продлить аренду: ' + error.message);
+    }
   };
 
   const loadPropertyTasks = async () => {
@@ -75,9 +150,6 @@ const PropertyDetailsModal = ({
   const loadPropertyHistory = async () => {
     try {
       setLoadingHistory(true);
-      // Здесь будет API для получения истории помещения
-      // const historyData = await properties.getHistory(property.id);
-      // setPropertyHistory(historyData);
       setPropertyHistory([]);
     } catch (error) {
       console.error('Failed to load property history:', error);
@@ -166,21 +238,21 @@ const PropertyDetailsModal = ({
   const QuickExtendButtons = () => (
     <div className="quick-extend-actions">
       <button
-        onClick={() => onExtendRental(property, 1)}
+        onClick={() => handleExtendRental(property, 1)}
         className="extend-btn small"
         title="Продлить на 1 день"
       >
         +1д
       </button>
       <button
-        onClick={() => onExtendRental(property, 7)}
+        onClick={() => handleExtendRental(property, 7)}
         className="extend-btn small"
         title="Продлить на неделю"
       >
         +1н
       </button>
       <button
-        onClick={() => onExtendRental(property, 30)}
+        onClick={() => handleExtendRental(property, 30)}
         className="extend-btn small"
         title="Продлить на месяц"
       >
@@ -269,21 +341,21 @@ const PropertyDetailsModal = ({
           <button className="quick-action-btn secondary" onClick={onCreateTask}>
             <FiTool /> Создать задачу
           </button>
+          
           <div className="quick-actions">
-                <select
-                  className="quick-action-btn secondary"
-                  value={property.status}
-                  onChange={handleChange}
-                >
-                  <option value="available">Доступна</option>
-                  <option value="occupied">Занята</option>
-                  <option value="maintenance">На обслуживании</option>
-                  <option value="cleaning">Уборка</option>
-                  <option value="suspended">Приостановлена</option>
-                  <option value="out_of_order">Неисправна</option>
-                </select>
-              </div>
-
+            <select
+              className="quick-action-btn secondary"
+              value={property.status}
+              onChange={handleChange}
+            >
+              <option value="available">Доступна</option>
+              <option value="occupied">Занята</option>
+              <option value="maintenance">На обслуживании</option>
+              <option value="cleaning">Уборка</option>
+              <option value="suspended">Приостановлена</option>
+              <option value="out_of_order">Неисправна</option>
+            </select>
+          </div>
         </div>
 
         {/* Tabs */}

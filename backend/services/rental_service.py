@@ -10,6 +10,10 @@ from models.extended_models import (
 )
 from schemas.rental import RentalCreate, RentalUpdate
 from services.task_service import TaskService
+from schemas.payment import (
+    PaymentResponse, ProcessPaymentRequest,
+)
+from models.payment_models import Payment, PaymentStatus, PaymentType
 
 
 class RentalService:
@@ -152,7 +156,6 @@ class RentalService:
         
         return rental
     
-
     @staticmethod
     def extend_rental_with_payment(
         db: Session,
@@ -167,12 +170,7 @@ class RentalService:
         if new_end_date <= rental.end_date:
             raise ValueError("New end date must be after current end date")
         
-        # Обновляем аренду
-        rental.end_date = new_end_date
-        rental.total_amount += additional_amount
-        rental.updated_at = datetime.now(timezone.utc)
-        
-        # Создаем платеж за продление
+        # Создаем платеж за продление КАК НЕОПЛАЧЕННЫЙ
         from models.payment_models import Payment, PaymentType, PaymentStatus
         
         extension_payment = Payment(
@@ -182,20 +180,26 @@ class RentalService:
             payment_type=PaymentType.ADDITIONAL,
             amount=additional_amount,
             currency="KZT",
-            status=PaymentStatus.COMPLETED,
+            status=PaymentStatus.PENDING,  # ВАЖНО: ставим как неоплаченный!
             payment_method=payment_method,
-            description=f"Продление аренды до {new_end_date.strftime('%d.%m.%Y')}",
+            description=f"Доплата за продление аренды до {new_end_date.strftime('%d.%m.%Y')}",
             payer_name=f"{rental.client.first_name} {rental.client.last_name}" if rental.client else None,
-            completed_at=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
             notes=payment_notes
         )
         
         db.add(extension_payment)
+        db.flush()  # Получаем ID платежа, но не коммитим пока
         
-        # Обновляем оплаченную сумму
-        rental.paid_amount += additional_amount
+        # Обновляем аренду
+        rental.end_date = new_end_date
+        rental.total_amount += additional_amount
+        rental.updated_at = datetime.now(timezone.utc)
         
-        # Обновляем статистику клиента
+        # НЕ обновляем paid_amount - платеж еще не оплачен!
+        # rental.paid_amount += additional_amount  # <-- Убираем эту строку!
+        
+        # Обновляем статистику клиента (добавляем к общим тратам, но не к оплаченным)
         if rental.client:
             rental.client.total_spent += additional_amount
             rental.client.updated_at = datetime.now(timezone.utc)
@@ -203,11 +207,65 @@ class RentalService:
         db.commit()
         db.refresh(rental)
         
-        # Отправляем уведомление о продлении (здесь можно добавить отправку SMS/Email)
-        RentalService._send_extension_notification(rental, new_end_date, additional_amount)
+        # Отправляем уведомление о продлении и необходимости доплаты
+        RentalService._send_extension_notification_with_payment(
+            rental, new_end_date, additional_amount, extension_payment.id
+        )
         
         return rental
-    
+
+    @staticmethod
+    def _send_extension_notification_with_payment(rental: Rental, new_end_date: datetime, amount: float, payment_id: uuid.UUID):
+        """Отправка уведомления о продлении аренды с требованием доплаты"""
+        try:
+            message = (
+                f"🏠 Аренда продлена до {new_end_date.strftime('%d.%m.%Y %H:%M')}!\n\n"
+                f"💰 Требуется доплата: {amount:,.0f} ₸\n"
+                f"🏢 Помещение: {rental.property.name if rental.property else 'N/A'}\n\n"
+                f"⚠️ ВАЖНО: Обратитесь к администратору для оплаты продления.\n"
+                f"ID платежа: {str(payment_id)[:8]}..."
+            )
+            
+            # Логируем уведомление
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Extension notification with payment sent to {rental.client.phone}: {message}")
+            
+            # TODO: Интегрировать с реальным SMS/Email сервисом
+            # sms_service.send_sms(rental.client.phone, message)
+            # email_service.send_email(rental.client.email, "Продление аренды - требуется доплата", message)
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send extension notification with payment: {e}")
+
+    @staticmethod
+    def complete_extension_payment(db: Session, payment_id: uuid.UUID) -> Payment:
+        """Завершить оплату продления аренды"""
+        
+        payment = db.query(Payment).filter(
+            and_(
+                Payment.id == payment_id,
+                Payment.payment_type == PaymentType.ADDITIONAL,
+                Payment.status == PaymentStatus.PENDING
+            )
+        ).first()
+        
+        if not payment:
+            raise ValueError("Extension payment not found or already completed")
+        
+        # Завершаем платеж
+        payment.status = PaymentStatus.COMPLETED
+        payment.completed_at = datetime.now(timezone.utc)
+        
+        # Обновляем оплаченную сумму в аренде
+        if payment.rental:
+            payment.rental.paid_amount += payment.amount
+        
+        db.commit()
+        return payment
+
     @staticmethod
     def cancel_rental(
         db: Session,

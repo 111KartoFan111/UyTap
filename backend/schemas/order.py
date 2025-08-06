@@ -44,9 +44,9 @@ class RoomOrderBase(BaseModel):
     payment_method: Optional[PaymentMethod] = None
     scheduled_for: Optional[datetime] = None
     special_instructions: Optional[str] = None
-    executor_type: str = Field("employee")  # "employee", "department"
+    executor_type: Optional[str] = None  # ✅ fix
     payment_to_executor: float = Field(0, ge=0)
-    payment_type: str = Field("none")  # "fixed", "percentage", "none"
+    payment_type: Optional[str] = None  # ✅ fix
 
 
 class RoomOrderCreate(BaseModel):

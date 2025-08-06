@@ -79,16 +79,30 @@ const FloorPlan = ({ onRoomClick }) => {
   };
 
   // Фильтрация помещений по этажу и статусу
-  const currentFloorRooms = rooms.filter(room => room.floor === selectedFloor);
+  const currentFloorRooms = selectedFloor === 0 
+    ? rooms // Если выбраны все этажи (0), показываем все помещения
+    : rooms.filter(room => room.floor === selectedFloor);
+
   const filteredRooms = filterStatus === 'all' 
     ? currentFloorRooms 
     : currentFloorRooms.filter(room => room.status === filterStatus);
 
-  // Статистика по этажу
-  const statusCounts = currentFloorRooms.reduce((acc, room) => {
+  // Статистика по текущему этажу
+  const statusCounts = filteredRooms.reduce((acc, room) => {
     acc[room.status] = (acc[room.status] || 0) + 1;
     return acc;
   }, {});
+
+  // Статистика по всем помещениям
+  const totalStatusCounts = rooms.reduce((acc, room) => {
+    acc[room.status] = (acc[room.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Добавляем "Все этажи" в список этажей
+  const floorOptions = [0, 1, 2, 3, 4]; // 0 означает "Все этажи"
+
+
 
   // Обработчики событий
   const handlePropertyCreate = async (propertyData) => {
@@ -253,6 +267,50 @@ const FloorPlan = ({ onRoomClick }) => {
       utils.showError('Не удалось выселить клиента: ' + (error.message || 'Неизвестная ошибка'));
     }
   };
+  const handleBulkReleaseFromCleaning = async () => {
+  try {
+    setLoading(true);
+    
+    const response = await fetch('http://localhost:8000/api/properties/bulk-release-from-cleaning', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Не удалось освободить помещения');
+    }
+
+    const result = await response.json();
+    
+    // Обновляем локальное состояние
+    setRooms(prev => prev.map(room => {
+      const wasReleased = result.released.some(r => r.id === room.id);
+      if (wasReleased) {
+        return { ...room, status: 'available' };
+      }
+      return room;
+    }));
+
+    utils.showSuccess(
+      `Освобождено ${result.released.length} помещений из уборки. 
+       Пропущено: ${result.skipped.length} (есть незавершенные задачи)`
+    );
+    
+    // Обновляем данные с сервера
+    loadData();
+    
+  } catch (error) {
+    console.error('Failed to release properties:', error);
+    utils.showError('Не удалось освободить помещения: ' + error.message);
+  } finally {
+    setLoading(false);
+  }
+  };
+
 
   const handleExtendRental = async (property, days) => {
     try {
@@ -429,30 +487,35 @@ const FloorPlan = ({ onRoomClick }) => {
           </button>
           <button 
             className="update-status-btn"
-            onClick={loadData}
-            title="Оcвободить после уборки/ремонта"
+            onClick={handleBulkReleaseFromCleaning}
+            title="Освободить помещения после завершения уборки"
+            disabled={loading}
           >
             <FiEdit2 />
-            Обновить статусы
+            {loading ? 'Освобождение...' : 'Освободить после уборки'}
           </button>
         </div>
 
         <div className="floor-stats">
           <div className="stat-item">
             <span className="stat-dot available"></span>
-            <span>Свободно: {statusCounts.available || 0}</span>
+            <span>Свободно: {totalStatusCounts.available || 0}</span>
+            <span>Свободно на этаже: {statusCounts.available || 0}</span>
           </div>
           <div className="stat-item">
             <span className="stat-dot occupied"></span>
-            <span>Занято: {statusCounts.occupied || 0}</span>
+            <span>Занято : {totalStatusCounts.occupied || 0}</span>
+            <span>Занято на этаже: {statusCounts.occupied || 0}</span>
           </div>
           <div className="stat-item">
             <span className="stat-dot maintenance"></span>
-            <span>Ремонт: {statusCounts.maintenance || 0}</span>
+            <span>Ремонт : {totalStatusCounts.maintenance || 0}</span>
+            <span>Ремонт на этаже: {statusCounts.maintenance || 0}</span>
           </div>
           <div className="stat-item">
             <span className="stat-dot cleaning"></span>
-            <span>Уборка: {statusCounts.cleaning || 0}</span>
+            <span>Уборка : {totalStatusCounts.cleaning || 0}</span>
+            <span>Уборка на этаже: {statusCounts.cleaning || 0}</span>
           </div>
         </div>
       </div>
@@ -660,30 +723,31 @@ const FloorPlan = ({ onRoomClick }) => {
         />
       )}
 
-      {showPropertyDetails && selectedProperty && (
-        <PropertyDetailsModal
-          property={selectedProperty}
-          onClose={() => {
-            setShowPropertyDetails(false);
-            setSelectedProperty(null);
-          }}
-          onCreateRental={() => {
-            setShowPropertyDetails(false);
-            setShowRentalModal(true);
-          }}
-          onCreateTask={() => {
-            setShowPropertyDetails(false);
-            setShowTaskModal(true);
-          }}
-          onEdit={() => {
-            setShowPropertyDetails(false);
-            setShowPropertyModal(true);
-          }}
-          onCheckIn={handleCheckIn}
-          onCheckOut={handleCheckOut}
-          onCancelRental={handleCancelRental}
-        />
-      )}
+  {showPropertyDetails && selectedProperty && (
+    <PropertyDetailsModal
+      property={selectedProperty}
+      onClose={() => {
+        setShowPropertyDetails(false);
+        setSelectedProperty(null);
+      }}
+      onCreateRental={() => {
+        setShowPropertyDetails(false);
+        setShowRentalModal(true);
+      }}
+      onCreateTask={() => {
+        setShowPropertyDetails(false);
+        setShowTaskModal(true);
+      }}
+      onEdit={() => {
+        setShowPropertyDetails(false);
+        setShowPropertyModal(true);
+      }}
+      onCheckIn={handleCheckIn}
+      onCheckOut={handleCheckOut}
+      onCancelRental={handleCancelRental}
+      // Убираем onExtendRental - функция теперь внутри PropertyDetailsModal
+    />
+  )}
     </div>
   );
 };

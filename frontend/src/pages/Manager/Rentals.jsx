@@ -362,26 +362,168 @@ const Rentals = () => {
     }
   };
 
+// frontend/src/pages/Manager/Rentals.jsx - Исправленная функция продления
+
   const handleExtendRental = async (rental, days) => {
     try {
+      // Находим помещение для получения тарифов
+      const property = propertiesList.find(p => p.id === rental.property_id);
+      
+      if (!property) {
+        utils.showError('Не удалось найти информацию о помещении');
+        return;
+      }
+
+      // Умная логика расчета стоимости продления
+      let additionalAmount = 0;
+      let calculationMethod = '';
+
+      if (days === 30 && property.monthly_rate) {
+        // Продление на месяц - используем месячный тариф
+        additionalAmount = property.monthly_rate;
+        calculationMethod = `месячный тариф ₸${property.monthly_rate.toLocaleString()}`;
+      } else if (days === 7 && property.weekly_rate) {
+        // Продление на неделю - используем недельный тариф
+        additionalAmount = property.weekly_rate;
+        calculationMethod = `недельный тариф ₸${property.weekly_rate.toLocaleString()}`;
+      } else if (days === 1 && property.daily_rate) {
+        // Продление на день - используем дневной тариф
+        additionalAmount = property.daily_rate;
+        calculationMethod = `дневной тариф ₸${property.daily_rate.toLocaleString()}`;
+      } else {
+        // Расчет по дням на основе оригинального типа аренды
+        let baseRate = 0;
+        
+        if (rental.rental_type === 'daily') {
+          baseRate = property.daily_rate || rental.rate;
+          calculationMethod = `${days} дн. × ₸${baseRate.toLocaleString()} (дневной тариф)`;
+        } else if (rental.rental_type === 'hourly') {
+          baseRate = property.hourly_rate || rental.rate;
+          additionalAmount = baseRate * 24 * days; // часы × дни
+          calculationMethod = `${days} дн. × 24 ч. × ₸${baseRate.toLocaleString()} (часовой тариф)`;
+        } else if (rental.rental_type === 'monthly') {
+          baseRate = property.monthly_rate || rental.rate;
+          additionalAmount = (baseRate / 30) * days; // пропорционально от месячного тарифа
+          calculationMethod = `${days} дн. от месячного тарифа ₸${baseRate.toLocaleString()}`;
+        } else if (rental.rental_type === 'weekly') {
+          baseRate = property.weekly_rate || rental.rate;
+          additionalAmount = (baseRate / 7) * days; // пропорционально от недельного тарифа
+          calculationMethod = `${days} дн. от недельного тарифа ₸${baseRate.toLocaleString()}`;
+        } else {
+          // Fallback на дневной тариф
+          baseRate = property.daily_rate || rental.rate || 0;
+          calculationMethod = `${days} дн. × ₸${baseRate.toLocaleString()} (базовый тариф)`;
+        }
+        
+        if (additionalAmount === 0 && baseRate > 0) {
+          additionalAmount = baseRate * days;
+        }
+      }
+      
+      if (additionalAmount <= 0) {
+        utils.showError('Не удалось определить стоимость продления. Проверьте тарифы.');
+        return;
+      }
+
+      const periodText = days === 30 ? '1 месяц' : days === 7 ? '1 неделю' : `${days} дн.`;
+
+      // Подтверждение с пользователем
+      const confirmed = confirm(
+        `Продлить аренду на ${periodText}?\n\n` +
+        `Расчет: ${calculationMethod}\n` +
+        `Доплата: ₸${additionalAmount.toLocaleString()}\n\n` +
+        `Клиенту будет создан платеж для оплаты продления.`
+      );
+      
+      if (!confirmed) return;
+      
       const currentEndDate = new Date(rental.end_date);
       const newEndDate = new Date(currentEndDate.getTime() + days * 24 * 60 * 60 * 1000);
       
-      await rentals.update(rental.id, {
-        end_date: newEndDate.toISOString()
+      // Отправляем запрос на продление с доплатой
+      const response = await fetch(`http://localhost:8000/api/rentals/${rental.id}/extend`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          new_end_date: newEndDate.toISOString(),
+          additional_amount: additionalAmount,
+          payment_method: 'cash',
+          payment_notes: `Продление на ${periodText} (${calculationMethod})`
+        })
       });
       
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Не удалось продлить аренду');
+      }
+      
+      const result = await response.json();
+      
+      // Обновляем локальное состояние
       setRentalsList(prev => prev.map(r => 
         r.id === rental.id 
-          ? { ...r, end_date: newEndDate.toISOString() }
+          ? { 
+              ...r, 
+              end_date: newEndDate.toISOString(),
+              total_amount: r.total_amount + additionalAmount
+              // НЕ обновляем paid_amount, так как платеж еще не оплачен!
+            }
           : r
       ));
       
-      utils.showSuccess(`Аренда продлена на ${days} дн.`);
+      utils.showSuccess(
+        `Аренда продлена на ${periodText} до ${newEndDate.toLocaleDateString()}!\n` +
+        `Создан платеж на доплату: ₸${additionalAmount.toLocaleString()}`
+      );
+      
+      // Перезагружаем данные, чтобы отобразить новый платеж в интерфейсе
+      await loadData();
+      
     } catch (error) {
       console.error('Failed to extend rental:', error);
+      utils.showError('Не удалось продлить аренду: ' + error.message);
     }
   };
+
+    // Также добавляем функцию для оплаты продления
+    const handlePayExtension = async (rental, paymentId, amount) => {
+      try {
+        const response = await fetch(
+          `http://localhost:8000/api/rentals/${rental.id}/extension/${paymentId}/pay`, 
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              payment_amount: amount,
+              payment_method: 'cash',
+              payment_type: 'additional',
+              auto_complete: true,
+              notes: 'Доплата за продление аренды'
+            })
+          }
+        );
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Не удалось оплатить продление');
+        }
+        
+        utils.showSuccess(`Доплата за продление оплачена: ₸${amount.toLocaleString()}`);
+        
+        // Перезагружаем данные
+        await loadData();
+        
+      } catch (error) {
+        console.error('Failed to pay extension:', error);
+        utils.showError('Не удалось оплатить продление: ' + error.message);
+      }
+    };
 
   const handleCancelRental = async (rental) => {
     const reason = prompt('Укажите причину отмены аренды:');
@@ -719,24 +861,6 @@ const Rentals = () => {
                         {outstanding > 0 && (
                           <>
                             <button 
-                              className={`btn-icon payment ${
-                                rental.paid_amount === 0 ? 'critical' : 'warning'
-                              }`}
-                              onClick={(e) => handleQuickPayment(rental, e)}
-                              title={`Быстрый платеж (₸${outstanding.toLocaleString()})`}
-                              style={{
-                                backgroundColor: rental.paid_amount === 0 ? '#dc2626' : '#d97706',
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '14px'
-                              }}
-                            >
-                              <FiDollarSign />
-                            </button>
-                            <button 
                               className="btn-icon payment-manager"
                               onClick={(e) => handleOpenPaymentManager(rental, e)}
                               title="Управление платежами"
@@ -841,29 +965,6 @@ const Rentals = () => {
                             </button>
                           </>
                         )}
-                        
-                        <button 
-                          className="btn-icon edit"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('Opening edit modal for rental:', rental);
-                            setSelectedRental(rental);
-                            setShowRentalModal(true);
-                          }}
-                          title="Редактировать"
-                          style={{
-                            backgroundColor: '#6366f1',
-                            color: 'white',
-                            border: 'none',
-                            padding: '8px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '14px'
-                          }}
-                        >
-                          <FiEdit2 />
-                        </button>
-                        
                         {rental.is_active && (
                           <button 
                             className="btn-icon cancel"

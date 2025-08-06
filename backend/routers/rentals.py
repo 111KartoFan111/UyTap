@@ -15,6 +15,10 @@ from utils.dependencies import get_current_active_user
 from services.rental_service import RentalService
 from services.property_service import PropertyService
 from pydantic import BaseModel, EmailStr, Field, validator
+from schemas.payment import (
+    PaymentResponse, ProcessPaymentRequest,
+)
+from models.payment_models import Payment, PaymentStatus, PaymentType
 
 router = APIRouter(prefix="/api/rentals", tags=["Rentals"])
 
@@ -279,15 +283,41 @@ async def extend_rental_with_payment(
         )
     
     try:
-        # Используем новый метод с платежом
-        extended_rental = RentalService.extend_rental_with_payment(
-            db=db,
-            rental=rental,
-            new_end_date=extension_data.new_end_date,
-            additional_amount=extension_data.additional_amount,
+        # Создаем платеж за продление ПЕРЕД обновлением аренды
+        from models.payment_models import Payment
+        
+        extension_payment = Payment(
+            id=uuid.uuid4(),
+            organization_id=current_user.organization_id,
+            rental_id=rental_id,
+            payment_type="additional",  # Используем строку
+            amount=extension_data.additional_amount,
+            currency="KZT",
+            status="pending",  # Платеж ожидает оплаты
             payment_method=extension_data.payment_method,
-            payment_notes=extension_data.payment_notes
+            description=f"Продление аренды до {extension_data.new_end_date.strftime('%d.%m.%Y')}",
+            payer_name=f"{rental.client.first_name} {rental.client.last_name}" if rental.client else None,
+            created_at=datetime.now(timezone.utc),
+            notes=extension_data.payment_notes
         )
+        
+        db.add(extension_payment)
+        db.flush()  # Получаем ID платежа
+        
+        # Теперь обновляем аренду
+        old_end_date = rental.end_date
+        rental.end_date = extension_data.new_end_date
+        rental.total_amount += extension_data.additional_amount
+        rental.updated_at = datetime.now(timezone.utc)
+        
+        # Обновляем статистику клиента
+        if rental.client:
+            rental.client.total_spent += extension_data.additional_amount
+            rental.client.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        db.refresh(rental)
+        db.refresh(extension_payment)
         
         # Логируем действие
         AuthService.log_user_action(
@@ -301,15 +331,22 @@ async def extend_rental_with_payment(
                 "new_end_date": extension_data.new_end_date.isoformat(),
                 "additional_amount": extension_data.additional_amount,
                 "payment_method": extension_data.payment_method,
-                "old_end_date": rental.end_date.isoformat()
+                "old_end_date": old_end_date.isoformat(),
+                "payment_id": str(extension_payment.id)
             }
         )
         
         return {
-            "message": "Аренда успешно продлена с оплатой",
-            "new_end_date": extended_rental.end_date,
+            "message": "Аренда успешно продлена",
+            "new_end_date": rental.end_date,
             "additional_amount": extension_data.additional_amount,
-            "total_amount": extended_rental.total_amount,
+            "total_amount": rental.total_amount,
+            "payment_created": {
+                "id": str(extension_payment.id),
+                "amount": extension_payment.amount,
+                "status": extension_payment.status,
+                "requires_payment": True
+            },
             "notification_sent": True
         }
         
@@ -319,11 +356,88 @@ async def extend_rental_with_payment(
             detail=str(e)
         )
     except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Extension failed: {str(e)}"
         )
 
+@router.post("/{rental_id}/extension/{payment_id}/pay")
+async def pay_extension_payment(
+    rental_id: uuid.UUID,
+    payment_id: uuid.UUID,
+    payment_data: ProcessPaymentRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Оплатить платеж за продление аренды"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to process payments"
+        )
+    
+    # Проверяем что платеж существует и принадлежит аренде
+    payment = db.query(Payment).filter(
+        and_(
+            Payment.id == payment_id,
+            Payment.rental_id == rental_id,
+            Payment.organization_id == current_user.organization_id,
+            Payment.payment_type == "additional",
+            Payment.status == "pending"
+        )
+    ).first()
+    
+    if not payment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Extension payment not found or already paid"
+        )
+    
+    try:
+        # Завершаем платеж
+        payment.status = "completed"
+        payment.completed_at = datetime.now(timezone.utc)
+        payment.payment_method = payment_data.payment_method
+        payment.reference_number = payment_data.reference_number
+        payment.card_last4 = payment_data.card_last4
+        payment.notes = payment_data.notes
+        
+        # Обновляем оплаченную сумму в аренде
+        rental = payment.rental
+        if rental:
+            rental.paid_amount += payment.amount
+        
+        db.commit()
+        
+        # Логируем действие
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="extension_payment_completed",
+            organization_id=current_user.organization_id,
+            resource_type="payment",
+            resource_id=payment.id,
+            details={
+                "rental_id": str(rental_id),
+                "payment_amount": payment.amount,
+                "payment_method": payment_data.payment_method
+            }
+        )
+        
+        return {
+            "message": "Платеж за продление успешно обработан",
+            "payment": PaymentResponse.from_orm(payment),
+            "rental_updated": True
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Payment processing failed: {str(e)}"
+        )
 
 @router.delete("/{rental_id}")
 async def cancel_rental(
