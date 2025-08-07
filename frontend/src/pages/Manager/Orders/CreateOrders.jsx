@@ -14,6 +14,10 @@ const CreateOrders = () => {
   const { inventory, rentals, properties, utils, orders } = useData();
   const [availableRentals, setAvailableRentals] = useState([]);
   const [selectedRentalId, setSelectedRentalId] = useState('');
+
+  const [availableExecutors, setAvailableExecutors] = useState([]);
+  const [selectedExecutor, setSelectedExecutor] = useState('');
+  const [executorWorkload, setExecutorWorkload] = useState(null);
   const { user } = useAuth();
 
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -82,10 +86,36 @@ const CreateOrders = () => {
     }
   };
 
+  const loadAvailableExecutors = async () => {
+    try {
+      const users = await organization.getUsers({
+        role: ['storekeeper', 'manager', 'technical_staff'],
+        status: 'active'
+      });
+      setAvailableExecutors(users || []);
+    } catch (error) {
+      console.warn('Could not load executors:', error);
+      setAvailableExecutors([]);
+    }
+  };
+
+  // Загрузка загруженности исполнителей
+  const loadExecutorWorkload = async () => {
+    try {
+      // Это новый API endpoint, который нужно добавить
+      const workload = await orders.getExecutorWorkload?.();
+      setExecutorWorkload(workload);
+    } catch (error) {
+      console.warn('Could not load executor workload:', error);
+    }
+  };
+
   useEffect(() => {
     loadInventoryData();
     loadRentals();
     loadProperties();
+    loadAvailableExecutors(); // НОВОЕ
+    loadExecutorWorkload(); // НОВОЕ
   }, []);
 
   useEffect(() => {
@@ -205,12 +235,23 @@ const CreateOrders = () => {
         total_amount: getTotalAmount(),
         special_instructions: customerInfo.phone ? `Контакт покупателя: ${customerInfo.phone}` : '',
         client_id: null,
-        rental_id: selectedRentalId || null
+        rental_id: selectedRentalId || null,
+        assigned_to: selectedExecutor || null // НОВОЕ: передаем выбранного исполнителя
       };
 
-      console.log('Creating order with data:', orderData);
+      console.log('Creating order with executor:', selectedExecutor);
       const createdOrder = await orders.create(orderData);
       console.log('Order created:', createdOrder);
+
+      // Показываем информацию о назначении
+      if (createdOrder.assigned_to) {
+        const executor = availableExecutors.find(e => e.id === createdOrder.assigned_to);
+        if (executor) {
+          utils.showInfo(`Заказ назначен исполнителю: ${executor.first_name} ${executor.last_name}`);
+        }
+      } else {
+        utils.showWarning('Заказ создан без исполнителя. Назначьте вручную позже.');
+      }
 
       setCompletedOrder(createdOrder);
       setShowPaymentDialog(true);
@@ -223,7 +264,55 @@ const CreateOrders = () => {
     }
   };
 
-  // НОВАЯ ФУНКЦИЯ: Обработка платежа
+  // НОВЫЙ КОМПОНЕНТ: Выбор исполнителя
+  const ExecutorSelector = () => (
+    <div className="form-group">
+      <label htmlFor="executor-select">Исполнитель заказа (опционально):</label>
+      <select
+        id="executor-select"
+        className="input"
+        value={selectedExecutor}
+        onChange={(e) => setSelectedExecutor(e.target.value)}
+      >
+        <option value="">Автоматически</option>
+        {availableExecutors.map(executor => {
+          const workload = executorWorkload?.executors?.find(w => w.executor_id === executor.id);
+          const workloadText = workload ? ` (${workload.total_workload} задач)` : '';
+          return (
+            <option key={executor.id} value={executor.id}>
+              {executor.first_name} {executor.last_name} - {executor.role}{workloadText}
+            </option>
+          );
+        })}
+      </select>
+      {executorWorkload && (
+        <small style={{color: '#666', fontSize: '0.85rem'}}>
+          💡 При выборе "Автоматически" система назначит наименее загруженного исполнителя
+        </small>
+      )}
+    </div>
+  );
+
+  // НОВЫЙ КОМПОНЕНТ: Информация о загруженности исполнителей
+  const ExecutorWorkloadInfo = () => {
+    if (!executorWorkload || !executorWorkload.executors) return null;
+
+    return (
+      <div className="stats" style={{marginTop: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px'}}>
+        <h4 style={{margin: '0 0 0.5rem 0', fontSize: '0.9rem', fontWeight: '600'}}>Загруженность исполнителей:</h4>
+        {executorWorkload.executors.slice(0, 3).map(executor => (
+          <p key={executor.executor_id} style={{margin: '0.25rem 0', fontSize: '0.8rem'}}>
+            <strong>{executor.name}</strong>: {executor.workload_status} ({executor.total_workload} задач)
+          </p>
+        ))}
+        {executorWorkload.executors.length > 3 && (
+          <p style={{margin: '0.25rem 0', fontSize: '0.8rem', color: '#666'}}>
+            ...и еще {executorWorkload.executors.length - 3} исполнителей
+          </p>
+        )}
+      </div>
+    );
+  };
 // ИСПРАВЛЕННАЯ ФУНКЦИЯ: Обработка платежа
   const processPayment = async () => {
     if (!completedOrder) {
@@ -656,6 +745,7 @@ const CreateOrders = () => {
                 </div>
 
                 <div className="checkout">
+                   <ExecutorSelector />
                   <div className="form-group">
                     <label htmlFor="rental-select">Связанная аренда (опционально):</label>
                     <select

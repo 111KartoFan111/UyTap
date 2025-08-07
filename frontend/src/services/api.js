@@ -963,7 +963,64 @@ export const ordersAPI = {
 
   async getOrderStatistics(periodDays = 30) {
     return apiRequest(`/api/orders/statistics/overview?period_days=${periodDays}`);
+  },
+    async getExecutorWorkload() {
+    return apiRequest('/api/orders/executors/workload');
+  },
+
+  // Получить заказы с информацией об исполнителях
+  async getOrdersWithExecutors(params = {}) {
+    const orders = await this.getOrders(params);
+    
+    // Дополняем информацией об исполнителях
+    const ordersWithExecutors = await Promise.all(
+      orders.map(async (order) => {
+        if (order.assigned_to) {
+          try {
+            const executor = await organizationAPI.getUser(order.assigned_to);
+            return {
+              ...order,
+              executor: {
+                id: executor.id,
+                name: `${executor.first_name} ${executor.last_name}`,
+                role: executor.role,
+                email: executor.email
+              }
+            };
+          } catch (error) {
+            console.warn(`Failed to get executor info for order ${order.id}:`, error);
+          }
+        }
+        return order;
+      })
+    );
+
+    return ordersWithExecutors;
+  },
+
+  // Переназначить заказ другому исполнителю
+  async reassignOrder(orderId, newExecutorId, reason = '') {
+    return apiRequest(`/api/orders/${orderId}/reassign`, {
+      method: 'POST',
+      body: JSON.stringify({
+        new_assigned_to: newExecutorId,
+        reason: reason
+      })
+    });
+  },
+
+  // Получить историю назначений заказа
+  async getOrderAssignmentHistory(orderId) {
+    return apiRequest(`/api/orders/${orderId}/assignment-history`);
+  },
+
+  // Автоматически переназначить все неназначенные заказы
+  async autoAssignUnassignedOrders() {
+    return apiRequest('/api/orders/auto-assign-unassigned', {
+      method: 'POST'
+    });
   }
+
   
 };
 // Исправленный фрагмент API для обработки платежей заказов

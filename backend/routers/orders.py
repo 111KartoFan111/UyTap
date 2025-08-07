@@ -468,3 +468,30 @@ async def get_order_payment_status(
             print(f"Warning: Could not fetch payment info: {e}")
     
     return payment_status
+
+@router.get("/executors/workload")
+async def get_executor_workload(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Получить загруженность исполнителей заказов"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to view executor workload"
+        )
+    
+    try:
+        workload_summary = OrderService.get_executor_workload_summary(
+            db=db,
+            organization_id=current_user.organization_id
+        )
+        
+        return workload_summary
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get executor workload: {str(e)}"
+        )

@@ -9,6 +9,10 @@ from models.extended_models import (
     RoomOrder, OrderStatus, User, UserRole, Inventory, InventoryMovement
 )
 from schemas.order import RoomOrderCreate, RoomOrderUpdate, RoomOrderResponse, OrderItemBase
+from models.extended_models import (
+    RoomOrder, OrderStatus, User, UserRole, Inventory, InventoryMovement, Task, TaskType, TaskStatus
+)
+from schemas.order import RoomOrderCreate, RoomOrderUpdate
 
 
 class OrderService:
@@ -50,18 +54,19 @@ class OrderService:
                     'inventory': inventory_item
                 })
 
+        assigned_executor = OrderService._auto_assign_executor(db, organization_id, order_data.order_type)
+
         # Step 2: Generate order number
         order_number = OrderService._generate_order_number(db, organization_id)
         
-        # Step 3: Create the order with correct initial status
         initial_status = OrderStatus.PENDING
-        if order_data.assigned_to:
-            initial_status = OrderStatus.CONFIRMED  # Если есть исполнитель - сразу подтвержденный
+        if assigned_executor or order_data.assigned_to:
+            initial_status = OrderStatus.CONFIRMED
         
         order = RoomOrder(
             id=uuid.uuid4(),
             organization_id=organization_id,
-            order_number=order_number,
+            order_number=OrderService._generate_order_number(db, organization_id),
             property_id=uuid.UUID(order_data.property_id),
             order_type=order_data.order_type,
             title=order_data.title,
@@ -69,7 +74,10 @@ class OrderService:
             items=OrderService._serialize_order_items(order_data.items),
             total_amount=order_data.total_amount,
             special_instructions=order_data.special_instructions,
-            status=initial_status  # ИСПРАВЛЕНО: правильный начальный статус
+            status=initial_status,
+            assigned_to=assigned_executor.id if assigned_executor else (
+                uuid.UUID(order_data.assigned_to) if order_data.assigned_to else None
+            )
         )
         
         # Set optional fields
@@ -78,6 +86,7 @@ class OrderService:
         if order_data.rental_id:
             order.rental_id = uuid.UUID(order_data.rental_id)
         if order_data.assigned_to:
+            OrderService._create_delivery_task(db, order)
             order.assigned_to = uuid.UUID(order_data.assigned_to)
         
         db.add(order)
@@ -96,6 +105,222 @@ class OrderService:
         db.refresh(order)
         
         return order
+    
+    @staticmethod
+    def _create_delivery_task(db: Session, order: RoomOrder):
+        """Создать задачу доставки для заказа"""
+        
+        # Импортируем здесь, чтобы избежать циклических импортов
+        from services.task_service import TaskService
+        from schemas.task import TaskCreate
+        from models.extended_models import TaskPriority
+        
+        # Определяем приоритет в зависимости от типа заказа
+        priority = TaskPriority.HIGH if order.order_type == 'product_sale' else TaskPriority.MEDIUM
+        
+        # Создаем задачу доставки
+        task_data = TaskCreate(
+            title=f"Доставка заказа #{order.order_number}",
+            description=f"Доставить товары по заказу '{order.title}' в помещение {order.property.name if order.property else 'неизвестно'}",
+            task_type=TaskType.DELIVERY,
+            priority=priority,
+            property_id=str(order.property_id),
+            estimated_duration=30,  # 30 минут на доставку
+            payment_amount=1000,  # Базовая оплата за доставку
+            payment_type="fixed"
+        )
+        
+        try:
+            delivery_task = TaskService.create_task(
+                db=db,
+                task_data=task_data,
+                property_id=order.property_id,
+                created_by=None,  # Системная задача
+                organization_id=order.organization_id
+            )
+            
+            # Назначаем задачу тому же исполнителю, что и заказ
+            if order.assigned_to:
+                delivery_task.assigned_to = order.assigned_to
+                delivery_task.status = TaskStatus.ASSIGNED
+                db.commit()
+            
+            print(f"✅ Created delivery task {delivery_task.id} for order {order.id}")
+            
+        except Exception as e:
+            print(f"⚠️  Failed to create delivery task for order {order.id}: {e}")
+
+
+    @staticmethod
+    def notify_executor_about_order(db: Session, order: RoomOrder):
+        """Уведомить исполнителя о новом заказе"""
+        
+        if not order.assigned_to:
+            return
+        
+        executor = db.query(User).filter(User.id == order.assigned_to).first()
+        if not executor:
+            return
+        
+        try:
+            # Здесь можно добавить отправку уведомлений
+            # Например, через email, SMS или push-уведомления
+            
+            message = (
+                f"📦 Новый заказ #{order.order_number}\n"
+                f"Тип: {order.order_type}\n"
+                f"Помещение: {order.property.name if order.property else 'Неизвестно'}\n"
+                f"Сумма: {order.total_amount:,.0f} ₸\n"
+                f"Статус: {order.status.value}"
+            )
+            
+            # TODO: Интегрировать с сервисом уведомлений
+            print(f"📧 Notification to {executor.email}: {message}")
+            
+        except Exception as e:
+            print(f"⚠️  Failed to send notification: {e}")
+
+    @staticmethod
+    def get_executor_workload_summary(db: Session, organization_id: uuid.UUID) -> Dict[str, Any]:
+        """Получить сводку загруженности исполнителей"""
+        
+        # Получаем всех потенциальных исполнителей
+        executors = db.query(User).filter(
+            and_(
+                User.organization_id == organization_id,
+                User.role.in_([
+                    UserRole.STOREKEEPER, 
+                    UserRole.MANAGER, 
+                    UserRole.TECHNICAL_STAFF
+                ]),
+                User.status == "active"
+            )
+        ).all()
+        
+        workload_summary = []
+        
+        for executor in executors:
+            # Активные заказы
+            active_orders = db.query(RoomOrder).filter(
+                and_(
+                    RoomOrder.assigned_to == executor.id,
+                    RoomOrder.status.in_([OrderStatus.CONFIRMED, OrderStatus.IN_PROGRESS])
+                )
+            ).all()
+            
+            # Активные задачи
+            active_tasks = db.query(Task).filter(
+                and_(
+                    Task.assigned_to == executor.id,
+                    Task.status.in_([TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS])
+                )
+            ).all()
+            
+            workload_summary.append({
+                "executor_id": str(executor.id),
+                "name": f"{executor.first_name} {executor.last_name}",
+                "role": executor.role.value,
+                "email": executor.email,
+                "active_orders": len(active_orders),
+                "active_tasks": len(active_tasks),
+                "total_workload": len(active_orders) + len(active_tasks),
+                "workload_status": OrderService._get_workload_status(len(active_orders) + len(active_tasks))
+            })
+        
+        return {
+            "executors": workload_summary,
+            "total_executors": len(executors),
+            "avg_workload": sum(e["total_workload"] for e in workload_summary) / len(workload_summary) if workload_summary else 0
+        }
+    
+    @staticmethod
+    def _get_workload_status(total_workload: int) -> str:
+        """Определить статус загруженности"""
+        if total_workload == 0:
+            return "свободен"
+        elif total_workload <= 2:
+            return "низкая загрузка"
+        elif total_workload <= 5:
+            return "средняя загрузка"
+        elif total_workload <= 8:
+            return "высокая загрузка"
+        else:
+            return "перегружен"
+
+    @staticmethod
+    def _auto_assign_executor(db: Session, organization_id: uuid.UUID, order_type: str) -> Optional[User]:
+        """Автоматическое назначение исполнителя в зависимости от типа заказа"""
+        
+        # Для продажи товаров ищем кладовщика или менеджера
+        if order_type == 'product_sale':
+            # Сначала ищем кладовщиков
+            storekeepers = db.query(User).filter(
+                and_(
+                    User.organization_id == organization_id,
+                    User.role == UserRole.STOREKEEPER,
+                    User.status == "active"
+                )
+            ).all()
+            
+            if storekeepers:
+                # Выбираем наименее загруженного кладовщика
+                return OrderService._get_least_busy_user(db, storekeepers)
+            
+            # Если нет кладовщиков, ищем менеджеров
+            managers = db.query(User).filter(
+                and_(
+                    User.organization_id == organization_id,
+                    User.role == UserRole.MANAGER,
+                    User.status == "active"
+                )
+            ).all()
+            
+            if managers:
+                return OrderService._get_least_busy_user(db, managers)
+        
+        # Для других типов заказов
+        elif order_type in ['food', 'service']:
+            # Ищем технический персонал или менеджеров
+            staff = db.query(User).filter(
+                and_(
+                    User.organization_id == organization_id,
+                    User.role.in_([UserRole.TECHNICAL_STAFF, UserRole.MANAGER]),
+                    User.status == "active"
+                )
+            ).all()
+            
+            if staff:
+                return OrderService._get_least_busy_user(db, staff)
+        
+        return None
+    
+    @staticmethod
+    def _get_least_busy_user(db: Session, users: List[User]) -> User:
+        """Найти наименее загруженного пользователя"""
+        
+        user_workload = []
+        for user in users:
+            # Считаем активные заказы
+            active_orders = db.query(RoomOrder).filter(
+                and_(
+                    RoomOrder.assigned_to == user.id,
+                    RoomOrder.status.in_([OrderStatus.CONFIRMED, OrderStatus.IN_PROGRESS])
+                )
+            ).count()
+            
+            # Считаем активные задачи
+            active_tasks = db.query(Task).filter(
+                and_(
+                    Task.assigned_to == user.id,
+                    Task.status.in_([TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS])
+                )
+            ).count()
+            
+            total_workload = active_orders + active_tasks
+            user_workload.append((user, total_workload))
+        
+        # Возвращаем пользователя с минимальной загрузкой
+        return min(user_workload, key=lambda x: x[1])[0]
 
     @staticmethod
     def _generate_order_number(db: Session, organization_id: uuid.UUID) -> str:

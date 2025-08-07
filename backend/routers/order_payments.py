@@ -14,6 +14,10 @@ from services.order_payment_service import OrderPaymentService
 from services.auth_service import AuthService
 from utils.dependencies import get_current_active_user
 from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
+from typing import Optional
+from datetime import datetime
+
 
 router = APIRouter(prefix="/api/orders", tags=["Order Payments"])
 
@@ -53,6 +57,13 @@ class OrderPaymentResponse(BaseModel):
     reference_number: Optional[str]
     created_at: datetime
     completed_at: Optional[datetime]
+    
+    # ИСПРАВЛЕНО: Добавляем валидатор для конвертации UUID в строки
+    @validator('id', 'order_id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
     
     class Config:
         from_attributes = True
