@@ -40,7 +40,7 @@ except Exception as e:
 try:
     from routers import (
         auth, admin, properties, rentals, clients, 
-        orders, reports, documents, tasks, payroll, inventory, organization, payments,order_payments
+        orders, reports, documents, tasks, payroll, inventory, organization, payments,order_payments,export_reports,acquiring
     )
     print("✅ Core routers imported successfully")
 except Exception as e:
@@ -210,6 +210,9 @@ app.include_router(payroll.router)
 app.include_router(inventory.router)
 app.include_router(payments.router)
 app.include_router(order_payments.router)
+app.include_router(export_reports.router)
+app.include_router(acquiring.router)
+
 
 # Расширенные роутеры зарплат (если доступны)
 if PAYROLL_EXTENDED_AVAILABLE:
