@@ -31,7 +31,7 @@ except Exception as e:
 
 try:
     # Импортируем модели зарплат
-    from models import payroll_template, payroll_operation
+    from models import payroll_template, payroll_operation , acquiring_models
     print("✅ Payroll models imported successfully")
 except Exception as e:
     print(f"⚠️  Warning: Payroll models not available: {e}")
