@@ -9,6 +9,7 @@ import {
 import { FiX } from 'react-icons/fi';
 import { useData } from '../../../contexts/DataContext';
 import { useAuth } from '../../../contexts/AuthContext';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 const CreateOrders = () => {
   const { inventory, rentals, properties, utils, orders } = useData();
@@ -637,6 +638,9 @@ const CreateOrders = () => {
             Корзина ({getTotalItems()})
           </button>
           <button className="btn btn-outline" onClick={loadInventoryData}>Обновить</button>
+         <a href={user.role === "admin" ? "/admin/orders/history" : "/manager/orders/history"}>
+          <button className="btn btn-primary">История продаж</button>
+        </a>  
         </div>
       </div>
 

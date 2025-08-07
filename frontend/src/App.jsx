@@ -23,6 +23,8 @@ import Staff from './pages/Manager/Staff.jsx';
 import AdminDashboard from './pages/Manager/AdminDashboard.jsx';
 import InventoryCheck from './pages/Manager/InventoryCheck.jsx';
 import CreateOrders from './pages/Manager/Orders/CreateOrders.jsx'; // Import Inventory Check component
+import OrderHistory from './pages/Manager/Orders/OrderHistory.jsx'; // Import Order History component
+import TaskHistory from './pages/Manager/Tasks/TaskAll.jsx'; // Import Task History component
 
 // Import other role pages
 import CleanerDashboard from './pages/Cleaner/CleanerDashboard.jsx';
@@ -166,6 +168,8 @@ const AppRoutes = () => {
                 <Route path="settings" element={<Settings />} />
                 <Route path="staff" element={<Staff />} />
                 <Route path="inventory" element={<InventoryCheck />} />
+                <Route path="orders/history" element={<OrderHistory />} />
+                <Route path="tasks/history" element={<TaskHistory />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
@@ -185,6 +189,8 @@ const AppRoutes = () => {
                 <Route path="settings" element={<Settings />} />
                 <Route path="staff" element={<Staff />} />
                 <Route path="mypayroll" element={<MyPayroll />} />
+                <Route path="orders/history" element={<OrderHistory />} />
+                <Route path="tasks/history" element={<TaskHistory />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

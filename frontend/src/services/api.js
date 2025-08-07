@@ -1526,16 +1526,61 @@ export const inventoryAPI = {
     });
   },
 
-  async exportData(format, category = null) {
-    const params = category ? `?category=${category}` : '';
-    const response = await fetch(`${API_BASE_URL}/api/inventory/export/${format}${params}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+  async exportData(format = 'xlsx', category = null) {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
       }
-    });
-    
-    if (!response.ok) throw new Error('Export failed');
-    return response.blob();
+
+      // Строим URL с параметрами
+      const params = new URLSearchParams();
+      if (category) {
+        params.append('category', category);
+      }
+      
+      const url = `${API_BASE_URL}/api/inventory/export/${format}${params.toString() ? '?' + params.toString() : ''}`;
+      
+      console.log('🔄 Exporting inventory to:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/pdf, application/octet-stream'
+        }
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Ошибка экспорта: ${response.status} ${response.statusText}`;
+        
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // Если не удается распарсить JSON, используем статус ответа
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+
+      console.log('✅ Export successful, blob size:', blob.size);
+      return blob;
+      
+    } catch (error) {
+      console.error('❌ Inventory export failed:', error);
+      throw error;
+    }
   }
 };
 

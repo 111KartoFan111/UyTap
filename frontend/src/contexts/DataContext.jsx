@@ -564,18 +564,52 @@ const utils = {
 
 
   // Enhanced inventory operations
-  const inventory = {
-    getAll: (params) => withLoading(() => inventoryAPI.getItems(params), true),
-    getById: (id) => withLoading(() => inventoryAPI.getItem(id)),
-    create: (data) => withLoading(() => inventoryAPI.createItem(data), false, 'Товар добавлен'),
-    update: (id, data) => withLoading(() => inventoryAPI.updateItem(id, data), false, 'Товар обновлен'),
-    delete: (id) => withLoading(() => inventoryAPI.deleteItem(id), false, 'Товар удален'),
-    createMovement: (itemId, data) => withLoading(() => inventoryAPI.createMovement(itemId, data), false, 'Движение создано'),
-    getMovements: (itemId, params) => withLoading(() => inventoryAPI.getMovements(itemId, params)),
-    getLowStock: () => withLoading(() => inventoryAPI.getLowStockItems(), true),
-    getStatistics: () => withLoading(() => inventoryAPI.getStatistics()),
-    bulkUpdateStock: (updates) => withLoading(() => inventoryAPI.bulkUpdateStock(updates), false, 'Остатки обновлены'),
-    export: (format, category) => withLoading(() => inventoryAPI.exportData(format, category))
+const inventory = {
+  getAll: (params) => withLoading(() => inventoryAPI.getItems(params), true),
+  getById: (id) => withLoading(() => inventoryAPI.getItem(id)),
+  create: (data) => withLoading(() => inventoryAPI.createItem(data), false, 'Товар добавлен'),
+  update: (id, data) => withLoading(() => inventoryAPI.updateItem(id, data), false, 'Товар обновлен'),
+  delete: (id) => withLoading(() => inventoryAPI.deleteItem(id), false, 'Товар удален'),
+  createMovement: (itemId, data) => withLoading(() => inventoryAPI.createMovement(itemId, data), false, 'Движение создано'),
+  getMovements: (itemId, params) => withLoading(() => inventoryAPI.getMovements(itemId, params)),
+  getLowStock: () => withLoading(() => inventoryAPI.getLowStockItems(), true),
+  getStatistics: () => withLoading(() => inventoryAPI.getStatistics()),
+  bulkUpdateStock: (updates) => withLoading(() => inventoryAPI.bulkUpdateStock(updates), false, 'Остатки обновлены'),
+  
+  // ИСПРАВЛЕННЫЙ метод экспорта с автоматическим скачиванием
+  export: async (format = 'xlsx', category = null) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔄 DataContext: Starting inventory export...', { format, category });
+      
+      const blob = await inventoryAPI.exportData(format, category);
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+      
+      // Определяем имя файла
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      const categorySuffix = category ? `_${category}` : '';
+      const filename = `inventory${categorySuffix}_${timestamp}.${format}`;
+      
+      // Автоматически скачиваем файл
+      utils.downloadFile(blob, filename);
+      
+      console.log('✅ DataContext: Inventory exported and downloaded successfully');
+      handleSuccess('Файл инвентаря успешно экспортирован');
+      
+      return blob;
+    } catch (error) {
+      console.error('❌ DataContext: Inventory export failed:', error);
+      handleError(error, 'Экспорт инвентаря', true);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }
   };
 
   // Enhanced documents operations

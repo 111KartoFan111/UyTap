@@ -731,9 +731,6 @@ async def archive_old_payrolls(
     ).all()
     
     archived_count = 0
-    
-    # В реальности здесь можно перенести данные в архивную таблицу
-    # Пока просто добавляем метку архивации
     for payroll in old_payrolls:
         if not payroll.operations_summary:
             payroll.operations_summary = {}

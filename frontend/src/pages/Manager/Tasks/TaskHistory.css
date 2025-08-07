@@ -1,0 +1,165 @@
+/* TaskHistory.css */
+.task-history {
+  max-width: 1440px; /* Maximum width for the task history page */
+  margin: 0 auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background-color: #f8fafc; /* Light gray-blue background */
+  color: #2d3748; /* Dark gray for text */
+}
+
+/* CSS Variables for Light Theme */
+:root {
+  --bg-color: #f8fafc; /* Light gray-blue background */
+  --text-color: #2d3748; /* Dark gray text */
+  --card-bg: #ffffff; /* White card background */
+  --border-color: #e2e8f0; /* Light gray border */
+  --primary-color: #3498db; /* Requested primary blue */
+  --primary-hover: #2b80c4; /* Slightly darker blue for hover */
+  --error-color: #e53e3e; /* Light red for errors */
+  --status-cancelled: #e53e3e; /* Red for cancelled */
+  --status-completed: #38a169; /* Green for completed */
+  --status-pending: #f6ad55; /* Orange for pending */
+  --priority-high: #e53e3e; /* Red for high priority (as requested) */
+  --priority-medium: #f6ad55; /* Orange for medium priority */
+  --priority-low: #38a169; /* Green for low priority */
+}
+
+.task-history {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: var(--text-color);
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.loading,
+.error,
+.no-tasks {
+  font-size: 18px;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.error {
+  color: var(--error-color);
+}
+
+.task-list {
+  list-style: none;
+  padding: 0;
+}
+
+.task-item {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); /* Subtle shadow for light theme */
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.task-description {
+  font-style: italic;
+  color: var(--text-color);
+  opacity: 0.8;
+  margin: 10px 0;
+}
+
+.status {
+  padding: 5px 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.status.cancelled {
+  background-color: var(--status-cancelled);
+}
+
+.status.completed {
+  background-color: var(--status-completed);
+}
+
+.status.pending {
+  background-color: var(--status-pending);
+}
+
+.priority {
+  font-weight: bold;
+}
+
+.priority.high {
+  color: var(--priority-high);
+}
+
+.priority.medium {
+  color: var(--priority-medium);
+}
+
+.priority.low {
+  color: var(--priority-low);
+}
+
+p {
+  margin: 5px 0;
+  font-size: 16px;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+  .task-history {
+    padding: 10px;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  .task-header {
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 16px;
+  }
+
+  .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .task-item {
+    padding: 10px;
+  }
+}

@@ -48,6 +48,7 @@ const Layout = ({ children }) => {
           { path: '/admin/reports', icon: FiBarChart2, label: 'Отчеты' },
           { path: '/admin/payroll', icon: FiDollarSign, label: 'Зарплаты' },
           { path: '/admin/staff', icon: FaUsersGear, label: 'Сотрудники' },
+          { path: '/admin/tasks/history', icon: FiTool, label: 'Задачи' },
           { path: '/admin/settings', icon: LuUserCog, label: 'Настройки' },
 
         ];
@@ -59,6 +60,7 @@ const Layout = ({ children }) => {
           { path: '/manager/clients', icon: FiUsers, label: 'Клиенты' },
           { path: '/manager/reports', icon: FiBarChart2, label: 'Отчеты' },
           { path: '/manager/staff', icon: FaUsersGear, label: 'Сотрудники' },
+          { path: '/manager/tasks/history', icon: FiTool, label: 'Задачи' },
           { path: '/manager/settings', icon: LuUserCog, label: 'Настройки' },
           { path: '/manager/mypayroll', icon: FiDollarSign, label: 'Мои зарплаты' },
         ];
