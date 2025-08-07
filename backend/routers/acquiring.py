@@ -1,9 +1,12 @@
+# backend/routers/acquiring.py - FIXED VERSION WITH DEBUG
+
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc, func
 import uuid
+import logging
 
 from models.database import get_db
 from models.models import User, UserRole, Organization
@@ -13,10 +16,30 @@ from schemas.acquiring import (
     QuickAcquiringSetup, AcquiringStatsResponse, AcquiringProviderConfig
 )
 
+# Setup logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/acquiring", tags=["Acquiring"])
 
-# Требуем права администратора
-admin_required = require_role([UserRole.ADMIN, UserRole.ACCOUNTANT])
+# FIXED: Use the correct require_role function
+admin_required = require_role(UserRole.ADMIN, UserRole.ACCOUNTANT)
+
+@router.get("/debug/user-info")
+async def debug_user_info(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Debug endpoint to check user information for acquiring access"""
+    return {
+        "user_id": str(current_user.id),
+        "email": current_user.email,
+        "role": current_user.role.value,
+        "role_type": str(type(current_user.role)),
+        "status": current_user.status.value,
+        "organization_id": str(current_user.organization_id) if current_user.organization_id else None,
+        "has_admin_role": current_user.role == UserRole.ADMIN,
+        "has_accountant_role": current_user.role == UserRole.ACCOUNTANT,
+        "allowed_roles": [UserRole.ADMIN.value, UserRole.ACCOUNTANT.value]
+    }
 
 @router.get("/settings", response_model=AcquiringSettingsResponse)
 async def get_acquiring_settings(
@@ -25,6 +48,8 @@ async def get_acquiring_settings(
 ):
     """Получить настройки эквайринга"""
     
+    logger.info(f"User {current_user.email} accessing acquiring settings")
+    
     from models.acquiring_models import AcquiringSettings
     
     settings = db.query(AcquiringSettings).filter(
@@ -32,6 +57,7 @@ async def get_acquiring_settings(
     ).first()
     
     if not settings:
+        logger.info(f"No acquiring settings found for org {current_user.organization_id}, returning defaults")
         # Возвращаем настройки по умолчанию
         return AcquiringSettingsResponse(
             id="00000000-0000-0000-0000-000000000000",
@@ -45,6 +71,7 @@ async def get_acquiring_settings(
             updated_at=datetime.now(timezone.utc)
         )
     
+    logger.info(f"Found acquiring settings for org {current_user.organization_id}")
     return settings
 
 @router.post("/settings", response_model=AcquiringSettingsResponse)
@@ -54,6 +81,8 @@ async def create_acquiring_settings(
     db: Session = Depends(get_db)
 ):
     """Создать настройки эквайринга"""
+    
+    logger.info(f"User {current_user.email} creating acquiring settings")
     
     from models.acquiring_models import AcquiringSettings
     
@@ -84,120 +113,8 @@ async def create_acquiring_settings(
     db.commit()
     db.refresh(settings)
     
+    logger.info(f"Created acquiring settings {settings.id} for org {current_user.organization_id}")
     return settings
-
-@router.put("/settings", response_model=AcquiringSettingsResponse)
-async def update_acquiring_settings(
-    settings_data: AcquiringSettingsUpdate,
-    current_user: User = Depends(admin_required),
-    db: Session = Depends(get_db)
-):
-    """Обновить настройки эквайринга"""
-    
-    from models.acquiring_models import AcquiringSettings
-    
-    settings = db.query(AcquiringSettings).filter(
-        AcquiringSettings.organization_id == current_user.organization_id
-    ).first()
-    
-    if not settings:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Acquiring settings not found. Create them first."
-        )
-    
-    # Обновляем поля
-    update_data = settings_data.dict(exclude_unset=True, exclude={'providers_config'})
-    for field, value in update_data.items():
-        setattr(settings, field, value)
-    
-    # Обрабатываем providers_config отдельно
-    if settings_data.providers_config is not None:
-        providers_dict = {}
-        for provider_name, config in settings_data.providers_config.items():
-            providers_dict[provider_name] = config.dict()
-        settings.providers_config = providers_dict
-    
-    settings.updated_at = datetime.now(timezone.utc)
-    
-    db.commit()
-    db.refresh(settings)
-    
-    return settings
-
-@router.post("/settings/quick-setup")
-async def quick_acquiring_setup(
-    setup_data: QuickAcquiringSetup,
-    current_user: User = Depends(admin_required),
-    db: Session = Depends(get_db)
-):
-    """Быстрая настройка эквайринга с популярными банками"""
-    
-    from models.acquiring_models import AcquiringSettings
-    
-    # Создаем конфигурацию для Kaspi и Halyk
-    providers_config = {
-        "kaspi": AcquiringProviderConfig(
-            provider="kaspi",
-            is_enabled=True,
-            commission_rate=setup_data.kaspi_commission,
-            display_name="Kaspi Bank",
-            description="Эквайринг Kaspi Bank",
-            currency="KZT",
-            min_amount=100,
-            max_amount=5000000,
-            test_mode=setup_data.enable_test_mode,
-            api_url="https://api.kaspi.kz" if not setup_data.enable_test_mode else "https://test-api.kaspi.kz"
-        ),
-        "halyk": AcquiringProviderConfig(
-            provider="halyk",
-            is_enabled=True,
-            commission_rate=setup_data.halyk_commission,
-            display_name="Halyk Bank",
-            description="Эквайринг Halyk Bank",
-            currency="KZT",
-            min_amount=100,
-            max_amount=10000000,
-            test_mode=setup_data.enable_test_mode,
-            api_url="https://api.halykbank.kz" if not setup_data.enable_test_mode else "https://test-api.halykbank.kz"
-        )
-    }
-    
-    # Удаляем старые настройки если есть
-    existing = db.query(AcquiringSettings).filter(
-        AcquiringSettings.organization_id == current_user.organization_id
-    ).first()
-    
-    if existing:
-        db.delete(existing)
-    
-    # Создаем новые настройки
-    providers_dict = {}
-    for provider_name, config in providers_config.items():
-        providers_dict[provider_name] = config.dict()
-    
-    settings = AcquiringSettings(
-        id=uuid.uuid4(),
-        organization_id=current_user.organization_id,
-        is_enabled=True,
-        default_provider="kaspi",  # Kaspi по умолчанию
-        providers_config=providers_dict,
-        auto_capture=setup_data.auto_capture,
-        payment_description_template=f"{setup_data.payment_description} #{{rental_id}}"
-    )
-    
-    db.add(settings)
-    db.commit()
-    db.refresh(settings)
-    
-    return {
-        "message": "Эквайринг настроен успешно",
-        "providers_configured": ["kaspi", "halyk"],
-        "kaspi_commission": setup_data.kaspi_commission,
-        "halyk_commission": setup_data.halyk_commission,
-        "test_mode": setup_data.enable_test_mode,
-        "settings_id": str(settings.id)
-    }
 
 @router.get("/providers/available")
 async def get_available_providers(
@@ -205,6 +122,8 @@ async def get_available_providers(
     db: Session = Depends(get_db)
 ):
     """Получить список доступных провайдеров эквайринга"""
+    
+    logger.info(f"User {current_user.email} (role: {current_user.role.value}) accessing available providers")
     
     providers = [
         {
@@ -254,6 +173,7 @@ async def get_available_providers(
         }
     ]
     
+    logger.info(f"Returning {len(providers)} available providers")
     return {"available_providers": providers}
 
 @router.get("/statistics")
@@ -476,4 +396,82 @@ async def calculate_commission(
         "commission_amount": round(commission_amount, 2),
         "net_amount": round(net_amount, 2),
         "calculation_timestamp": datetime.now(timezone.utc)
+    }
+
+@router.post("/settings/quick-setup")
+async def quick_acquiring_setup(
+    setup_data: QuickAcquiringSetup,
+    current_user: User = Depends(admin_required),
+    db: Session = Depends(get_db)
+):
+    """Быстрая настройка эквайринга с популярными банками"""
+    
+    logger.info(f"User {current_user.email} performing quick acquiring setup")
+    
+    from models.acquiring_models import AcquiringSettings
+    
+    # Создаем конфигурацию для Kaspi и Halyk
+    providers_config = {
+        "kaspi": AcquiringProviderConfig(
+            provider="kaspi",
+            is_enabled=True,
+            commission_rate=setup_data.kaspi_commission,
+            display_name="Kaspi Bank",
+            description="Эквайринг Kaspi Bank",
+            currency="KZT",
+            min_amount=100,
+            max_amount=5000000,
+            test_mode=setup_data.enable_test_mode,
+            api_url="https://api.kaspi.kz" if not setup_data.enable_test_mode else "https://test-api.kaspi.kz"
+        ),
+        "halyk": AcquiringProviderConfig(
+            provider="halyk",
+            is_enabled=True,
+            commission_rate=setup_data.halyk_commission,
+            display_name="Halyk Bank",
+            description="Эквайринг Halyk Bank",
+            currency="KZT",
+            min_amount=100,
+            max_amount=10000000,
+            test_mode=setup_data.enable_test_mode,
+            api_url="https://api.halykbank.kz" if not setup_data.enable_test_mode else "https://test-api.halykbank.kz"
+        )
+    }
+    
+    # Удаляем старые настройки если есть
+    existing = db.query(AcquiringSettings).filter(
+        AcquiringSettings.organization_id == current_user.organization_id
+    ).first()
+    
+    if existing:
+        db.delete(existing)
+    
+    # Создаем новые настройки
+    providers_dict = {}
+    for provider_name, config in providers_config.items():
+        providers_dict[provider_name] = config.dict()
+    
+    settings = AcquiringSettings(
+        id=uuid.uuid4(),
+        organization_id=current_user.organization_id,
+        is_enabled=True,
+        default_provider="kaspi",  # Kaspi по умолчанию
+        providers_config=providers_dict,
+        auto_capture=setup_data.auto_capture,
+        payment_description_template=f"{setup_data.payment_description} #{{rental_id}}"
+    )
+    
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    
+    logger.info(f"Quick setup completed for org {current_user.organization_id}")
+    
+    return {
+        "message": "Эквайринг настроен успешно",
+        "providers_configured": ["kaspi", "halyk"],
+        "kaspi_commission": setup_data.kaspi_commission,
+        "halyk_commission": setup_data.halyk_commission,
+        "test_mode": setup_data.enable_test_mode,
+        "settings_id": str(settings.id)
     }
