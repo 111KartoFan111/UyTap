@@ -826,7 +826,6 @@ const CreateOrders = () => {
                       onChange={(e) => setCustomerInfo({...customerInfo, phone: e.target.value})}
                     />
                   </div>
-
                   <div className="checkout-buttons">
                     <button
                       className="btn btn-primary"
