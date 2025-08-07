@@ -1,4 +1,4 @@
-# backend/models/order_payment_models.py - НОВАЯ МОДЕЛЬ ДЛЯ ПЛАТЕЖЕЙ ЗАКАЗОВ
+# backend/models/order_payment_models.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
 from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, Boolean, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -63,13 +63,25 @@ class OrderPayment(Base):
     notes = Column(Text)
     failure_reason = Column(String(255))
     
-    # Отношения
+    # Отношения - ИСПРАВЛЕННЫЕ
     organization = relationship("Organization")
     order = relationship("RoomOrder", back_populates="payments")
 
-# Обновляем модель RoomOrder для добавления связи с платежами
-# Добавить в extended_models.py в класс RoomOrder:
-"""
-# В RoomOrder добавить:
-payments = relationship("OrderPayment", back_populates="order", cascade="all, delete-orphan")
-"""
+# Функция для настройки связей (вызывается из extended_models.py)
+def setup_order_payment_relationships():
+    """Настройка связей с RoomOrder"""
+    try:
+        # Импорт будет работать, так как вызывается после создания всех моделей
+        from models.extended_models import RoomOrder
+        
+        # Устанавливаем двустороннюю связь
+        if not hasattr(RoomOrder, 'payments'):
+            RoomOrder.payments = relationship(
+                "OrderPayment", 
+                back_populates="order", 
+                cascade="all, delete-orphan"
+            )
+        
+        print("✅ OrderPayment relationships configured successfully")
+    except Exception as e:
+        print(f"⚠️  OrderPayment relationship setup failed: {e}")

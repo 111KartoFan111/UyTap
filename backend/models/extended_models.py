@@ -13,7 +13,13 @@ from .database import Base
 from models.models import User, UserRole , Organization, OrganizationStatus # Импортируем базовые модели
 from models.payment_models import Payment
 
-# Enums
+try:
+    from models.order_payment_models import OrderPayment, OrderPaymentStatus, OrderPaymentMethod
+    ORDER_PAYMENT_AVAILABLE = True
+except ImportError:
+    ORDER_PAYMENT_AVAILABLE = False
+    print("⚠️  OrderPayment models not available")
+
 
 
 # Дополнительные Enums
@@ -369,7 +375,10 @@ class RoomOrder(Base):
     client = relationship("Client", back_populates="orders")
     rental = relationship("Rental", back_populates="orders")
     assignee = relationship("User")
-    payments = relationship("OrderPayment", back_populates="order", cascade="all, delete-orphan")
+    
+    # ИСПРАВЛЕННАЯ СВЯЗЬ С ПЛАТЕЖАМИ - условная загрузка
+    if ORDER_PAYMENT_AVAILABLE:
+        payments = relationship("OrderPayment", back_populates="order", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_order_property", "property_id"),
@@ -377,6 +386,69 @@ class RoomOrder(Base):
         Index("idx_order_number", "order_number", unique=True),
     )
 
+def setup_order_payment_relationships():
+    """Настройка связей с OrderPayment после импорта модели"""
+    if ORDER_PAYMENT_AVAILABLE:
+        try:
+            from models.order_payment_models import OrderPayment
+            
+            # Добавляем связь только если она еще не установлена
+            if not hasattr(RoomOrder, 'payments'):
+                RoomOrder.payments = relationship(
+                    "OrderPayment", 
+                    back_populates="order", 
+                    cascade="all, delete-orphan"
+                )
+            
+            print("✅ Order payment relationships configured successfully")
+        except Exception as e:
+            print(f"⚠️  Failed to configure order payment relationships: {e}")
+
+
+def setup_all_relationships():
+    """Настройка всех отношений после определения всех моделей"""
+    
+    # Настраиваем связи с платежами заказов
+    setup_order_payment_relationships()
+    
+    # Импортируем модели зарплат
+    try:
+        from models.payroll_template import PayrollTemplate
+        from models.payroll_operation import PayrollOperation
+        
+        # Добавляем отношения в User (если их еще нет)
+        if not hasattr(User, 'payroll_templates'):
+            User.payroll_templates = relationship(
+                "PayrollTemplate", 
+                back_populates="user",
+                cascade="all, delete-orphan"
+            )
+        
+        if not hasattr(User, 'payroll_records'):
+            User.payroll_records = relationship(
+                "Payroll", 
+                back_populates="user",
+                cascade="all, delete-orphan"
+            )
+        
+        if not hasattr(User, 'created_operations'):
+            User.created_operations = relationship(
+                "PayrollOperation", 
+                foreign_keys="PayrollOperation.created_by",
+                cascade="all, delete-orphan"
+            )
+        
+        if not hasattr(User, 'received_operations'):
+            User.received_operations = relationship(
+                "PayrollOperation", 
+                foreign_keys="PayrollOperation.user_id",
+                cascade="all, delete-orphan"
+            )
+            
+        print("✅ Payroll relationships configured successfully")
+        
+    except ImportError as e:
+        print(f"⚠️  Payroll models not available yet: {e}")
 
 # Модель документов
 class Document(Base):

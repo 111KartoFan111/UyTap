@@ -1,5 +1,4 @@
-# backend/models/models.py - ЧИСТАЯ ВЕРСИЯ
-
+# backend/models/models.py - ПРАВИЛЬНАЯ ВЕРСИЯ
 from sqlalchemy import (
     Column, String, Text, Boolean, DateTime, Integer, 
     ForeignKey, Enum, TIMESTAMP, JSON, CheckConstraint
@@ -12,7 +11,6 @@ import uuid
 import enum
 from .database import Base
 
-
 # Enums
 class UserRole(str, enum.Enum):
     SYSTEM_OWNER = "system_owner"
@@ -23,20 +21,17 @@ class UserRole(str, enum.Enum):
     CLEANER = "cleaner"
     STOREKEEPER = "storekeeper"
 
-
 class UserStatus(str, enum.Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
     SUSPENDED = "suspended"
     PENDING_VERIFICATION = "pending_verification"
 
-
 class OrganizationStatus(str, enum.Enum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     TRIAL = "trial"
     EXPIRED = "expired"
-
 
 # Модель организации
 class Organization(Base):
@@ -73,15 +68,21 @@ class Organization(Base):
     # Настройки
     settings = Column(JSONB, default=dict)
     
-    # Отношения
+    # ПРАВИЛЬНО ОПРЕДЕЛЕННЫЕ ОТНОШЕНИЯ
     users = relationship("User", back_populates="organization", cascade="all, delete-orphan")
     user_actions = relationship("UserAction", back_populates="organization", cascade="all, delete-orphan")
     login_attempts = relationship("LoginAttempt", back_populates="organization", cascade="all, delete-orphan")
+    
+    # ДОБАВЛЯЕМ ОТНОШЕНИЯ К РАСШИРЕННЫМ МОДЕЛЯМ (будут работать через строковые ссылки)
+    properties = relationship("Property", back_populates="organization", cascade="all, delete-orphan")
+    clients = relationship("Client", back_populates="organization", cascade="all, delete-orphan")
+    rentals = relationship("Rental", back_populates="organization", cascade="all, delete-orphan")
+    tasks = relationship("Task", back_populates="organization", cascade="all, delete-orphan")
+    orders = relationship("RoomOrder", back_populates="organization", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint("slug ~ '^[a-z0-9_-]+'", name="check_slug_format"),
     )
-
 
 # Модель пользователя
 class User(Base):
@@ -122,17 +123,22 @@ class User(Base):
     # Настройки пользователя
     preferences = Column(JSONB, default=dict)
     
-    # Отношения
+    # ПРАВИЛЬНО ОПРЕДЕЛЕННЫЕ ОТНОШЕНИЯ
     organization = relationship("Organization", back_populates="users")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     user_actions = relationship("UserAction", back_populates="user")
+    
+    # ОТНОШЕНИЯ К РАСШИРЕННЫМ МОДЕЛЯМ
+    assigned_tasks = relationship("Task", foreign_keys="Task.assigned_to", back_populates="assignee")
+    created_tasks = relationship("Task", foreign_keys="Task.created_by", back_populates="creator")
+    assigned_orders = relationship("RoomOrder", back_populates="assignee")
+    payroll_records = relationship("Payroll", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint("email ~ '^[^@]+@[^@]+\\.[^@]+'", name="check_email_format"),
     )
 
-
-# Модель refresh токенов
+# Остальные базовые модели без изменений...
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
@@ -158,8 +164,6 @@ class RefreshToken(Base):
     # Отношения
     user = relationship("User", back_populates="refresh_tokens")
 
-
-# Модель аудита действий пользователей
 class UserAction(Base):
     __tablename__ = "user_actions"
     __table_args__ = {"schema": "audit"}
@@ -188,8 +192,6 @@ class UserAction(Base):
     user = relationship("User", back_populates="user_actions")
     organization = relationship("Organization", back_populates="user_actions")
 
-
-# Модель попыток входа
 class LoginAttempt(Base):
     __tablename__ = "login_attempts"
     __table_args__ = {"schema": "audit"}
