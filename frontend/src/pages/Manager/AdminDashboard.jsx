@@ -374,7 +374,7 @@ const AdminDashboard = () => {
               <FiArrowRight />
             </div>
           </Link>
-          <Link to="/admin/reports" className="action-card">
+          <Link to="/admin/orders" className="action-card">
             <div className="action-icon">
               <FiShoppingCart />
             </div>

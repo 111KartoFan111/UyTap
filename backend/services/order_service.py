@@ -1,3 +1,4 @@
+# backend/services/order_service.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
@@ -7,8 +8,7 @@ import uuid
 from models.extended_models import (
     RoomOrder, OrderStatus, User, UserRole, Inventory, InventoryMovement
 )
-from schemas.order import RoomOrderCreate, RoomOrderUpdate, RoomOrderResponse,OrderItemBase
-
+from schemas.order import RoomOrderCreate, RoomOrderUpdate, RoomOrderResponse, OrderItemBase
 
 
 class OrderService:
@@ -49,11 +49,15 @@ class OrderService:
                     'item': item,
                     'inventory': inventory_item
                 })
-        
+
         # Step 2: Generate order number
         order_number = OrderService._generate_order_number(db, organization_id)
         
-        # Step 3: Create the order
+        # Step 3: Create the order with correct initial status
+        initial_status = OrderStatus.PENDING
+        if order_data.assigned_to:
+            initial_status = OrderStatus.CONFIRMED  # Если есть исполнитель - сразу подтвержденный
+        
         order = RoomOrder(
             id=uuid.uuid4(),
             organization_id=organization_id,
@@ -65,7 +69,7 @@ class OrderService:
             items=OrderService._serialize_order_items(order_data.items),
             total_amount=order_data.total_amount,
             special_instructions=order_data.special_instructions,
-            status=OrderStatus.PENDING
+            status=initial_status  # ИСПРАВЛЕНО: правильный начальный статус
         )
         
         # Set optional fields
@@ -75,13 +79,11 @@ class OrderService:
             order.rental_id = uuid.UUID(order_data.rental_id)
         if order_data.assigned_to:
             order.assigned_to = uuid.UUID(order_data.assigned_to)
-            order.status = OrderStatus.CONFIRMED
         
         db.add(order)
         db.flush()  # Get order ID for inventory movements
         
-        # Step 4: Reserve inventory items (optional - can be done at completion)
-        # For now, we'll reserve immediately to prevent overselling
+        # Step 4: Reserve inventory items (создаем резерв)
         for validation in inventory_validations:
             OrderService._reserve_inventory_item(
                 db=db,
@@ -94,19 +96,16 @@ class OrderService:
         db.refresh(order)
         
         return order
-    
 
     @staticmethod
     def _generate_order_number(db: Session, organization_id: uuid.UUID) -> str:
         """Генерация уникального номера заказа"""
-        # Получаем текущее количество заказов для организации
         count = db.query(RoomOrder).filter(
             RoomOrder.organization_id == organization_id
         ).count()
         
-        # Формируем номер: ORDER-<ГГГГММДД>-<счётчик+1>
         date_part = datetime.utcnow().strftime('%Y%m%d')
-        number_part = str(count + 1).zfill(4)  # например: 0001, 0002, ...
+        number_part = str(count + 1).zfill(4)
         return f"ORD-{date_part}-{number_part}"
     
     @staticmethod
@@ -130,7 +129,7 @@ class OrderService:
         db: Session,
         order_id: uuid.UUID,
         organization_id: uuid.UUID
-    ) -> RoomOrderResponse:
+    ) -> RoomOrder:  # ИСПРАВЛЕНО: возвращаем саму модель, а не Response
         """Получить заказ по ID с привязкой к организации"""
         
         order = db.query(RoomOrder).filter(
@@ -143,8 +142,7 @@ class OrderService:
         if not order:
             raise ValueError(f"Order with ID {order_id} not found")
 
-        # Преобразование ORM-модели в Pydantic-модель
-        return RoomOrderResponse.from_orm(order)
+        return order  # ИСПРАВЛЕНО: возвращаем саму модель
 
     @staticmethod
     def _reserve_inventory_item(
@@ -153,25 +151,26 @@ class OrderService:
         item: OrderItemBase,
         inventory: Inventory
     ):
-        """Reserve inventory item for the order (optional feature)"""
-        # This creates a pending reservation movement
-        # Alternative: only deduct when order is completed
-        
+        """Reserve inventory item for the order"""
+        # Создаем движение резерва (не влияет на остаток)
         reservation_movement = InventoryMovement(
             id=uuid.uuid4(),
             organization_id=order.organization_id,
             inventory_id=inventory.id,
-            movement_type="reservation",  # Custom type for reservations
+            movement_type="out",  # ИЗМЕНЕНО: используем стандартный тип
             quantity=item.quantity,
             unit_cost=inventory.cost_per_unit,
             total_cost=item.quantity * (inventory.cost_per_unit or 0),
-            reason=f"Reserved for order #{order.order_number}",
-            notes=f"Item: {item.name}",
-            stock_after=inventory.current_stock,  # Stock unchanged for reservations
-            created_at=datetime.now(timezone.utc),
-            # Link to order
-            task_id=None  # Could add order_id field to movements table
+            reason=f"Резерв для заказа #{order.order_number}",
+            notes=f"Товар: {item.name}, Заказ: {order.order_number}",
+            stock_after=inventory.current_stock - item.quantity,  # Сразу списываем
+            created_at=datetime.now(timezone.utc)
         )
+        
+        # ИСПРАВЛЕНО: Сразу списываем товар при создании заказа
+        inventory.current_stock -= item.quantity
+        inventory.total_value = inventory.current_stock * (inventory.cost_per_unit or 0)
+        inventory.updated_at = datetime.now(timezone.utc)
         
         db.add(reservation_movement)
     
@@ -184,51 +183,32 @@ class OrderService:
     ) -> RoomOrder:
         """Complete order with automatic inventory deduction"""
         
-        # ✅ Автоматический переход в IN_PROGRESS, если заказ CONFIRMED
+        # ИСПРАВЛЕНО: Правильная последовательность статусов
+        if order.status == OrderStatus.PENDING:
+            # Переводим в CONFIRMED, если еще не подтвержден
+            order.status = OrderStatus.CONFIRMED
+            order.updated_at = datetime.now(timezone.utc)
+            db.flush()
+        
         if order.status == OrderStatus.CONFIRMED:
+            # Переводим в IN_PROGRESS
             order.status = OrderStatus.IN_PROGRESS
             order.updated_at = datetime.now(timezone.utc)
+            db.flush()
         
         if order.status != OrderStatus.IN_PROGRESS:
-            raise ValueError("Order must be in progress to complete")
+            raise ValueError(f"Order must be in progress to complete. Current status: {order.status}")
         
-        # Step 1: Process inventory deductions
-        for item_data in order.items:
-            if item_data.get('is_inventory_item', True) and item_data.get('inventory_id'):
-                inventory_item = db.query(Inventory).filter(
-                    Inventory.id == uuid.UUID(item_data['inventory_id'])
-                ).first()
-                
-                if inventory_item:
-                    movement = InventoryMovement(
-                        id=uuid.uuid4(),
-                        organization_id=order.organization_id,
-                        inventory_id=inventory_item.id,
-                        movement_type="out",
-                        quantity=item_data['quantity'],
-                        unit_cost=inventory_item.cost_per_unit,
-                        total_cost=item_data['quantity'] * (inventory_item.cost_per_unit or 0),
-                        reason=f"Order delivery #{order.order_number}",
-                        notes=f"Item: {item_data['name']} | Property: {order.property.name if order.property else 'N/A'}",
-                        stock_after=inventory_item.current_stock - item_data['quantity'],
-                        created_at=datetime.now(timezone.utc)
-                    )
-                    
-                    inventory_item.current_stock -= item_data['quantity']
-                    inventory_item.total_value = inventory_item.current_stock * (inventory_item.cost_per_unit or 0)
-                    inventory_item.updated_at = datetime.now(timezone.utc)
-                    
-                    db.add(movement)
-        
-        # Step 2: Complete the order
+        # Товары уже списаны при создании заказа, поэтому просто завершаем заказ
         order.status = OrderStatus.DELIVERED
         order.completed_at = datetime.now(timezone.utc)
         order.updated_at = datetime.now(timezone.utc)
         
         if completion_notes:
-            order.special_instructions = (order.special_instructions or "") + f"\nCompleted: {completion_notes}"
+            current_instructions = order.special_instructions or ""
+            order.special_instructions = f"{current_instructions}\n\nЗавершено: {completion_notes}".strip()
         
-        # Step 3: Process payment to executor
+        # Step 2: Process payment to executor
         OrderService._process_order_payment(db, order)
         
         db.commit()
@@ -326,7 +306,7 @@ class OrderService:
                 "unit": item.unit,
                 "current_stock": item.current_stock,
                 "cost_per_unit": item.cost_per_unit,
-                "available_for_order": item.current_stock > item.min_stock  # Safety buffer
+                "available_for_order": item.current_stock > item.min_stock
             }
             for item in items
         ]
@@ -355,7 +335,7 @@ class OrderService:
             and_(
                 InventoryMovement.organization_id == organization_id,
                 InventoryMovement.movement_type == "out",
-                InventoryMovement.reason.like("Order delivery%"),
+                InventoryMovement.reason.like("Резерв для заказа%"),
                 InventoryMovement.created_at >= start_date,
                 InventoryMovement.created_at <= end_date
             )
@@ -403,4 +383,152 @@ class OrderService:
                 key=lambda x: x[1]["total_value"],
                 reverse=True
             )[:10]
+        }
+
+    @staticmethod
+    def update_order(
+        db: Session,
+        order: RoomOrder,
+        order_data: RoomOrderUpdate,
+        updated_by: uuid.UUID
+    ) -> RoomOrder:
+        """Update existing order"""
+        
+        # Update basic fields
+        update_fields = order_data.dict(exclude_unset=True, exclude={'status'})
+        for field, value in update_fields.items():
+            if field == 'assigned_to' and value:
+                setattr(order, field, uuid.UUID(value))
+            else:
+                setattr(order, field, value)
+        
+        # Handle status changes separately
+        if order_data.status and order_data.status != order.status:
+            OrderService._validate_status_transition(order.status, order_data.status)
+            order.status = order_data.status
+        
+        order.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        db.refresh(order)
+        
+        return order
+    
+    @staticmethod
+    def _validate_status_transition(current_status: OrderStatus, new_status: OrderStatus):
+        """Validate that status transition is allowed"""
+        
+        valid_transitions = {
+            OrderStatus.PENDING: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+            OrderStatus.CONFIRMED: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
+            OrderStatus.IN_PROGRESS: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+            OrderStatus.DELIVERED: [],  # Terminal state
+            OrderStatus.CANCELLED: []   # Terminal state
+        }
+        
+        if new_status not in valid_transitions.get(current_status, []):
+            raise ValueError(
+                f"Invalid status transition from {current_status} to {new_status}"
+            )
+
+    @staticmethod
+    def assign_order(
+        db: Session,
+        order: RoomOrder,
+        assigned_to: uuid.UUID,
+        assigned_by: uuid.UUID
+    ) -> RoomOrder:
+        """Assign order to executor"""
+        
+        # Verify assignee exists
+        assignee = db.query(User).filter(
+            and_(
+                User.id == assigned_to,
+                User.organization_id == order.organization_id
+            )
+        ).first()
+        
+        if not assignee:
+            raise ValueError("Assignee not found")
+        
+        order.assigned_to = assigned_to
+        
+        # Auto-confirm if pending
+        if order.status == OrderStatus.PENDING:
+            order.status = OrderStatus.CONFIRMED
+        
+        order.updated_at = datetime.now(timezone.utc)
+        
+        db.commit()
+        db.refresh(order)
+        
+        return order
+    
+    @staticmethod
+    def mark_order_as_paid(
+        db: Session,
+        order: RoomOrder,
+        payment_method: str = "cash",
+        payment_reference: str = None
+    ) -> RoomOrder:
+        """Отметить заказ как оплаченный"""
+        
+        order.is_paid = True
+        order.updated_at = datetime.now(timezone.utc)
+        
+        # Можно добавить поле payment_info в модель RoomOrder
+        if hasattr(order, 'payment_info') and order.payment_info:
+            payment_info = order.payment_info or {}
+            payment_info.update({
+                "method": payment_method,
+                "reference": payment_reference,
+                "paid_at": datetime.now(timezone.utc).isoformat()
+            })
+            order.payment_info = payment_info
+        
+        db.commit()
+        db.refresh(order)
+        
+        return order
+
+    @staticmethod
+    def calculate_order_profitability(
+        db: Session,
+        order: RoomOrder
+    ) -> Dict[str, float]:
+        """Рассчитать прибыльность заказа"""
+        
+        # Себестоимость товаров
+        cost_of_goods = 0
+        for item_data in order.items:
+            if item_data.get('inventory_id'):
+                inventory_item = db.query(Inventory).filter(
+                    Inventory.id == uuid.UUID(item_data['inventory_id'])
+                ).first()
+                
+                if inventory_item:
+                    cost_of_goods += item_data['quantity'] * (inventory_item.cost_per_unit or 0)
+        
+        # Выручка
+        revenue = order.total_amount
+        
+        # Оплата исполнителю
+        executor_payment = order.payment_to_executor or 0
+        
+        # Валовая прибыль
+        gross_profit = revenue - cost_of_goods
+        
+        # Чистая прибыль (после вычета оплаты исполнителю)
+        net_profit = gross_profit - executor_payment
+        
+        # Маржинальность
+        margin = (net_profit / revenue * 100) if revenue > 0 else 0
+        
+        return {
+            "revenue": revenue,
+            "cost_of_goods": cost_of_goods,
+            "executor_payment": executor_payment,
+            "gross_profit": gross_profit,
+            "net_profit": net_profit,
+            "margin_percentage": margin
         }
