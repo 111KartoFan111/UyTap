@@ -1,26 +1,10 @@
-// frontend/src/pages/Manager/Orders/CreateOrders.jsx - ИСПРАВЛЕННАЯ ВЕРСИЯ
+// frontend/src/pages/Manager/Orders/CreateOrders.jsx - ОБНОВЛЕННАЯ ВЕРСИЯ С ПЛАТЕЖАМИ
 import React, { useState, useEffect } from 'react';
 import './CreateOrders.css';
 import {
-  Search,
-  Filter,
-  Package,
-  ShoppingCart,
-  Plus,
-  Minus,
-  X,
-  Receipt,
-  User,
-  Calendar,
-  Check,
-  AlertCircle,
-  DollarSign,
-  Package2,
-  Trash2,
-  Edit,
-  FileText,
-  Clipboard,
-  File,
+  Search, Filter, Package, ShoppingCart, Plus, Minus, X, Receipt,
+  User, Calendar, Check, AlertCircle, DollarSign, Package2, Trash2,
+  Edit, FileText, Clipboard, File, CreditCard, Banknote
 } from 'lucide-react';
 import { FiX } from 'react-icons/fi';
 import { useData } from '../../../contexts/DataContext';
@@ -47,6 +31,18 @@ const CreateOrders = () => {
   const [loading, setLoading] = useState(true);
   const [selectedProperty, setSelectedProperty] = useState('');
   const [availableProperties, setAvailableProperties] = useState([]);
+  
+  // НОВЫЕ СОСТОЯНИЯ ДЛЯ ПЛАТЕЖЕЙ
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentDetails, setPaymentDetails] = useState({
+    cardLast4: '',
+    bankName: '',
+    referenceNumber: '',
+    notes: ''
+  });
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [completedOrder, setCompletedOrder] = useState(null);
 
   const loadProperties = async () => {
     try {
@@ -172,7 +168,8 @@ const CreateOrders = () => {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
   };
 
-  const processSale = async () => {
+  // НОВАЯ ФУНКЦИЯ: Создание заказа без немедленной оплаты
+  const createOrderOnly = async () => {
     if (cart.length === 0) {
       utils.showError('Корзина пуста');
       return;
@@ -215,16 +212,68 @@ const CreateOrders = () => {
       const createdOrder = await orders.create(orderData);
       console.log('Order created:', createdOrder);
 
-      // ИСПРАВЛЕНО: Заказ создается уже со списанием товаров
-      // Просто завершаем заказ без дополнительного списания
-      console.log('Completing order:', createdOrder.id);
+      setCompletedOrder(createdOrder);
+      setShowPaymentDialog(true);
+
+    } catch (error) {
+      console.error('Order creation error:', error);
+      utils.showError('Ошибка при создании заказа: ' + error.message);
+    } finally {
+      setIsProcessingSale(false);
+    }
+  };
+
+  // НОВАЯ ФУНКЦИЯ: Обработка платежа
+  const processPayment = async () => {
+    if (!completedOrder) {
+      utils.showError('Заказ не найден');
+      return;
+    }
+
+    try {
+      setIsProcessingPayment(true);
+
+      // Создаем данные платежа
+      const paymentData = {
+        amount: completedOrder.total_amount,
+        method: paymentMethod,
+        payer_name: customerInfo.name,
+        payer_phone: customerInfo.phone,
+        payer_email: customerInfo.email,
+        reference_number: paymentDetails.referenceNumber || null,
+        card_last4: paymentMethod === 'card' ? paymentDetails.cardLast4 : null,
+        bank_name: paymentMethod === 'transfer' ? paymentDetails.bankName : null
+      };
+
+      console.log('Processing payment:', paymentData);
+
+      // Вызываем новый API endpoint для платежей заказов
+      const response = await fetch(`/api/orders/${completedOrder.id}/sale-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Payment processing failed');
+      }
+
+      const paymentResult = await response.json();
+      console.log('Payment processed:', paymentResult);
+
+      // Завершаем заказ после успешной оплаты
+      console.log('Completing order:', completedOrder.id);
       const completionResult = await orders.complete(
-        createdOrder.id, 
-        `Продажа завершена. Покупатель: ${customerInfo.name}`
+        completedOrder.id, 
+        `Продажа завершена с оплатой ${paymentMethod}. Покупатель: ${customerInfo.name}`
       );
       console.log('Order completed:', completionResult);
 
-      utils.showSuccess('Продажа успешно завершена!');
+      utils.showSuccess('Продажа и оплата успешно завершены!');
 
       // Очищаем форму
       setCart([]);
@@ -232,20 +281,187 @@ const CreateOrders = () => {
       setSelectedProperty('');
       setSelectedRentalId('');
       setShowCart(false);
+      setShowPaymentDialog(false);
+      setCompletedOrder(null);
+      setPaymentDetails({
+        cardLast4: '',
+        bankName: '',
+        referenceNumber: '',
+        notes: ''
+      });
 
       // Перезагружаем инвентарь для обновления остатков
       await loadInventoryData();
 
     } catch (error) {
-      console.error('Sale processing error:', error);
-      utils.showError('Ошибка при обработке продажи: ' + error.message);
+      console.error('Payment processing error:', error);
+      utils.showError('Ошибка при обработке платежа: ' + error.message);
     } finally {
-      setIsProcessingSale(false);
+      setIsProcessingPayment(false);
     }
+  };
+
+  // ОБНОВЛЕННАЯ ФУНКЦИЯ: Обработка продажи (теперь через два этапа)
+  const processSale = async () => {
+    await createOrderOnly();
   };
 
   const clearCart = () => {
     setCart([]);
+  };
+
+  // НОВЫЙ КОМПОНЕНТ: Диалог оплаты
+  const PaymentDialog = () => {
+    if (!showPaymentDialog || !completedOrder) return null;
+
+    return (
+      <div className="payment-overlay">
+        <div className="payment-dialog">
+          <div className="payment-header">
+            <h2>Оплата заказа</h2>
+            <button 
+              className="close-btn" 
+              onClick={() => setShowPaymentDialog(false)}
+              disabled={isProcessingPayment}
+            >
+              <FiX size={20} />
+            </button>
+          </div>
+
+          <div className="payment-content">
+            <div className="order-summary">
+              <h3>Детали заказа</h3>
+              <p><strong>Номер заказа:</strong> {completedOrder.order_number}</p>
+              <p><strong>Покупатель:</strong> {customerInfo.name}</p>
+              <p><strong>Сумма к оплате:</strong> {completedOrder.total_amount.toLocaleString('ru-RU')} ₸</p>
+            </div>
+
+            <div className="payment-methods">
+              <h3>Способ оплаты</h3>
+              <div className="payment-options">
+                <label className={`payment-option ${paymentMethod === 'cash' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    value="cash"
+                    checked={paymentMethod === 'cash'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  />
+                  <Banknote size={20} />
+                  <span>Наличные</span>
+                </label>
+
+                <label className={`payment-option ${paymentMethod === 'card' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    value="card"
+                    checked={paymentMethod === 'card'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  />
+                  <CreditCard size={20} />
+                  <span>Банковская карта</span>
+                </label>
+
+                <label className={`payment-option ${paymentMethod === 'transfer' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    value="transfer"
+                    checked={paymentMethod === 'transfer'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  />
+                  <DollarSign size={20} />
+                  <span>Банковский перевод</span>
+                </label>
+
+                <label className={`payment-option ${paymentMethod === 'qr_code' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    value="qr_code"
+                    checked={paymentMethod === 'qr_code'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  />
+                  <FileText size={20} />
+                  <span>QR-код</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Дополнительные поля в зависимости от способа оплаты */}
+            {paymentMethod === 'card' && (
+              <div className="payment-details">
+                <div className="form-group">
+                  <label>Последние 4 цифры карты:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    maxLength="4"
+                    pattern="[0-9]{4}"
+                    placeholder="1234"
+                    value={paymentDetails.cardLast4}
+                    onChange={(e) => setPaymentDetails({
+                      ...paymentDetails,
+                      cardLast4: e.target.value.replace(/\D/g, '')
+                    })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === 'transfer' && (
+              <div className="payment-details">
+                <div className="form-group">
+                  <label>Банк:</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Название банка"
+                    value={paymentDetails.bankName}
+                    onChange={(e) => setPaymentDetails({
+                      ...paymentDetails,
+                      bankName: e.target.value
+                    })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {paymentMethod !== 'cash' && (
+              <div className="payment-details">
+                <div className="form-group">
+                  <label>Номер транзакции/чека (опционально):</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Номер транзакции"
+                    value={paymentDetails.referenceNumber}
+                    onChange={(e) => setPaymentDetails({
+                      ...paymentDetails,
+                      referenceNumber: e.target.value
+                    })}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="payment-actions">
+              <button
+                className="btn btn-primary"
+                onClick={processPayment}
+                disabled={isProcessingPayment}
+              >
+                {isProcessingPayment ? 'Обработка...' : 'Подтвердить оплату'}
+              </button>
+              <button 
+                className="btn btn-outline" 
+                onClick={() => setShowPaymentDialog(false)}
+                disabled={isProcessingPayment}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (!user || !['admin', 'manager', 'system_owner'].includes(user.role)) {
@@ -269,7 +485,7 @@ const CreateOrders = () => {
       <div className="headers">
         <div>
           <h1 className="page-title">Продажа товаров</h1>
-          <p className="subtitle">Продажа товаров из инвентаря</p>
+          <p className="subtitle">Продажа товаров из инвентаря с обработкой платежей</p>
         </div>
         <div className="action-buttons">
           <button className="btn btn-outline" onClick={() => setShowCart(!showCart)}>
@@ -351,12 +567,13 @@ const CreateOrders = () => {
         </div>
       </div>
 
+      {/* Корзина (обновленная) */}
       {showCart && (
         <div className="cart-overlay">
           <div className="cart">
-          <button className="close-btn" onClick={() => setShowCart(false)}>
-            <FiX size={20} />
-          </button>
+            <button className="close-btn" onClick={() => setShowCart(false)}>
+              <FiX size={20} />
+            </button>
             <h2>Корзина покупок</h2>
             {cart.length === 0 ? (
               <p>Корзина пуста</p>
@@ -404,7 +621,6 @@ const CreateOrders = () => {
                                 email: client.email || ''
                               });
                             }
-                            // Автоматически устанавливаем помещение
                             setSelectedProperty(selectedRental.property.id);
                           }
                         } else {
@@ -471,7 +687,7 @@ const CreateOrders = () => {
                       onClick={processSale}
                       disabled={isProcessingSale || !selectedProperty || !customerInfo.name.trim()}
                     >
-                      {isProcessingSale ? 'Обработка...' : 'Завершить продажу'}
+                      {isProcessingSale ? 'Создание заказа...' : 'Создать заказ и оплатить'}
                     </button>
                     <button className="btn btn-outline" onClick={clearCart}>Очистить корзину</button>
                     <button className="btn btn-outline" onClick={() => setShowCart(false)}>Закрыть</button>
@@ -482,6 +698,9 @@ const CreateOrders = () => {
           </div>
         </div>
       )}
+
+      {/* Диалог оплаты */}
+      <PaymentDialog />
     </div>
   );
 };

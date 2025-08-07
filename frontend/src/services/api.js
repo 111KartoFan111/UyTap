@@ -1035,6 +1035,196 @@ export const ordersAPI = {
   async getOrderStatistics(periodDays = 30) {
     return apiRequest(`/api/orders/statistics/overview?period_days=${periodDays}`);
   }
+  
+};
+export const orderPaymentsAPI = {
+  // Создать платеж для заказа
+  async createPayment(orderId, paymentData) {
+    return apiRequest(`/api/orders/${orderId}/payment`, {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  },
+
+  // Обработать платеж за продажу
+  async processSalePayment(orderId, paymentData) {
+    return apiRequest(`/api/orders/${orderId}/sale-payment`, {
+      method: 'POST',
+      body: JSON.stringify(paymentData)
+    });
+  },
+
+  // Получить все платежи по заказу
+  async getOrderPayments(orderId) {
+    return apiRequest(`/api/orders/${orderId}/payments`);
+  },
+
+  // Получить статус оплаты заказа
+  async getPaymentStatus(orderId) {
+    return apiRequest(`/api/orders/${orderId}/payment-status`);
+  },
+
+  // Завершить платеж вручную
+  async completePayment(orderId, paymentId) {
+    return apiRequest(`/api/orders/${orderId}/payments/${paymentId}/complete`, {
+      method: 'POST'
+    });
+  },
+
+  // Отменить платеж
+  async cancelPayment(orderId, paymentId, reason) {
+    const params = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+    return apiRequest(`/api/orders/${orderId}/payments/${paymentId}/cancel${params}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Создать возврат
+  async createRefund(orderId, refundAmount, reason, refundMethod = 'cash') {
+    const params = new URLSearchParams({
+      refund_amount: refundAmount,
+      reason: reason,
+      refund_method: refundMethod
+    });
+    
+    return apiRequest(`/api/orders/${orderId}/refund?${params}`, {
+      method: 'POST'
+    });
+  },
+
+  // Получить сводку по платежам
+  async getPaymentsSummary(startDate = null, endDate = null) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    
+    return apiRequest(`/api/orders/payments/summary?${params}`);
+  }
+};
+
+// Обновляем ordersAPI, добавляя методы для работы с платежами
+const enhancedOrdersAPI = {
+  ...ordersAPI,
+
+  // Создать заказ с немедленной оплатой
+  async createOrderWithPayment(orderData, paymentData) {
+    // Сначала создаем заказ
+    const order = await this.createOrder(orderData);
+    
+    // Затем обрабатываем платеж
+    const payment = await orderPaymentsAPI.processSalePayment(order.id, paymentData);
+    
+    return {
+      order,
+      payment
+    };
+  },
+
+  // Получить заказ с информацией о платежах
+  async getOrderWithPayments(orderId) {
+    const [order, payments, paymentStatus] = await Promise.all([
+      this.getOrder(orderId),
+      orderPaymentsAPI.getOrderPayments(orderId),
+      orderPaymentsAPI.getPaymentStatus(orderId)
+    ]);
+
+    return {
+      ...order,
+      payments,
+      payment_status: paymentStatus
+    };
+  },
+
+  // Завершить продажу (заказ + платеж + завершение)
+  async completeSaleWithPayment(orderId, paymentData, completionNotes = null) {
+    // Обрабатываем платеж
+    const payment = await orderPaymentsAPI.processSalePayment(orderId, paymentData);
+    
+    // Завершаем заказ
+    const completedOrder = await this.completeOrder(orderId, completionNotes);
+    
+    return {
+      order: completedOrder,
+      payment
+    };
+  }
+};
+
+// Обновляем объект для DataContext
+const salesAPI = {
+  // Быстрая продажа (создание заказа + платеж + завершение)
+  async processSale(saleData) {
+    const { orderData, paymentData } = saleData;
+    
+    try {
+      // Создаем заказ
+      const order = await ordersAPI.createOrder(orderData);
+      
+      // Обрабатываем платеж
+      const payment = await orderPaymentsAPI.processSalePayment(order.id, paymentData);
+      
+      // Завершаем заказ
+      const completedOrder = await ordersAPI.completeOrder(
+        order.id, 
+        `Продажа завершена с оплатой ${paymentData.method}`
+      );
+      
+      return {
+        success: true,
+        order: completedOrder,
+        payment
+      };
+    } catch (error) {
+      console.error('Sale processing failed:', error);
+      throw new Error(`Ошибка обработки продажи: ${error.message}`);
+    }
+  },
+
+  // Получить историю продаж с платежами
+  async getSalesHistory(params = {}) {
+    const orders = await ordersAPI.getOrders({
+      ...params,
+      order_type: 'product_sale'
+    });
+
+    // Получаем информацию о платежах для каждого заказа
+    const salesWithPayments = await Promise.all(
+      orders.map(async (order) => {
+        try {
+          const paymentStatus = await orderPaymentsAPI.getPaymentStatus(order.id);
+          return {
+            ...order,
+            payment_info: paymentStatus
+          };
+        } catch (error) {
+          console.warn(`Failed to get payment info for order ${order.id}:`, error);
+          return order;
+        }
+      })
+    );
+
+    return salesWithPayments;
+  },
+
+  // Получить статистику продаж с учетом платежей
+  async getSalesStatistics(periodDays = 30) {
+    const [orderStats, paymentSummary] = await Promise.all([
+      ordersAPI.getOrderStatistics(periodDays),
+      orderPaymentsAPI.getPaymentsSummary()
+    ]);
+
+    return {
+      ...orderStats,
+      payment_summary: paymentSummary
+    };
+  },
+
+  // Создать возврат для продажи
+  async processRefund(orderId, refundData) {
+    const { amount, reason, method = 'cash' } = refundData;
+    
+    return await orderPaymentsAPI.createRefund(orderId, amount, reason, method);
+  }
 };
 
 // Documents API
@@ -1676,7 +1866,9 @@ export default {
   propertiesAPI,
   rentalsAPI,
   tasksAPI,
-  ordersAPI,
+  ordersAPI, // уже обновленный
+  orderPaymentsAPI, // новый
+  salesAPI, // новый
   inventoryAPI,
   documentsAPI,
   payrollAPI,

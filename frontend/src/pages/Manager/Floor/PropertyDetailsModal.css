@@ -716,3 +716,478 @@
     font-size: 11px;
   }
 }
+
+/* frontend/src/pages/Manager/Floor/PropertyDetailsModal.css - Дополнительные стили */
+
+/* Добавить эти стили к существующему файлу PropertyDetailsModal.css */
+
+/* Быстрые кнопки продления */
+.quick-extend-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+.extend-btn {
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.extend-btn.small {
+  padding: 4px 8px;
+  font-size: 11px;
+  min-width: 35px;
+}
+
+.extend-btn.advanced {
+  background: #9b59b6;
+  min-width: auto;
+  padding: 4px 10px;
+}
+
+.extend-btn:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+}
+
+.extend-btn.advanced:hover {
+  background: #8e44ad;
+}
+
+.extend-btn:active {
+  transform: translateY(0);
+}
+
+/* Селектор изменения статуса */
+.status-change-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.status-change-section label {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.status-select {
+  min-width: 150px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+/* Модальное окно расширенного продления */
+.extension-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+}
+
+.extension-modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 0;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.extension-modal-header {
+  padding: 20px 20px 15px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.extension-modal-header h3 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 18px;
+}
+
+.extension-form {
+  padding: 20px;
+}
+
+.form-section {
+  margin-bottom: 25px;
+}
+
+.form-section label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #34495e;
+}
+
+/* Ввод количества дней */
+.days-input-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.days-input {
+  width: 80px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.quick-days {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-day-btn {
+  background: #ecf0f1;
+  border: 1px solid #bdc3c7;
+  color: #2c3e50;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  min-width: 35px;
+}
+
+.quick-day-btn:hover {
+  background: #d5dbdb;
+}
+
+.quick-day-btn.active {
+  background: #3498db;
+  color: white;
+  border-color: #2980b9;
+}
+
+/* Опции тарифов */
+.tariff-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tariff-option {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fafafa;
+}
+
+.tariff-option:hover {
+  border-color: #3498db;
+  background: #f8f9fa;
+}
+
+.tariff-option input[type="radio"] {
+  margin-right: 12px;
+  transform: scale(1.2);
+}
+
+.tariff-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tariff-name {
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.tariff-amount {
+  color: #27ae60;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Пользовательская сумма */
+.custom-amount-section {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.custom-amount-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  margin-top: 8px;
+}
+
+/* Резюме расчета */
+.calculation-summary {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  margin-bottom: 20px;
+}
+
+.calculation-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.calculation-row:last-child {
+  margin-bottom: 0;
+}
+
+.calculation-row.total {
+  border-top: 1px solid #dee2e6;
+  padding-top: 8px;
+  margin-top: 8px;
+  font-weight: 600;
+  font-size: 16px;
+  color: #2c3e50;
+}
+
+/* Кнопки действий */
+.extension-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  background: #95a5a6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #7f8c8d;
+}
+
+.btn-extend {
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-extend:hover {
+  background: #229954;
+}
+
+.btn-extend:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+}
+
+/* Улучшения для задач */
+.task-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 10px;
+  background: white;
+  transition: all 0.2s;
+}
+
+.task-item:hover {
+  border-color: #3498db;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+}
+
+.task-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.task-title {
+  font-weight: 500;
+  color: #2c3e50;
+  flex: 1;
+}
+
+.task-type {
+  background: #ecf0f1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  margin-left: 10px;
+}
+
+.task-type.cleaning {
+  background: #d5f4e6;
+  color: #27ae60;
+}
+
+.task-type.maintenance {
+  background: #ffeaa7;
+  color: #d63031;
+}
+
+.task-meta {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #666;
+}
+
+.task-assignee,
+.task-due,
+.task-duration {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.task-status.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.task-status.in_progress {
+  background: #cce7ff;
+  color: #004085;
+}
+
+.task-status.completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.task-status.cancelled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.task-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.action-btn.small {
+  padding: 4px 8px;
+  font-size: 12px;
+  min-width: 30px;
+  border-radius: 4px;
+}
+
+.action-btn.edit {
+  background: #3498db;
+  color: white;
+}
+
+.action-btn.complete {
+  background: #27ae60;
+  color: white;
+}
+
+.action-btn.cancel {
+  background: #e74c3c;
+  color: white;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .quick-extend-actions {
+    justify-content: center;
+  }
+  
+  .extend-btn.small {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .status-change-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    margin-left: 0;
+    margin-top: 10px;
+  }
+  
+  .extension-modal-content {
+    width: 95%;
+    margin: 10px;
+  }
+  
+  .extension-actions {
+    flex-direction: column;
+  }
+  
+  .btn-cancel,
+  .btn-extend {
+    width: 100%;
+  }
+  
+  .tariff-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .task-meta {
+    flex-direction: column;
+    gap: 5px;
+  }
+}

@@ -1,4 +1,4 @@
-// frontend/src/contexts/DataContext.jsx - ОБНОВЛЕННЫЙ
+// frontend/src/contexts/DataContext.jsx - ПОЛНЫЙ ОБНОВЛЕННЫЙ ФАЙЛ
 import { createContext, useContext, useState, useCallback } from 'react';
 import { useToast } from '../components/Common/Toast';
 import { 
@@ -11,7 +11,9 @@ import {
   documentsAPI,
   payrollAPI,
   reportsAPI,
-  organizationAPI
+  organizationAPI,
+  orderPaymentsAPI,
+  salesAPI
 } from '../services/api';
 
 const DataContext = createContext();
@@ -165,7 +167,7 @@ export const DataProvider = ({ children }) => {
     createRecurring: () => withLoading(() => tasksAPI.createRecurringTasks(), false, 'Регулярные задачи созданы')
   };
 
-  // Enhanced orders operations
+  // Enhanced orders operations with payment support
   const orders = {
     getAll: (params) => withLoading(() => ordersAPI.getOrders(params), true),
     getById: (id) => withLoading(() => ordersAPI.getOrder(id)),
@@ -173,7 +175,35 @@ export const DataProvider = ({ children }) => {
     update: (id, data) => withLoading(() => ordersAPI.updateOrder(id, data), false, 'Заказ обновлен'),
     assign: (id, assignedTo) => withLoading(() => ordersAPI.assignOrder(id, assignedTo), false, 'Заказ назначен'),
     complete: (id, notes) => withLoading(() => ordersAPI.completeOrder(id, notes), false, 'Заказ выполнен'),
-    getStatistics: (periodDays) => withLoading(() => ordersAPI.getOrderStatistics(periodDays))
+    getStatistics: (periodDays) => withLoading(() => ordersAPI.getOrderStatistics(periodDays)),
+    
+    // NEW: Payment-related methods
+    getWithPayments: (orderId) => withLoading(() => ordersAPI.getOrderWithPayments(orderId), true),
+    createWithPayment: (orderData, paymentData) => withLoading(() => ordersAPI.createOrderWithPayment(orderData, paymentData), false, 'Заказ создан и оплачен'),
+    completeWithPayment: (orderId, paymentData, notes = null) => withLoading(() => ordersAPI.completeSaleWithPayment(orderId, paymentData, notes), false, 'Заказ завершен с оплатой')
+  };
+
+  // NEW: Order payments operations
+  const orderPayments = {
+    create: (orderId, paymentData) => withLoading(() => orderPaymentsAPI.createPayment(orderId, paymentData), false, 'Платеж создан'),
+    processSale: (orderId, paymentData) => withLoading(() => orderPaymentsAPI.processSalePayment(orderId, paymentData), false, 'Платеж обработан'),
+    getByOrder: (orderId) => withLoading(() => orderPaymentsAPI.getOrderPayments(orderId), true),
+    getStatus: (orderId) => withLoading(() => orderPaymentsAPI.getPaymentStatus(orderId), true),
+    complete: (orderId, paymentId) => withLoading(() => orderPaymentsAPI.completePayment(orderId, paymentId), false, 'Платеж завершен'),
+    cancel: (orderId, paymentId, reason) => withLoading(() => orderPaymentsAPI.cancelPayment(orderId, paymentId, reason), false, 'Платеж отменен'),
+    refund: (orderId, refundAmount, reason, method = 'cash') => withLoading(() => orderPaymentsAPI.createRefund(orderId, refundAmount, reason, method), false, 'Возврат оформлен'),
+    getSummary: (startDate = null, endDate = null) => withLoading(() => orderPaymentsAPI.getPaymentsSummary(startDate, endDate), true)
+  };
+
+  // NEW: Sales operations with integrated payments
+  const sales = {
+    process: (saleData) => withLoading(() => salesAPI.processSale(saleData), false, 'Продажа успешно обработана'),
+    createWithPayment: (orderData, paymentData) => withLoading(() => ordersAPI.createOrderWithPayment(orderData, paymentData), false, 'Заказ создан и оплачен'),
+    getHistory: (params = {}) => withLoading(() => salesAPI.getSalesHistory(params), true),
+    getStatistics: (periodDays = 30) => withLoading(() => salesAPI.getSalesStatistics(periodDays), true),
+    processRefund: (orderId, refundData) => withLoading(() => salesAPI.processRefund(orderId, refundData), false, 'Возврат оформлен'),
+    getOrderWithPayments: (orderId) => withLoading(() => ordersAPI.getOrderWithPayments(orderId), true),
+    completeWithPayment: (orderId, paymentData, notes = null) => withLoading(() => ordersAPI.completeSaleWithPayment(orderId, paymentData, notes), false, 'Продажа завершена')
   };
 
   // Enhanced inventory operations
@@ -233,7 +263,6 @@ export const DataProvider = ({ children }) => {
       try {
         return await payrollAPI.addQuickBonus(userId, data);
       } catch (error) {
-        // Более подробная обработка ошибок для отладки
         console.error('Failed to add quick bonus:', error);
         throw new Error(`Не удалось добавить премию: ${error.message}`);
       }
@@ -284,72 +313,72 @@ export const DataProvider = ({ children }) => {
   };
 
   const reports = {
-  getFinancialSummary: (startDate, endDate) => withLoading(() => reportsAPI.getFinancialSummary(startDate, endDate)),
-  getPropertyOccupancy: (startDate, endDate, propertyId) => withLoading(() => reportsAPI.getPropertyOccupancy(startDate, endDate, propertyId)),
-  getEmployeePerformance: (startDate, endDate, role, userId) => withLoading(() => reportsAPI.getEmployeePerformance(startDate, endDate, role, userId)),
-  getClientAnalytics: (startDate, endDate) => withLoading(() => reportsAPI.getClientAnalytics(startDate, endDate)),
-  getMyPayroll: (periodStart, periodEnd) => withLoading(() => reportsAPI.getMyPayroll(periodStart, periodEnd)),
-  
-  // ИСПРАВЛЕННЫЕ методы экспорта с правильной обработкой ошибок
-  exportFinancialSummary: async (startDate, endDate, format = 'xlsx') => {
-    try {
-      const blob = await reportsAPI.exportFinancialSummary(startDate, endDate, format);
-      
-      if (!blob || blob.size === 0) {
-        throw new Error('Получен пустой файл');
+    getFinancialSummary: (startDate, endDate) => withLoading(() => reportsAPI.getFinancialSummary(startDate, endDate)),
+    getPropertyOccupancy: (startDate, endDate, propertyId) => withLoading(() => reportsAPI.getPropertyOccupancy(startDate, endDate, propertyId)),
+    getEmployeePerformance: (startDate, endDate, role, userId) => withLoading(() => reportsAPI.getEmployeePerformance(startDate, endDate, role, userId)),
+    getClientAnalytics: (startDate, endDate) => withLoading(() => reportsAPI.getClientAnalytics(startDate, endDate)),
+    getMyPayroll: (periodStart, periodEnd) => withLoading(() => reportsAPI.getMyPayroll(periodStart, periodEnd)),
+    
+    // ИСПРАВЛЕННЫЕ методы экспорта с правильной обработкой ошибок
+    exportFinancialSummary: async (startDate, endDate, format = 'xlsx') => {
+      try {
+        const blob = await reportsAPI.exportFinancialSummary(startDate, endDate, format);
+        
+        if (!blob || blob.size === 0) {
+          throw new Error('Получен пустой файл');
+        }
+        
+        return blob;
+      } catch (error) {
+        console.error('Financial summary export failed:', error);
+        throw new Error(`Ошибка экспорта финансового отчета: ${error.message}`);
       }
-      
-      return blob;
-    } catch (error) {
-      console.error('Financial summary export failed:', error);
-      throw new Error(`Ошибка экспорта финансового отчета: ${error.message}`);
-    }
-  },
+    },
 
-  exportPropertyOccupancy: async (startDate, endDate, propertyId = null, format = 'xlsx') => {
-    try {
-      const blob = await reportsAPI.exportPropertyOccupancy(startDate, endDate, propertyId, format);
-      
-      if (!blob || blob.size === 0) {
-        throw new Error('Получен пустой файл');
+    exportPropertyOccupancy: async (startDate, endDate, propertyId = null, format = 'xlsx') => {
+      try {
+        const blob = await reportsAPI.exportPropertyOccupancy(startDate, endDate, propertyId, format);
+        
+        if (!blob || blob.size === 0) {
+          throw new Error('Получен пустой файл');
+        }
+        
+        return blob;
+      } catch (error) {
+        console.error('Property occupancy export failed:', error);
+        throw new Error(`Ошибка экспорта отчета по загруженности: ${error.message}`);
       }
-      
-      return blob;
-    } catch (error) {
-      console.error('Property occupancy export failed:', error);
-      throw new Error(`Ошибка экспорта отчета по загруженности: ${error.message}`);
-    }
-  },
+    },
 
-  exportClientAnalytics: async (startDate, endDate, format = 'xlsx') => {
-    try {
-      const blob = await reportsAPI.exportClientAnalytics(startDate, endDate, format);
-      
-      if (!blob || blob.size === 0) {
-        throw new Error('Получен пустой файл');
+    exportClientAnalytics: async (startDate, endDate, format = 'xlsx') => {
+      try {
+        const blob = await reportsAPI.exportClientAnalytics(startDate, endDate, format);
+        
+        if (!blob || blob.size === 0) {
+          throw new Error('Получен пустой файл');
+        }
+        
+        return blob;
+      } catch (error) {
+        console.error('Client analytics export failed:', error);
+        throw new Error(`Ошибка экспорта клиентской аналитики: ${error.message}`);
       }
-      
-      return blob;
-    } catch (error) {
-      console.error('Client analytics export failed:', error);
-      throw new Error(`Ошибка экспорта клиентской аналитики: ${error.message}`);
-    }
-  },
+    },
 
-  exportEmployeePerformance: async (startDate, endDate, role = null, userId = null, format = 'xlsx') => {
-    try {
-      const blob = await reportsAPI.exportEmployeePerformance(startDate, endDate, role, userId, format);
-      
-      if (!blob || blob.size === 0) {
-        throw new Error('Получен пустой файл');
+    exportEmployeePerformance: async (startDate, endDate, role = null, userId = null, format = 'xlsx') => {
+      try {
+        const blob = await reportsAPI.exportEmployeePerformance(startDate, endDate, role, userId, format);
+        
+        if (!blob || blob.size === 0) {
+          throw new Error('Получен пустой файл');
+        }
+        
+        return blob;
+      } catch (error) {
+        console.error('Employee performance export failed:', error);
+        throw new Error(`Ошибка экспорта отчета по производительности: ${error.message}`);
       }
-      
-      return blob;
-    } catch (error) {
-      console.error('Employee performance export failed:', error);
-      throw new Error(`Ошибка экспорта отчета по производительности: ${error.message}`);
     }
-  }
   };
 
   // Enhanced organization operations
@@ -374,6 +403,76 @@ export const DataProvider = ({ children }) => {
     getRecentAuditActions: (limit) => withLoading(() => organizationAPI.getRecentAuditActions(limit), true)
   };
 
+  // Payment utility functions
+  const paymentUtils = {
+    // Форматировать способ оплаты для отображения
+    formatPaymentMethod: (method) => {
+      const methods = {
+        'cash': 'Наличные',
+        'card': 'Банковская карта',
+        'transfer': 'Банковский перевод',
+        'qr_code': 'QR-код',
+        'mobile_money': 'Мобильные деньги'
+      };
+      return methods[method] || method;
+    },
+
+    // Форматировать статус платежа
+    formatPaymentStatus: (status) => {
+      const statuses = {
+        'pending': 'Ожидает оплаты',
+        'processing': 'Обрабатывается',
+        'completed': 'Завершен',
+        'failed': 'Ошибка',
+        'cancelled': 'Отменен',
+        'refunded': 'Возвращен'
+      };
+      return statuses[status] || status;
+    },
+
+    // Получить цвет статуса для UI
+    getPaymentStatusColor: (status) => {
+      const colors = {
+        'pending': '#f59e0b',
+        'processing': '#3b82f6',
+        'completed': '#10b981',
+        'failed': '#ef4444',
+        'cancelled': '#6b7280',
+        'refunded': '#8b5cf6'
+      };
+      return colors[status] || '#6b7280';
+    },
+
+    // Проверить, можно ли отменить платеж
+    canCancelPayment: (payment) => {
+      return payment.status === 'pending' || payment.status === 'processing';
+    },
+
+    // Проверить, можно ли сделать возврат
+    canRefund: (order) => {
+      return order.is_paid && order.status === 'delivered';
+    },
+
+    // Рассчитать общую сумму платежей
+    calculateTotalPaid: (payments) => {
+      return payments
+        .filter(p => p.status === 'completed')
+        .reduce((sum, p) => sum + p.amount, 0);
+    },
+
+    // Группировать платежи по методам
+    groupPaymentsByMethod: (payments) => {
+      return payments.reduce((groups, payment) => {
+        const method = payment.payment_method;
+        if (!groups[method]) {
+          groups[method] = [];
+        }
+        groups[method].push(payment);
+        return groups;
+      }, {});
+    }
+  };
+
   // Utility functions
   const utils = {
     clearError: () => setError(null),
@@ -384,6 +483,9 @@ export const DataProvider = ({ children }) => {
     showInfo: toast.showInfo,
     toast: toast.toasts,
     removeToast: toast.removeToast,
+    
+    // Payment utilities
+    payment: paymentUtils,
     
     // Helper function for file downloads
     downloadFile: (blob, filename) => {
@@ -419,6 +521,8 @@ export const DataProvider = ({ children }) => {
     rentals,
     tasks,
     orders,
+    orderPayments, // NEW
+    sales, // NEW
     inventory,
     documents,
     payroll,

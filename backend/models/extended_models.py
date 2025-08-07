@@ -369,6 +369,7 @@ class RoomOrder(Base):
     client = relationship("Client", back_populates="orders")
     rental = relationship("Rental", back_populates="orders")
     assignee = relationship("User")
+    payments = relationship("OrderPayment", back_populates="order", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_order_property", "property_id"),
