@@ -184,27 +184,384 @@ export const DataProvider = ({ children }) => {
   };
 
   // NEW: Order payments operations
-  const orderPayments = {
-    create: (orderId, paymentData) => withLoading(() => orderPaymentsAPI.createPayment(orderId, paymentData), false, 'Платеж создан'),
-    processSale: (orderId, paymentData) => withLoading(() => orderPaymentsAPI.processSalePayment(orderId, paymentData), false, 'Платеж обработан'),
-    getByOrder: (orderId) => withLoading(() => orderPaymentsAPI.getOrderPayments(orderId), true),
-    getStatus: (orderId) => withLoading(() => orderPaymentsAPI.getPaymentStatus(orderId), true),
-    complete: (orderId, paymentId) => withLoading(() => orderPaymentsAPI.completePayment(orderId, paymentId), false, 'Платеж завершен'),
-    cancel: (orderId, paymentId, reason) => withLoading(() => orderPaymentsAPI.cancelPayment(orderId, paymentId, reason), false, 'Платеж отменен'),
-    refund: (orderId, refundAmount, reason, method = 'cash') => withLoading(() => orderPaymentsAPI.createRefund(orderId, refundAmount, reason, method), false, 'Возврат оформлен'),
-    getSummary: (startDate = null, endDate = null) => withLoading(() => orderPaymentsAPI.getPaymentsSummary(startDate, endDate), true)
-  };
+// Фрагмент обновленного DataContext с исправленными методами платежей
 
-  // NEW: Sales operations with integrated payments
-  const sales = {
-    process: (saleData) => withLoading(() => salesAPI.processSale(saleData), false, 'Продажа успешно обработана'),
-    createWithPayment: (orderData, paymentData) => withLoading(() => ordersAPI.createOrderWithPayment(orderData, paymentData), false, 'Заказ создан и оплачен'),
-    getHistory: (params = {}) => withLoading(() => salesAPI.getSalesHistory(params), true),
-    getStatistics: (periodDays = 30) => withLoading(() => salesAPI.getSalesStatistics(periodDays), true),
-    processRefund: (orderId, refundData) => withLoading(() => salesAPI.processRefund(orderId, refundData), false, 'Возврат оформлен'),
-    getOrderWithPayments: (orderId) => withLoading(() => ordersAPI.getOrderWithPayments(orderId), true),
-    completeWithPayment: (orderId, paymentData, notes = null) => withLoading(() => ordersAPI.completeSaleWithPayment(orderId, paymentData, notes), false, 'Продажа завершена')
-  };
+// В файле frontend/src/contexts/DataContext.jsx найдите и обновите следующую секцию:
+
+// NEW: Order payments operations (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+const orderPayments = {
+  create: (orderId, paymentData) => withLoading(() => orderPaymentsAPI.createPayment(orderId, paymentData), false, 'Платеж создан'),
+  
+  // ИСПРАВЛЕННЫЙ метод обработки продажи с улучшенной обработкой ошибок
+  processSale: async (orderId, paymentData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔄 DataContext: Processing sale payment...', { orderId, paymentData });
+      
+      const result = await orderPaymentsAPI.processSalePayment(orderId, paymentData);
+      
+      console.log('✅ DataContext: Sale payment processed successfully');
+      handleSuccess('Платеж успешно обработан');
+      
+      return result;
+    } catch (error) {
+      console.error('❌ DataContext: Sale payment processing failed:', error);
+      
+      // Улучшенная обработка ошибок
+      let errorMessage = 'Ошибка при обработке платежа';
+      
+      if (error.message.includes('404')) {
+        errorMessage = 'API платежей недоступен. Попробуйте обновить страницу или обратитесь к администратору.';
+      } else if (error.message.includes('403')) {
+        errorMessage = 'Нет прав для обработки платежей';
+      } else if (error.message.includes('400')) {
+        errorMessage = 'Некорректные данные платежа: ' + error.message;
+      } else if (error.message.includes('Network')) {
+        errorMessage = 'Ошибка сети. Проверьте подключение к интернету';
+      } else {
+        errorMessage = error.message || 'Неизвестная ошибка при обработке платежа';
+      }
+      
+      handleError(error, 'Обработка платежа', true);
+      throw new Error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  },
+  
+  getByOrder: (orderId) => withLoading(() => orderPaymentsAPI.getOrderPayments(orderId), true),
+  getStatus: (orderId) => withLoading(() => orderPaymentsAPI.getPaymentStatus(orderId), true),
+  complete: (orderId, paymentId) => withLoading(() => orderPaymentsAPI.completePayment(orderId, paymentId), false, 'Платеж завершен'),
+  cancel: (orderId, paymentId, reason) => withLoading(() => orderPaymentsAPI.cancelPayment(orderId, paymentId, reason), false, 'Платеж отменен'),
+  refund: (orderId, refundAmount, reason, method = 'cash') => withLoading(() => orderPaymentsAPI.createRefund(orderId, refundAmount, reason, method), false, 'Возврат оформлен'),
+  getSummary: (startDate = null, endDate = null) => withLoading(() => orderPaymentsAPI.getPaymentsSummary(startDate, endDate), true)
+};
+
+// ИСПРАВЛЕННЫЙ sales operations с интегрированными платежами
+const sales = {
+  // Быстрая обработка продажи (создание заказа + платеж + завершение)
+  process: async (saleData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔄 DataContext: Processing complete sale...', saleData);
+      
+      const result = await salesAPI.processSale(saleData);
+      
+      console.log('✅ DataContext: Sale processed successfully');
+      handleSuccess('Продажа успешно обработана');
+      
+      return result;
+    } catch (error) {
+      console.error('❌ DataContext: Sale processing failed:', error);
+      handleError(error, 'Обработка продажи', true);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  },
+
+  // Создать заказ с платежом (альтернативный метод)
+  createWithPayment: async (orderData, paymentData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔄 DataContext: Creating order with payment...', { orderData, paymentData });
+      
+      // Сначала создаем заказ
+      const order = await orders.create(orderData);
+      
+      // Затем обрабатываем платеж
+      const payment = await orderPayments.processSale(order.id, paymentData);
+      
+      // Завершаем заказ
+      const completedOrder = await orders.complete(
+        order.id, 
+        `Продажа завершена с оплатой ${paymentData.method}`
+      );
+      
+      console.log('✅ DataContext: Order with payment created successfully');
+      handleSuccess('Заказ создан и оплачен');
+      
+      return {
+        order: completedOrder,
+        payment
+      };
+    } catch (error) {
+      console.error('❌ DataContext: Order with payment creation failed:', error);
+      handleError(error, 'Создание заказа с платежом', true);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  },
+
+  getHistory: (params = {}) => withLoading(() => salesAPI.getSalesHistory(params), true),
+  getStatistics: (periodDays = 30) => withLoading(() => salesAPI.getSalesStatistics(periodDays), true),
+  processRefund: (orderId, refundData) => withLoading(() => salesAPI.processRefund(orderId, refundData), false, 'Возврат оформлен'),
+  
+  // Дополнительные методы для работы с заказами и платежами
+  getOrderWithPayments: async (orderId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const [order, payments, paymentStatus] = await Promise.all([
+        orders.getById(orderId),
+        orderPayments.getByOrder(orderId).catch(() => []), // Игнорируем ошибки получения платежей
+        orderPayments.getStatus(orderId).catch(() => null)   // Игнорируем ошибки получения статуса
+      ]);
+
+      return {
+        ...order,
+        payments,
+        payment_status: paymentStatus
+      };
+    } catch (error) {
+      console.error('❌ DataContext: Failed to get order with payments:', error);
+      handleError(error, 'Получение заказа с платежами', true);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  },
+
+  // Завершить продажу с платежом
+  completeWithPayment: async (orderId, paymentData, notes = null) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔄 DataContext: Completing sale with payment...', { orderId, paymentData, notes });
+      
+      // Обрабатываем платеж
+      const payment = await orderPayments.processSale(orderId, paymentData);
+      
+      // Завершаем заказ
+      const completedOrder = await orders.complete(
+        orderId, 
+        notes || `Продажа завершена с оплатой ${paymentData.method}`
+      );
+      
+      console.log('✅ DataContext: Sale completed with payment');
+      handleSuccess('Продажа завершена с оплатой');
+      
+      return {
+        order: completedOrder,
+        payment
+      };
+    } catch (error) {
+      console.error('❌ DataContext: Sale completion with payment failed:', error);
+      handleError(error, 'Завершение продажи с платежом', true);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }
+};
+
+// Payment utility functions (ОБНОВЛЕННАЯ ВЕРСИЯ)
+const paymentUtils = {
+  // Форматировать способ оплаты для отображения
+  formatPaymentMethod: (method) => {
+    const methods = {
+      'cash': 'Наличные',
+      'card': 'Банковская карта', 
+      'transfer': 'Банковский перевод',
+      'qr_code': 'QR-код',
+      'mobile_money': 'Мобильные деньги'
+    };
+    return methods[method] || method;
+  },
+
+  // Форматировать статус платежа
+  formatPaymentStatus: (status) => {
+    const statuses = {
+      'pending': 'Ожидает оплаты',
+      'processing': 'Обрабатывается', 
+      'completed': 'Завершен',
+      'failed': 'Ошибка',
+      'cancelled': 'Отменен',
+      'refunded': 'Возвращен'
+    };
+    return statuses[status] || status;
+  },
+
+  // Получить цвет статуса для UI
+  getPaymentStatusColor: (status) => {
+    const colors = {
+      'pending': '#f59e0b',
+      'processing': '#3b82f6',
+      'completed': '#10b981',
+      'failed': '#ef4444', 
+      'cancelled': '#6b7280',
+      'refunded': '#8b5cf6'
+    };
+    return colors[status] || '#6b7280';
+  },
+
+  // Получить иконку для способа оплаты
+  getPaymentMethodIcon: (method) => {
+    const icons = {
+      'cash': '💵',
+      'card': '💳',
+      'transfer': '🏦',
+      'qr_code': '📱',
+      'mobile_money': '📲'
+    };
+    return icons[method] || '💰';
+  },
+
+  // Проверить, можно ли отменить платеж
+  canCancelPayment: (payment) => {
+    return payment.status === 'pending' || payment.status === 'processing';
+  },
+
+  // Проверить, можно ли сделать возврат
+  canRefund: (order) => {
+    return order.is_paid && order.status === 'delivered';
+  },
+
+  // Рассчитать общую сумму платежей
+  calculateTotalPaid: (payments) => {
+    return payments
+      .filter(p => p.status === 'completed')
+      .reduce((sum, p) => sum + p.amount, 0);
+  },
+
+  // Группировать платежи по методам
+  groupPaymentsByMethod: (payments) => {
+    return payments.reduce((groups, payment) => {
+      const method = payment.payment_method;
+      if (!groups[method]) {
+        groups[method] = [];
+      }
+      groups[method].push(payment);
+      return groups;
+    }, {});
+  },
+
+  // Валидировать данные платежа
+  validatePaymentData: (paymentData) => {
+    const errors = [];
+    
+    if (!paymentData.amount || paymentData.amount <= 0) {
+      errors.push('Сумма платежа должна быть больше 0');
+    }
+    
+    if (!paymentData.method) {
+      errors.push('Необходимо указать способ оплаты');
+    }
+    
+    if (!paymentData.payer_name || paymentData.payer_name.trim().length === 0) {
+      errors.push('Необходимо указать имя плательщика');
+    }
+    
+    if (paymentData.method === 'card' && (!paymentData.card_last4 || paymentData.card_last4.length !== 4)) {
+      errors.push('Для оплаты картой необходимо указать последние 4 цифры');
+    }
+    
+    if (paymentData.method === 'transfer' && (!paymentData.bank_name || paymentData.bank_name.trim().length === 0)) {
+      errors.push('Для банковского перевода необходимо указать название банка');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  },
+
+  // Форматировать сумму для отображения
+  formatAmount: (amount, currency = '₸') => {
+    if (typeof amount !== 'number') {
+      amount = parseFloat(amount) || 0;
+    }
+    return amount.toLocaleString('ru-RU') + ' ' + currency;
+  }
+};
+
+// Enhanced utils with payment utilities (ОБНОВЛЕННАЯ ВЕРСИЯ)
+const utils = {
+  clearError: () => setError(null),
+  isLoading: () => loading,
+  showSuccess: handleSuccess,
+  showError: (message) => handleError(new Error(message), 'Manual', true),
+  showWarning: toast.showWarning,
+  showInfo: toast.showInfo,
+  toast: toast.toasts,
+  removeToast: toast.removeToast,
+  
+  // Payment utilities (ОБНОВЛЕННЫЕ)
+  payment: paymentUtils,
+  
+  // Helper function for file downloads
+  downloadFile: (blob, filename) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  },
+  
+  // Helper function for error retry
+  retry: async (operation, maxRetries = 3, delay = 1000) => {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await operation();
+      } catch (error) {
+        if (i === maxRetries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+      }
+    }
+  },
+
+  // Debounce function for search inputs
+  debounce: (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  },
+
+  // Format date for display
+  formatDate: (date, options = {}) => {
+    if (!date) return '';
+    
+    const defaultOptions = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    
+    return new Date(date).toLocaleDateString('ru-RU', { ...defaultOptions, ...options });
+  },
+
+  // Generate order number
+  generateOrderNumber: (prefix = 'ORD') => {
+    const now = new Date();
+    const dateStr = now.getFullYear().toString() + 
+                   (now.getMonth() + 1).toString().padStart(2, '0') + 
+                   now.getDate().toString().padStart(2, '0');
+    const timeStr = now.getHours().toString().padStart(2, '0') + 
+                   now.getMinutes().toString().padStart(2, '0');
+    const randomStr = Math.random().toString(36).substr(2, 4).toUpperCase();
+    
+    return `${prefix}-${dateStr}-${timeStr}-${randomStr}`;
+  }
+};
+
 
   // Enhanced inventory operations
   const inventory = {
@@ -403,112 +760,6 @@ export const DataProvider = ({ children }) => {
     getRecentAuditActions: (limit) => withLoading(() => organizationAPI.getRecentAuditActions(limit), true)
   };
 
-  // Payment utility functions
-  const paymentUtils = {
-    // Форматировать способ оплаты для отображения
-    formatPaymentMethod: (method) => {
-      const methods = {
-        'cash': 'Наличные',
-        'card': 'Банковская карта',
-        'transfer': 'Банковский перевод',
-        'qr_code': 'QR-код',
-        'mobile_money': 'Мобильные деньги'
-      };
-      return methods[method] || method;
-    },
-
-    // Форматировать статус платежа
-    formatPaymentStatus: (status) => {
-      const statuses = {
-        'pending': 'Ожидает оплаты',
-        'processing': 'Обрабатывается',
-        'completed': 'Завершен',
-        'failed': 'Ошибка',
-        'cancelled': 'Отменен',
-        'refunded': 'Возвращен'
-      };
-      return statuses[status] || status;
-    },
-
-    // Получить цвет статуса для UI
-    getPaymentStatusColor: (status) => {
-      const colors = {
-        'pending': '#f59e0b',
-        'processing': '#3b82f6',
-        'completed': '#10b981',
-        'failed': '#ef4444',
-        'cancelled': '#6b7280',
-        'refunded': '#8b5cf6'
-      };
-      return colors[status] || '#6b7280';
-    },
-
-    // Проверить, можно ли отменить платеж
-    canCancelPayment: (payment) => {
-      return payment.status === 'pending' || payment.status === 'processing';
-    },
-
-    // Проверить, можно ли сделать возврат
-    canRefund: (order) => {
-      return order.is_paid && order.status === 'delivered';
-    },
-
-    // Рассчитать общую сумму платежей
-    calculateTotalPaid: (payments) => {
-      return payments
-        .filter(p => p.status === 'completed')
-        .reduce((sum, p) => sum + p.amount, 0);
-    },
-
-    // Группировать платежи по методам
-    groupPaymentsByMethod: (payments) => {
-      return payments.reduce((groups, payment) => {
-        const method = payment.payment_method;
-        if (!groups[method]) {
-          groups[method] = [];
-        }
-        groups[method].push(payment);
-        return groups;
-      }, {});
-    }
-  };
-
-  // Utility functions
-  const utils = {
-    clearError: () => setError(null),
-    isLoading: () => loading,
-    showSuccess: handleSuccess,
-    showError: (message) => handleError(new Error(message), 'Manual', true),
-    showWarning: toast.showWarning,
-    showInfo: toast.showInfo,
-    toast: toast.toasts,
-    removeToast: toast.removeToast,
-    
-    // Payment utilities
-    payment: paymentUtils,
-    
-    // Helper function for file downloads
-    downloadFile: (blob, filename) => {
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    },
-    
-    // Helper function for error retry
-    retry: async (operation, maxRetries = 3, delay = 1000) => {
-      for (let i = 0; i < maxRetries; i++) {
-        try {
-          return await operation();
-        } catch (error) {
-          if (i === maxRetries - 1) throw error;
-          await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
-        }
-      }
-    }
-  };
 
   const value = {
     // State

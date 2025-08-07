@@ -966,6 +966,10 @@ export const ordersAPI = {
   }
   
 };
+// Исправленный фрагмент API для обработки платежей заказов
+
+// В файле frontend/src/services/api.js найдите и обновите следующий код:
+
 export const orderPaymentsAPI = {
   // Создать платеж для заказа
   async createPayment(orderId, paymentData) {
@@ -975,12 +979,51 @@ export const orderPaymentsAPI = {
     });
   },
 
-  // Обработать платеж за продажу
+  // ИСПРАВЛЕННЫЙ метод: Обработать платеж за продажу
   async processSalePayment(orderId, paymentData) {
-    return apiRequest(`/api/orders/${orderId}/sale-payment`, {
-      method: 'POST',
-      body: JSON.stringify(paymentData)
-    });
+    try {
+      console.log('🔄 API: Processing sale payment for order:', orderId, paymentData);
+      
+      const response = await apiRequest(`/api/orders/${orderId}/sale-payment`, {
+        method: 'POST',
+        body: JSON.stringify(paymentData)
+      });
+      
+      console.log('✅ API: Sale payment processed successfully:', response);
+      return response;
+      
+    } catch (error) {
+      console.error('❌ API: Sale payment processing failed:', error);
+      
+      // Если эндпоинт не найден, пробуем альтернативный способ
+      if (error.message.includes('404') || error.message.includes('Not Found')) {
+        console.log('🔄 API: Trying fallback payment method...');
+        
+        try {
+          // Используем обычный payment endpoint как fallback
+          const fallbackResponse = await this.createPayment(orderId, {
+            ...paymentData,
+            payment_method: paymentData.method,
+            amount: paymentData.amount,
+            payer_name: paymentData.payer_name,
+            payer_phone: paymentData.payer_phone,
+            payer_email: paymentData.payer_email,
+            reference_number: paymentData.reference_number,
+            card_last4: paymentData.card_last4,
+            bank_name: paymentData.bank_name
+          });
+          
+          console.log('✅ API: Fallback payment successful:', fallbackResponse);
+          return fallbackResponse;
+          
+        } catch (fallbackError) {
+          console.error('❌ API: Fallback payment also failed:', fallbackError);
+          throw new Error(`Не удалось обработать платеж. Основная ошибка: ${error.message}. Резервная ошибка: ${fallbackError.message}`);
+        }
+      }
+      
+      throw error;
+    }
   },
 
   // Получить все платежи по заказу
@@ -1028,6 +1071,201 @@ export const orderPaymentsAPI = {
     if (endDate) params.append('end_date', endDate);
     
     return apiRequest(`/api/orders/payments/summary?${params}`);
+  }
+};
+
+// ИСПРАВЛЕННЫЙ salesAPI с улучшенной обработкой ошибок
+export const salesAPI = {
+  // Быстрая продажа (создание заказа + платеж + завершение)
+  async processSale(saleData) {
+    const { orderData, paymentData } = saleData;
+    
+    try {
+      console.log('🔄 Sales API: Starting sale processing...');
+      
+      // Создаем заказ
+      console.log('🔄 Sales API: Creating order...');
+      const order = await ordersAPI.createOrder(orderData);
+      console.log('✅ Sales API: Order created:', order.id);
+      
+      // Обрабатываем платеж
+      console.log('🔄 Sales API: Processing payment...');
+      const payment = await orderPaymentsAPI.processSalePayment(order.id, paymentData);
+      console.log('✅ Sales API: Payment processed');
+      
+      // Завершаем заказ
+      console.log('🔄 Sales API: Completing order...');
+      const completedOrder = await ordersAPI.completeOrder(
+        order.id, 
+        `Продажа завершена с оплатой ${paymentData.method}`
+      );
+      console.log('✅ Sales API: Order completed');
+      
+      return {
+        success: true,
+        order: completedOrder,
+        payment
+      };
+      
+    } catch (error) {
+      console.error('❌ Sales API: Sale processing failed:', error);
+      throw new Error(`Ошибка обработки продажи: ${error.message}`);
+    }
+  },
+
+  // Получить историю продаж с платежами
+  async getSalesHistory(params = {}) {
+    const orders = await ordersAPI.getOrders({
+      ...params,
+      order_type: 'product_sale'
+    });
+
+    // Получаем информацию о платежах для каждого заказа
+    const salesWithPayments = await Promise.all(
+      orders.map(async (order) => {
+        try {
+          const paymentStatus = await orderPaymentsAPI.getPaymentStatus(order.id);
+          return {
+            ...order,
+            payment_info: paymentStatus
+          };
+        } catch (error) {
+          console.warn(`Failed to get payment info for order ${order.id}:`, error);
+          return order;
+        }
+      })
+    );
+
+    return salesWithPayments;
+  },
+
+  // Получить статистику продаж с учетом платежей
+  async getSalesStatistics(periodDays = 30) {
+    try {
+      const [orderStats, paymentSummary] = await Promise.all([
+        ordersAPI.getOrderStatistics(periodDays),
+        orderPaymentsAPI.getPaymentsSummary()
+      ]);
+
+      return {
+        ...orderStats,
+        payment_summary: paymentSummary
+      };
+    } catch (error) {
+      console.warn('Sales statistics partially unavailable:', error);
+      const orderStats = await ordersAPI.getOrderStatistics(periodDays);
+      return {
+        ...orderStats,
+        payment_summary: null
+      };
+    }
+  },
+
+  // Создать возврат для продажи
+  async processRefund(orderId, refundData) {
+    const { amount, reason, method = 'cash' } = refundData;
+    
+    return await orderPaymentsAPI.createRefund(orderId, amount, reason, method);
+  }
+};
+
+// Добавляем улучшенную обработку ошибок в основную функцию apiRequest
+const enhancedApiRequest = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('access_token');
+  
+  const config = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...options.headers
+    },
+    ...options
+  };
+
+  try {
+    console.log(`🌐 API Request: ${options.method || 'GET'} ${endpoint}`);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    
+    if (response.status === 401) {
+      console.log('🔄 Token expired, attempting refresh...');
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        config.headers.Authorization = `Bearer ${localStorage.getItem('access_token')}`;
+        const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        return await handleResponse(retryResponse);
+      } else {
+        console.log('❌ Token refresh failed, redirecting to login');
+        localStorage.clear();
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
+    }
+    
+    return await handleResponse(response);
+  } catch (error) {
+    console.error(`❌ API Request failed for ${endpoint}:`, error);
+    throw error;
+  }
+};
+
+// Улучшенная обработка ответов
+const enhancedHandleResponse = async (response) => {
+  const contentType = response.headers.get('content-type');
+  const isJson = contentType && contentType.includes('application/json');
+  
+  console.log(`📡 Response: ${response.status} ${response.statusText} (${contentType})`);
+  
+  if (!response.ok) {
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    
+    try {
+      if (isJson) {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          } else if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail.map(err => err.msg || err).join(', ');
+          }
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } else {
+        // Для не-JSON ответов пытаемся получить текст
+        const errorText = await response.text();
+        if (errorText && errorText.length < 500) { // Ограничиваем длину
+          errorMessage = errorText;
+        }
+      }
+    } catch (parseError) {
+      console.warn('Could not parse error response:', parseError);
+    }
+    
+    console.error(`❌ API Error: ${errorMessage}`);
+    throw new Error(errorMessage);
+  }
+  
+  // Для файловых загрузок возвращаем blob
+  if (contentType && !isJson) {
+    const blob = await response.blob();
+    console.log(`📄 Received blob response: ${blob.size} bytes`);
+    return blob;
+  }
+  
+  // Проверяем, есть ли контент для парсинга
+  const text = await response.text();
+  if (!text) {
+    console.log('📄 Empty response body');
+    return null;
+  }
+  
+  try {
+    const data = JSON.parse(text);
+    console.log(`✅ Parsed JSON response successfully`);
+    return data;
+  } catch (parseError) {
+    console.warn('Could not parse response as JSON, returning as text:', parseError);
+    return text;
   }
 };
 
@@ -1080,81 +1318,6 @@ const enhancedOrdersAPI = {
 };
 
 // Обновляем объект для DataContext
-export const salesAPI = {
-  // Быстрая продажа (создание заказа + платеж + завершение)
-  async processSale(saleData) {
-    const { orderData, paymentData } = saleData;
-    
-    try {
-      // Создаем заказ
-      const order = await ordersAPI.createOrder(orderData);
-      
-      // Обрабатываем платеж
-      const payment = await orderPaymentsAPI.processSalePayment(order.id, paymentData);
-      
-      // Завершаем заказ
-      const completedOrder = await ordersAPI.completeOrder(
-        order.id, 
-        `Продажа завершена с оплатой ${paymentData.method}`
-      );
-      
-      return {
-        success: true,
-        order: completedOrder,
-        payment
-      };
-    } catch (error) {
-      console.error('Sale processing failed:', error);
-      throw new Error(`Ошибка обработки продажи: ${error.message}`);
-    }
-  },
-
-  // Получить историю продаж с платежами
-  async getSalesHistory(params = {}) {
-    const orders = await ordersAPI.getOrders({
-      ...params,
-      order_type: 'product_sale'
-    });
-
-    // Получаем информацию о платежах для каждого заказа
-    const salesWithPayments = await Promise.all(
-      orders.map(async (order) => {
-        try {
-          const paymentStatus = await orderPaymentsAPI.getPaymentStatus(order.id);
-          return {
-            ...order,
-            payment_info: paymentStatus
-          };
-        } catch (error) {
-          console.warn(`Failed to get payment info for order ${order.id}:`, error);
-          return order;
-        }
-      })
-    );
-
-    return salesWithPayments;
-  },
-
-  // Получить статистику продаж с учетом платежей
-  async getSalesStatistics(periodDays = 30) {
-    const [orderStats, paymentSummary] = await Promise.all([
-      ordersAPI.getOrderStatistics(periodDays),
-      orderPaymentsAPI.getPaymentsSummary()
-    ]);
-
-    return {
-      ...orderStats,
-      payment_summary: paymentSummary
-    };
-  },
-
-  // Создать возврат для продажи
-  async processRefund(orderId, refundData) {
-    const { amount, reason, method = 'cash' } = refundData;
-    
-    return await orderPaymentsAPI.createRefund(orderId, amount, reason, method);
-  }
-};
 
 // Documents API
 export const documentsAPI = {

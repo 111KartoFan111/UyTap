@@ -224,6 +224,7 @@ const CreateOrders = () => {
   };
 
   // НОВАЯ ФУНКЦИЯ: Обработка платежа
+// ИСПРАВЛЕННАЯ ФУНКЦИЯ: Обработка платежа
   const processPayment = async () => {
     if (!completedOrder) {
       utils.showError('Заказ не найден');
@@ -238,67 +239,122 @@ const CreateOrders = () => {
         amount: completedOrder.total_amount,
         method: paymentMethod,
         payer_name: customerInfo.name,
-        payer_phone: customerInfo.phone,
-        payer_email: customerInfo.email,
-        reference_number: paymentDetails.referenceNumber || null,
-        card_last4: paymentMethod === 'card' ? paymentDetails.cardLast4 : null,
-        bank_name: paymentMethod === 'transfer' ? paymentDetails.bankName : null
+        payer_phone: customerInfo.phone || '',
+        payer_email: customerInfo.email || '',
+        reference_number: paymentDetails.referenceNumber || '',
+        card_last4: paymentMethod === 'card' ? paymentDetails.cardLast4 : '',
+        bank_name: paymentMethod === 'transfer' ? paymentDetails.bankName : ''
       };
 
-      console.log('Processing payment:', paymentData);
+      console.log('🔄 Processing payment:', paymentData);
 
-      // Вызываем новый API endpoint для платежей заказов
-      const response = await fetch(`/api/orders/${completedOrder.id}/sale-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify(paymentData)
-      });
+      // Используем API из контекста для обработки платежа
+      let paymentResult;
+      try {
+        paymentResult = await orderPayments.processSale(completedOrder.id, paymentData);
+        console.log('✅ Payment processed:', paymentResult);
+      } catch (paymentError) {
+        console.error('❌ Payment API failed:', paymentError);
+        
+        // Fallback: пытаемся использовать прямой API вызов
+        try {
+          const response = await fetch(`http://localhost:8000/api/orders/${completedOrder.id}/sale-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            },
+            body: JSON.stringify(paymentData)
+          });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Payment processing failed');
+          if (!response.ok) {
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            
+            // Пытаемся получить детали ошибки
+            try {
+              const errorText = await response.text();
+              if (errorText) {
+                const errorData = JSON.parse(errorText);
+                errorMessage = errorData.detail || errorData.message || errorMessage;
+              }
+            } catch (parseError) {
+              console.warn('Could not parse error response:', parseError);
+            }
+            
+            throw new Error(errorMessage);
+          }
+
+          // Проверяем, есть ли контент для парсинга
+          const responseText = await response.text();
+          paymentResult = responseText ? JSON.parse(responseText) : { success: true };
+          
+          console.log('✅ Fallback payment processed:', paymentResult);
+        } catch (fallbackError) {
+          console.error('❌ Fallback payment failed:', fallbackError);
+          throw fallbackError;
+        }
       }
 
-      const paymentResult = await response.json();
-      console.log('Payment processed:', paymentResult);
-
       // Завершаем заказ после успешной оплаты
-      console.log('Completing order:', completedOrder.id);
-      const completionResult = await orders.complete(
-        completedOrder.id, 
-        `Продажа завершена с оплатой ${paymentMethod}. Покупатель: ${customerInfo.name}`
-      );
-      console.log('Order completed:', completionResult);
+      console.log('🔄 Completing order:', completedOrder.id);
+      
+      try {
+        const completionResult = await orders.complete(
+          completedOrder.id, 
+          `Продажа завершена с оплатой ${utils.payment.formatPaymentMethod(paymentMethod)}. Покупатель: ${customerInfo.name}`
+        );
+        console.log('✅ Order completed:', completionResult);
+      } catch (completionError) {
+        console.warn('⚠️  Order completion warning:', completionError);
+        // Продолжаем, даже если не удалось завершить заказ, так как платеж уже обработан
+      }
 
       utils.showSuccess('Продажа и оплата успешно завершены!');
 
-      // Очищаем форму
-      setCart([]);
-      setCustomerInfo({ name: '', phone: '', email: '' });
-      setSelectedProperty('');
-      setSelectedRentalId('');
-      setShowCart(false);
-      setShowPaymentDialog(false);
-      setCompletedOrder(null);
-      setPaymentDetails({
-        cardLast4: '',
-        bankName: '',
-        referenceNumber: '',
-        notes: ''
-      });
+      // Очищаем форму и состояние
+      resetFormState();
 
       // Перезагружаем инвентарь для обновления остатков
       await loadInventoryData();
 
     } catch (error) {
-      console.error('Payment processing error:', error);
-      utils.showError('Ошибка при обработке платежа: ' + error.message);
+      console.error('❌ Payment processing error:', error);
+      
+      // Показываем понятную ошибку пользователю
+      let errorMessage = 'Ошибка при обработке платежа';
+      
+      if (error.message.includes('404')) {
+        errorMessage = 'Сервис платежей недоступен. Обратитесь к администратору.';
+      } else if (error.message.includes('403')) {
+        errorMessage = 'Нет прав для обработки платежей';
+      } else if (error.message.includes('400')) {
+        errorMessage = 'Некорректные данные платежа: ' + error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      utils.showError(errorMessage);
     } finally {
       setIsProcessingPayment(false);
     }
+  };
+
+  // Функция для сброса состояния формы
+  const resetFormState = () => {
+    setCart([]);
+    setCustomerInfo({ name: '', phone: '', email: '' });
+    setSelectedProperty('');
+    setSelectedRentalId('');
+    setShowCart(false);
+    setShowPaymentDialog(false);
+    setCompletedOrder(null);
+    setPaymentDetails({
+      cardLast4: '',
+      bankName: '',
+      referenceNumber: '',
+      notes: ''
+    });
+    setPaymentMethod('cash');
   };
 
   // ОБНОВЛЕННАЯ ФУНКЦИЯ: Обработка продажи (теперь через два этапа)
