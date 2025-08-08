@@ -40,7 +40,7 @@ except Exception as e:
 try:
     from routers import (
         auth, admin, properties, rentals, clients, 
-        orders, reports, documents, tasks, payroll, inventory, organization, payments,order_payments,export_reports,acquiring
+        orders, reports, documents, tasks, payroll, inventory, organization, payments,order_payments,export_reports,acquiring,comprehensive_reports
     )
     print("✅ Core routers imported successfully")
 except Exception as e:
@@ -212,6 +212,7 @@ app.include_router(payments.router)
 app.include_router(order_payments.router)
 app.include_router(export_reports.router)
 app.include_router(acquiring.router)
+app.include_router(comprehensive_reports.router)
 
 
 # Расширенные роутеры зарплат (если доступны)

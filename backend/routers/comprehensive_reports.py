@@ -1,4 +1,4 @@
-# backend/routers/comprehensive_reports.py
+# backend/routers/comprehensive_reports.py - ИСПРАВЛЕННАЯ ВЕРСИЯ
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
@@ -335,42 +335,6 @@ async def get_export_history(
         )
 
 
-@router.post("/schedule")
-async def schedule_comprehensive_report(
-    request: ComprehensiveReportRequest,
-    schedule_type: str = Query(..., regex="^(daily|weekly|monthly)$"),
-    email_recipients: List[str] = Query(...),
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Запланировать автоматическую генерацию отчетов"""
-    
-    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to cancel scheduled reports"
-        )
-    
-    # В реальной системе здесь была бы отмена задачи в планировщике
-    
-    # Логируем отмену расписания
-    AuthService.log_user_action(
-        db=db,
-        user_id=current_user.id,
-        action="report_schedule_cancelled",
-        organization_id=current_user.organization_id,
-        details={
-            "schedule_id": schedule_id
-        }
-    )
-    
-    return {
-        "schedule_id": schedule_id,
-        "status": "cancelled",
-        "message": "Расписание отчетов отменено успешно"
-    }
-
-
 @router.get("/validation/data-completeness")
 async def validate_data_completeness(
     start_date: datetime = Query(...),
@@ -524,30 +488,3 @@ async def validate_data_completeness(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to validate data completeness: {str(e)}"
         )
-
-@router.delete("/schedule/{schedule_id}")
-async def cancel_scheduled_report(
-    schedule_id: str,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Отменить запланированные отчеты"""
-    
-    if current_user.role not in [UserRole.ADMIN, UserRole.SYSTEM_OWNER]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions to cancel scheduled reports"
-        )
-    # В реальной системе здесь была бы отмена задачи в планировщике
-    # Пока что возвращаем подтверждение
-    
-    # Логируем отмену расписания
-    AuthService.log_user_action(
-        db=db,
-        user_id=current_user.id,
-        action="report_schedule_cancelled",
-        organization_id=current_user.organization_id,
-        details={
-            "schedule_id": schedule_id
-        }
-    )
