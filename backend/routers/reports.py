@@ -23,6 +23,13 @@ from models.extended_models import Payroll,Task,TaskStatus
 from models.models import Organization
 from sqlalchemy import and_, desc, or_ 
 
+from services.comprehensive_report_service import ComprehensiveReportService
+from schemas.comprehensive_report import (
+    ComprehensiveReportRequest, ComprehensiveReportResponse,
+    AdministrativeExpense, ReportFormat
+)
+
+
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
 
@@ -1170,3 +1177,290 @@ async def cleanup_duplicate_payrolls(
         raise HTTPException(status_code=400, detail="Invalid user ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+@router.post("/comprehensive/generate", response_model=ComprehensiveReportResponse)
+async def generate_comprehensive_report_v2(
+    request: ComprehensiveReportRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Генерировать полный комплексный отчет (v2)"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to generate comprehensive reports"
+        )
+    
+    try:
+        report = ComprehensiveReportService.generate_comprehensive_report(
+            db=db,
+            organization_id=current_user.organization_id,
+            request=request
+        )
+        
+        # Логируем создание отчета
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="comprehensive_report_v2_generated",
+            organization_id=current_user.organization_id,
+            details={
+                "start_date": request.start_date.isoformat(),
+                "end_date": request.end_date.isoformat(),
+                "format": request.format.value,
+                "utility_bills": request.utility_bills_amount,
+                "admin_expenses_count": len(request.additional_admin_expenses),
+                "total_revenue": report.total_revenue,
+                "total_expenses": report.total_expenses,
+                "net_profit": report.net_profit
+            }
+        )
+        
+        return report
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate comprehensive report: {str(e)}"
+        )
+
+
+@router.post("/comprehensive/export")
+async def export_comprehensive_report_v2(
+    request: ComprehensiveReportRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Экспортировать полный отчет в файл (xlsx/xml)"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to export comprehensive reports"
+        )
+    
+    try:
+        # Генерируем отчет
+        report = ComprehensiveReportService.generate_comprehensive_report(
+            db=db,
+            organization_id=current_user.organization_id,
+            request=request
+        )
+        
+        # Экспортируем в нужном формате
+        if request.format == ReportFormat.XLSX:
+            file_content = ComprehensiveReportService.export_to_xlsx(report)
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            file_extension = "xlsx"
+        elif request.format == ReportFormat.XML:
+            file_content = ComprehensiveReportService.export_to_xml(report)
+            media_type = "application/xml"
+            file_extension = "xml"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported export format: {request.format}"
+            )
+        
+        # Генерируем имя файла
+        org_name = report.organization_name.replace(" ", "_").replace("/", "_")
+        filename = f"comprehensive_report_{org_name}_{request.start_date.strftime('%Y%m%d')}_{request.end_date.strftime('%Y%m%d')}.{file_extension}"
+        
+        # Логируем экспорт
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="comprehensive_report_v2_exported",
+            organization_id=current_user.organization_id,
+            details={
+                "format": request.format.value,
+                "start_date": request.start_date.isoformat(),
+                "end_date": request.end_date.isoformat(),
+                "filename": filename,
+                "file_size": len(file_content),
+                "total_revenue": report.total_revenue,
+                "total_expenses": report.total_expenses,
+                "net_profit": report.net_profit,
+                "sections": {
+                    "staff_count": len(report.staff_payroll),
+                    "inventory_items": len(report.inventory_movements),
+                    "properties": len(report.property_revenues),
+                    "admin_expenses": len(report.administrative_expenses)
+                }
+            }
+        )
+        
+        return Response(
+            content=file_content,
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export comprehensive report: {str(e)}"
+        )
+
+
+@router.get("/comprehensive/preview")
+async def preview_comprehensive_report_data(
+    start_date: datetime = Query(..., description="Дата начала периода"),
+    end_date: datetime = Query(..., description="Дата окончания периода"),
+    utility_bills_amount: float = Query(0, ge=0, description="Сумма коммунальных услуг"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Предварительный просмотр данных для комплексного отчета"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to preview comprehensive reports"
+        )
+    
+    try:
+        # Создаем базовый запрос для предварительного просмотра
+        preview_request = ComprehensiveReportRequest(
+            start_date=start_date,
+            end_date=end_date,
+            utility_bills_amount=utility_bills_amount,
+            format=ReportFormat.XLSX,  # Формат не важен для preview
+            additional_admin_expenses=[]
+        )
+        
+        # Генерируем сокращенную версию отчета
+        report = ComprehensiveReportService.generate_comprehensive_report(
+            db=db,
+            organization_id=current_user.organization_id,
+            request=preview_request
+        )
+        
+        # Возвращаем детальный preview с топ-показателями
+        preview_data = {
+            "organization_name": report.organization_name,
+            "report_period": {
+                "start_date": start_date,
+                "end_date": end_date,
+                "duration_days": (end_date - start_date).days + 1
+            },
+            "financial_overview": {
+                "total_revenue": report.total_revenue,
+                "total_expenses": report.total_expenses,
+                "net_profit": report.net_profit,
+                "profitability_percent": round((report.net_profit / report.total_revenue * 100), 2) if report.total_revenue > 0 else 0,
+                "expense_ratio": round((report.total_expenses / report.total_revenue * 100), 2) if report.total_revenue > 0 else 0
+            },
+            "sections_summary": {
+                "payroll": {
+                    **report.payroll_summary,
+                    "employees_count": len(report.staff_payroll),
+                    "avg_salary": round(report.payroll_summary["total_net"] / len(report.staff_payroll), 2) if report.staff_payroll else 0,
+                    "top_earner": max(report.staff_payroll, key=lambda x: x.net_amount).name if report.staff_payroll else None
+                },
+                "inventory": {
+                    **report.inventory_summary,
+                    "items_count": len(report.inventory_movements),
+                    "profit_margin": round((report.inventory_summary["total_profit"] / report.inventory_summary["total_outgoing_cost"] * 100), 2) if report.inventory_summary["total_outgoing_cost"] > 0 else 0,
+                    "most_profitable_item": max(report.inventory_movements, key=lambda x: x.net_profit).item_name if report.inventory_movements else None
+                },
+                "properties": {
+                    **report.property_summary,
+                    "properties_count": len(report.property_revenues),
+                    "best_performer": max(report.property_revenues, key=lambda x: x.total_revenue).property_name if report.property_revenues else None,
+                    "commission_rate": round((report.property_summary["total_commission"] / report.property_summary["total_card"] * 100), 2) if report.property_summary["total_card"] > 0 else 0
+                },
+                "administrative": {
+                    **report.administrative_summary,
+                    "expenses_count": len(report.administrative_expenses),
+                    "largest_expense": max(report.administrative_expenses, key=lambda x: x.amount).description if report.administrative_expenses else None,
+                    "admin_to_revenue_ratio": round((report.administrative_summary["total_admin_expenses"] / report.total_revenue * 100), 2) if report.total_revenue > 0 else 0
+                }
+            },
+            "acquiring_overview": {
+                "card_payment_share": round(report.acquiring_statistics["card_payment_percentage"], 2),
+                "commission_amount": report.acquiring_statistics["total_commission_paid"],
+                "effective_commission_rate": round(report.acquiring_statistics["average_commission_rate"], 2)
+            },
+            "data_quality": {
+                "staff_records": len(report.staff_payroll),
+                "inventory_items": len(report.inventory_movements),
+                "properties_analyzed": len(report.property_revenues),
+                "admin_expenses": len(report.administrative_expenses),
+                "completeness_score": ComprehensiveReportService._calculate_completeness_score(report)
+            },
+            "recommendations": ComprehensiveReportService._generate_business_recommendations(report)
+        }
+        
+        return preview_data
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate report preview: {str(e)}"
+        )
+
+
+@router.get("/comprehensive/templates/expenses")
+async def get_administrative_expense_templates_v2(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Получить расширенные шаблоны административных расходов"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to access expense templates"
+        )
+    
+    # Расширенные шаблоны с учетом специфики бизнеса в КЗ
+    templates = {
+        "operational": [
+            {"category": "utility_bills", "description": "Коммунальные услуги (электричество, вода, отопление)", "amount": 150000, "frequency": "monthly"},
+            {"category": "internet_phone", "description": "Интернет и телефонная связь", "amount": 25000, "frequency": "monthly"},
+            {"category": "cleaning_supplies", "description": "Моющие и чистящие средства", "amount": 35000, "frequency": "monthly"},
+            {"category": "office_supplies", "description": "Канцелярские товары и офисные принадлежности", "amount": 20000, "frequency": "monthly"},
+            {"category": "maintenance", "description": "Техническое обслуживание оборудования", "amount": 50000, "frequency": "monthly"}
+        ],
+        "administrative": [
+            {"category": "legal_services", "description": "Юридические услуги и консультации", "amount": 80000, "frequency": "monthly"},
+            {"category": "accounting_services", "description": "Бухгалтерские услуги", "amount": 120000, "frequency": "monthly"},
+            {"category": "bank_services", "description": "Банковское обслуживание (РКО, переводы)", "amount": 15000, "frequency": "monthly"},
+            {"category": "insurance", "description": "Страхование имущества и ответственности", "amount": 45000, "frequency": "monthly"},
+            {"category": "licenses", "description": "Лицензии и разрешения", "amount": 30000, "frequency": "monthly"}
+        ],
+        "marketing": [
+            {"category": "advertising", "description": "Реклама в интернете и СМИ", "amount": 100000, "frequency": "monthly"},
+            {"category": "social_media", "description": "Продвижение в социальных сетях", "amount": 40000, "frequency": "monthly"},
+            {"category": "website", "description": "Обслуживание и развитие сайта", "amount": 25000, "frequency": "monthly"},
+            {"category": "printing", "description": "Печатная реклама и материалы", "amount": 20000, "frequency": "monthly"}
+        ],
+        "security": [
+            {"category": "security_services", "description": "Охранные услуги", "amount": 90000, "frequency": "monthly"},
+            {"category": "alarm_system", "description": "Обслуживание сигнализации", "amount": 15000, "frequency": "monthly"},
+            {"category": "video_surveillance", "description": "Система видеонаблюдения", "amount": 20000, "frequency": "monthly"}
+        ],
+        "taxes_fees": [
+            {"category": "property_tax", "description": "Налог на имущество", "amount": 200000, "frequency": "quarterly"},
+            {"category": "land_tax", "description": "Земельный налог", "amount": 50000, "frequency": "quarterly"},
+            {"category": "environmental_fee", "description": "Экологические сборы", "amount": 10000, "frequency": "quarterly"},
+            {"category": "waste_disposal", "description": "Вывоз и утилизация отходов", "amount": 25000, "frequency": "monthly"}
+        ]
+    }
+    
+    return {
+        "templates": templates,
+        "currency": "KZT",
+        "note": "Суммы являются примерными и рассчитаны для средней организации в сфере аренды помещений в Казахстане. Корректируйте значения в соответствии с реальными расходами.",
+        "total_estimated_monthly": sum(
+            item["amount"] for category in templates.values() 
+            for item in category if item["frequency"] == "monthly"
+        ),
+        "total_estimated_quarterly": sum(
+            item["amount"] for category in templates.values() 
+            for item in category if item["frequency"] == "quarterly"
+        )
+    }
