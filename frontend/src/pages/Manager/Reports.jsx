@@ -1,7 +1,11 @@
+// frontend/src/pages/Manager/Reports.jsx - ОБНОВЛЕННАЯ ВЕРСИЯ
+
 import { useState, useEffect } from 'react';
-import { FiDownload, FiCalendar, FiUsers, FiTrendingUp, FiDollarSign, FiHome, FiBarChart2, FiRefreshCw } from 'react-icons/fi';
+import { FiDownload, FiCalendar, FiUsers, FiTrendingUp, FiDollarSign, FiHome, FiBarChart2, FiRefreshCw, FiFileText } from 'react-icons/fi';
 import { useData } from '../../contexts/DataContext';
 import { debugExport } from '../../utils/exportDebug';
+import ComprehensiveReportModal from '../../components/Reports/ComprehensiveReportModal';
+import '../../components/Reports/ComprehensiveReportModal.css';
 import './Pages.css';
 
 const Reports = () => {
@@ -18,6 +22,9 @@ const Reports = () => {
   });
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState({});
+  
+  // НОВОЕ состояние для модального окна комплексного отчета
+  const [showComprehensiveModal, setShowComprehensiveModal] = useState(false);
 
   // Устанавливаем даты по умолчанию (последние 30 дней)
   useEffect(() => {
@@ -221,6 +228,17 @@ const Reports = () => {
               disabled={loading}
             />
           </div>
+          
+          {/* НОВАЯ кнопка для комплексного отчета */}
+          <button 
+            className="btn-primary"
+            onClick={() => setShowComprehensiveModal(true)}
+            disabled={loading}
+          >
+            <FiFileText />
+            Комплексный отчет
+          </button>
+          
           <button 
             className="btn-outline"
             onClick={loadReportsData}
@@ -241,6 +259,30 @@ const Reports = () => {
 
       {!loading && (
         <div className="reports-grid">
+          {/* НОВАЯ карточка комплексного отчета */}
+          <div className="report-card featured">
+            <div className="report-icon">
+              <FiFileText />
+            </div>
+            <h3>Комплексный отчет</h3>
+            <p>Полный финансовый анализ с налогами и расходами</p>
+            <div className="report-preview">
+              <span>🎯 Все показатели в одном файле</span>
+              <span>💰 Детальная разбивка по налогам</span>
+              <span>📊 Административные расходы</span>
+              <span>💳 Анализ эквайринга</span>
+            </div>
+            <div className="export-buttons">
+              <button 
+                className="btn-primary featured"
+                onClick={() => setShowComprehensiveModal(true)}
+              >
+                <FiFileText />
+                Сгенерировать
+              </button>
+            </div>
+          </div>
+
           {/* Финансовый отчет */}
           <div className="report-card">
             <div className="report-icon">
@@ -448,6 +490,12 @@ const Reports = () => {
           <p>Укажите начальную и конечную дату для генерации отчетов</p>
         </div>
       )}
+
+      {/* НОВОЕ модальное окно комплексного отчета */}
+      <ComprehensiveReportModal 
+        isOpen={showComprehensiveModal}
+        onClose={() => setShowComprehensiveModal(false)}
+      />
     </div>
   );
 };

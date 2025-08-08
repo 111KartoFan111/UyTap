@@ -603,6 +603,213 @@ export const tasksAPI = {
 
 // Reports API (обновленная версия)
 export const reportsAPI = {
+    async exportComprehensiveReport(requestData) {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      console.log('🔄 API: Exporting comprehensive report with data:', requestData);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/comprehensive-reports/export`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/xml'
+          },
+          body: JSON.stringify(requestData)
+        }
+      );
+
+      if (!response.ok) {
+        let errorMessage = `Ошибка экспорта: ${response.status} ${response.statusText}`;
+        
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // Если не удается распарсить JSON, используем статус ответа
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+
+      console.log('✅ API: Comprehensive report exported successfully, blob size:', blob.size);
+      return blob;
+      
+    } catch (error) {
+      console.error('❌ API: Comprehensive report export failed:', error);
+      throw error;
+    }
+  },
+
+  // НОВЫЙ метод для генерации комплексного отчета (без скачивания)
+  async generateComprehensiveReport(requestData) {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      console.log('🔄 API: Generating comprehensive report with data:', requestData);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/comprehensive-reports/generate`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestData)
+        }
+      );
+
+      if (!response.ok) {
+        let errorMessage = `Ошибка генерации: ${response.status} ${response.statusText}`;
+        
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // Если не удается распарсить JSON, используем статус ответа
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log('✅ API: Comprehensive report generated successfully');
+      return data;
+      
+    } catch (error) {
+      console.error('❌ API: Comprehensive report generation failed:', error);
+      throw error;
+    }
+  },
+
+  // НОВЫЙ метод для предварительного просмотра комплексного отчета
+  async previewComprehensiveReport(startDate, endDate, utilityBillsAmount = 0) {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        utility_bills_amount: utilityBillsAmount
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/comprehensive-reports/preview?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Preview failed: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+      
+    } catch (error) {
+      console.error('Comprehensive report preview failed:', error);
+      throw error;
+    }
+  },
+
+  // НОВЫЙ метод для получения шаблонов административных расходов
+  async getAdminExpenseTemplates() {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/comprehensive-reports/templates/expenses`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Templates failed: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+      
+    } catch (error) {
+      console.error('Admin expense templates failed:', error);
+      throw error;
+    }
+  },
+
+  // НОВЫЙ метод для проверки полноты данных
+  async validateDataCompleteness(startDate, endDate) {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/comprehensive-reports/validation/data-completeness?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Validation failed: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+      
+    } catch (error) {
+      console.error('Data completeness validation failed:', error);
+      throw error;
+    }
+  },
+
   async getFinancialSummary(startDate, endDate) {
     return apiRequest(`/api/reports/financial-summary?start_date=${startDate}&end_date=${endDate}`);
   },
@@ -1846,6 +2053,64 @@ export const payrollAPI = {
       method: 'POST',
       body: JSON.stringify({}) // Пустое тело, так как все параметры в query string
     });
+  },
+  async exportPayrollWithTaxes(params = {}) {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Токен авторизации не найден');
+      }
+
+      const searchParams = new URLSearchParams();
+      
+      // Обязательные параметры
+      if (params.start_date) searchParams.append('start_date', params.start_date);
+      if (params.end_date) searchParams.append('end_date', params.end_date);
+      
+      // Дополнительные параметры
+      if (params.user_id) searchParams.append('user_id', params.user_id);
+      if (params.is_paid !== undefined) searchParams.append('is_paid', params.is_paid);
+      if (params.format) searchParams.append('format', params.format);
+      if (params.include_tax_breakdown !== undefined) searchParams.append('include_tax_breakdown', params.include_tax_breakdown);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/export/payroll?${searchParams.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, text/csv'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        let errorMessage = `Ошибка экспорта: ${response.status} ${response.statusText}`;
+        
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          }
+        } catch (e) {
+          // Если не удается распарсить JSON, используем статус ответа
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error('Получен пустой файл');
+      }
+
+      return blob;
+      
+    } catch (error) {
+      console.error('Payroll export failed:', error);
+      throw error;
+    }
   },
 
   // Админские методы

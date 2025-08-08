@@ -1,0 +1,313 @@
+/* frontend/src/components/Reports/ComprehensiveReportModal.css */
+
+.comprehensive-report-modal {
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.comprehensive-report-modal .modal-body {
+  padding: 0;
+}
+
+.comprehensive-report-modal .form-section {
+  padding: 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.comprehensive-report-modal .form-section:last-child {
+  border-bottom: none;
+}
+
+.comprehensive-report-modal .form-section h3 {
+  margin: 0 0 15px 0;
+  color: #2d3748;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comprehensive-report-modal .form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.comprehensive-report-modal .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.comprehensive-report-modal .form-field label {
+  font-weight: 500;
+  color: #4a5568;
+  font-size: 14px;
+}
+
+.comprehensive-report-modal .form-field input,
+.comprehensive-report-modal .form-field select {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.comprehensive-report-modal .form-field input:focus,
+.comprehensive-report-modal .form-field select:focus {
+  outline: none;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+
+.comprehensive-report-modal .form-field small {
+  color: #718096;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.checkbox-item:hover {
+  background-color: #f7fafc;
+}
+
+.checkbox-item input[type="checkbox"] {
+  margin: 0;
+  margin-top: 2px;
+}
+
+.checkbox-item span {
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.checkbox-item small {
+  display: block;
+  color: #718096;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* Добавление расходов */
+.add-expense-form {
+  background-color: #f8fafc;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.add-expense-form .form-grid {
+  grid-template-columns: 2fr 3fr 1.5fr auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.add-expense-form .btn-outline {
+  height: 40px;
+  padding: 8px 16px;
+  white-space: nowrap;
+}
+
+/* Список расходов */
+.expenses-list {
+  margin-top: 15px;
+}
+
+.expenses-list h4 {
+  margin: 0 0 10px 0;
+  color: #2d3748;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.expenses-table {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.expense-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #ffffff;
+}
+
+.expense-row:last-child {
+  border-bottom: none;
+}
+
+.expense-row:hover {
+  background-color: #f8fafc;
+}
+
+.expense-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expense-category {
+  font-weight: 500;
+  color: #2d3748;
+  font-size: 14px;
+}
+
+.expense-description {
+  color: #718096;
+  font-size: 13px;
+}
+
+.expense-amount {
+  font-weight: 600;
+  color: #2d3748;
+  margin-right: 15px;
+  min-width: 120px;
+  text-align: right;
+}
+
+.btn-icon.delete {
+  color: #e53e3e;
+  padding: 6px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.btn-icon.delete:hover {
+  background-color: #fed7d7;
+}
+
+.expenses-total {
+  padding: 15px;
+  background-color: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  text-align: right;
+  color: #2d3748;
+}
+
+/* Модальное окно футер */
+.comprehensive-report-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
+.comprehensive-report-modal .btn-cancel {
+  padding: 10px 20px;
+  border: 1px solid #cbd5e0;
+  background-color: #ffffff;
+  color: #4a5568;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.comprehensive-report-modal .btn-cancel:hover:not(:disabled) {
+  background-color: #f7fafc;
+  border-color: #a0aec0;
+}
+
+.comprehensive-report-modal .btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.comprehensive-report-modal .btn-primary {
+  padding: 10px 20px;
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comprehensive-report-modal .btn-primary:hover:not(:disabled) {
+  background-color: #2c5aa0;
+}
+
+.comprehensive-report-modal .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinner.small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .comprehensive-report-modal {
+    max-width: 95vw;
+    margin: 20px auto;
+  }
+
+  .comprehensive-report-modal .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .add-expense-form .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .expense-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .expense-amount {
+    text-align: left;
+    margin-right: 0;
+  }
+
+  .comprehensive-report-modal .modal-footer {
+    flex-direction: column;
+  }
+
+  .comprehensive-report-modal .btn-cancel,
+  .comprehensive-report-modal .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+}
