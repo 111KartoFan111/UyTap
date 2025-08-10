@@ -53,8 +53,8 @@ services:
       # App settings
       DEBUG: "false"
       ENVIRONMENT: production
-      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,92.38.49.43"
-      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000,http://92.38.49.43,http://92.38.49.43:80"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,92.38.49.43,kartofan.nl,www.kartofan.nl"
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000,http://92.38.49.43,http://kartofan.nl,https://kartofan.nl,http://www.kartofan.nl,https://www.kartofan.nl"
       
       # Security
       BCRYPT_ROUNDS: 12
