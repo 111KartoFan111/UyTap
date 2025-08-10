@@ -48,12 +48,6 @@ const PropertyDetailsModal = ({
     }
   }, [property, activeTab]);
 
-  // Загрузка истории для свойства
-  useEffect(() => {
-    if (property && activeTab === 'history') {
-      loadPropertyHistory();
-    }
-  }, [property, activeTab]);
 
   const handleChange = (e) => {
     const newStatus = e.target.value;
@@ -320,7 +314,6 @@ const PropertyDetailsModal = ({
     { id: 'overview', label: 'Обзор', icon: FiInfo },
     { id: 'rental', label: 'Аренда', icon: FiCalendar },
     { id: 'tasks', label: 'Задачи', icon: FiTool },
-    { id: 'history', label: 'История', icon: FiClock }
   ];
 
   return (
@@ -684,42 +677,6 @@ const PropertyDetailsModal = ({
                         <button className="action-btn secondary" onClick={onCreateTask}>
                           <FiPlus /> Создать первую задачу
                         </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* History Tab */}
-            {activeTab === 'history' && (
-              <div className="tab-content">
-                {loadingHistory ? (
-                  <div className="loading-spinner"></div>
-                ) : (
-                  <div className="history-list">
-                    {propertyHistory.length > 0 ? (
-                      propertyHistory.map((historyItem, index) => (
-                        <div key={index} className="history-item">
-                          <div className={`history-icon ${historyItem.type}`}>
-                            {historyItem.type === 'rental' ? <FiCalendar /> : <FiTool />}
-                          </div>
-                          <div className="history-info">
-                            <span className="history-title">{historyItem.title}</span>
-                            <span className="history-details">{historyItem.details}</span>
-                            <span className="history-date">{formatDate(historyItem.date)}</span>
-                          </div>
-                          {historyItem.amount && (
-                            <div className="history-amount">
-                              {formatCurrency(historyItem.amount)}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="empty-state small">
-                        <FiClock size={32} />
-                        <p>История операций пуста</p>
                       </div>
                     )}
                   </div>

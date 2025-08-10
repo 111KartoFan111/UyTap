@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useData } from '../../contexts/DataContext.jsx';
 import Modal from '../../components/Common/Modal.jsx';
+
 import '../TechnicalStaff/TechnicalStaffDashboard.css';
 
 const InventoryCheck = () => {

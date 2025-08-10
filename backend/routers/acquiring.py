@@ -143,33 +143,6 @@ async def get_available_providers(
             "supported_currencies": ["KZT", "USD"],
             "features": ["online_payments", "mobile_payments", "pos_payments"],
             "logo_url": "/static/logos/halyk.png"
-        },
-        {
-            "id": "jusan",
-            "name": "Jusan Bank",
-            "description": "Жусан Банк",
-            "default_commission": 2.2,
-            "supported_currencies": ["KZT"],
-            "features": ["online_payments", "mobile_payments"],
-            "logo_url": "/static/logos/jusan.png"
-        },
-        {
-            "id": "sberbank",
-            "name": "Сбербанк",
-            "description": "Сбербанк Казахстан",
-            "default_commission": 2.8,
-            "supported_currencies": ["KZT", "USD", "RUB"],
-            "features": ["online_payments", "pos_payments"],
-            "logo_url": "/static/logos/sberbank.png"
-        },
-        {
-            "id": "forte",
-            "name": "Forte Bank",
-            "description": "Forte Bank",
-            "default_commission": 2.3,
-            "supported_currencies": ["KZT"],
-            "features": ["online_payments", "mobile_payments"],
-            "logo_url": "/static/logos/forte.png"
         }
     ]
     
