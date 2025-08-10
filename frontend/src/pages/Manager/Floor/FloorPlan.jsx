@@ -486,7 +486,7 @@ const FloorPlan = ({ onRoomClick }) => {
             )}
           </button>
           <button 
-            className="update-status-btn"
+            className="btn btn-outline"
             onClick={handleBulkReleaseFromCleaning}
             title="Освободить помещения после завершения уборки"
             disabled={loading}

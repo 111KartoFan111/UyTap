@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { 
   FiPackage, 
@@ -18,12 +17,14 @@ import {
   FiTrash2,
   FiMove,
   FiFilter,
-  FiDownload
+  FiDownload,
+  FiX,
+  FiSearch
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useData } from '../../contexts/DataContext.jsx';
 import Modal from '../../components/Common/Modal.jsx';
-import '../TechnicalStaff/TechnicalStaffDashboard.css'; // Используем те же стили
+import '../TechnicalStaff/TechnicalStaffDashboard.css';
 
 const InventoryCheck = () => {
   const { user } = useAuth();
@@ -40,7 +41,17 @@ const InventoryCheck = () => {
   const [recentMovements, setRecentMovements] = useState([]);
   const [supplyTasks, setSupplyTasks] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [allCategories, setAllCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Фильтры
+  const [filters, setFilters] = useState({
+    category: '',
+    searchQuery: '',
+    stockStatus: '', // '', 'low', 'normal', 'high', 'out'
+    showLowStockOnly: false
+  });
+  const [showFilters, setShowFilters] = useState(false);
   
   // Модальные окна
   const [showAddItemModal, setShowAddItemModal] = useState(false);
@@ -71,6 +82,11 @@ const InventoryCheck = () => {
     loadAllData();
   }, []);
 
+  // Применяем фильтры при их изменении
+  useEffect(() => {
+    applyFilters();
+  }, [filters]);
+
   const loadAllData = async () => {
     await Promise.all([
       loadInventoryStats(),
@@ -89,6 +105,7 @@ const InventoryCheck = () => {
       
       // Подсчитываем категории
       const categories = new Set(items.map(item => item.category).filter(Boolean));
+      setAllCategories([...categories].sort());
       
       setInventoryStats({
         totalItems: stats.total_items || items.length,
@@ -123,7 +140,7 @@ const InventoryCheck = () => {
 
   const loadInventoryItems = async () => {
     try {
-      const items = await inventory.getAll({ limit: 100 });
+      const items = await inventory.getAll({ limit: 1000 });
       setInventoryItems(items || []);
     } catch (error) {
       console.error('Error loading inventory items:', error);
@@ -146,6 +163,65 @@ const InventoryCheck = () => {
     } catch (error) {
       console.error('Error loading supply tasks:', error);
     }
+  };
+
+  // Функция фильтрации
+  const applyFilters = () => {
+    let filtered = [...inventoryItems];
+
+    // Фильтр по категории
+    if (filters.category) {
+      filtered = filtered.filter(item => 
+        item.category && item.category.toLowerCase() === filters.category.toLowerCase()
+      );
+    }
+
+    // Поиск по названию, описанию, артикулу
+    if (filters.searchQuery) {
+      const query = filters.searchQuery.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.name.toLowerCase().includes(query) ||
+        (item.description && item.description.toLowerCase().includes(query)) ||
+        (item.sku && item.sku.toLowerCase().includes(query))
+      );
+    }
+
+    // Фильтр по статусу остатков
+    if (filters.stockStatus) {
+      filtered = filtered.filter(item => {
+        const status = getStockStatus(item).status;
+        return status === filters.stockStatus;
+      });
+    }
+
+    // Показать только товары с низким остатком
+    if (filters.showLowStockOnly) {
+      filtered = filtered.filter(item => item.current_stock <= item.min_stock);
+    }
+
+    return filtered;
+  };
+
+  const getFilteredItems = () => {
+    return applyFilters();
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      category: '',
+      searchQuery: '',
+      stockStatus: '',
+      showLowStockOnly: false
+    });
+  };
+
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (filters.category) count++;
+    if (filters.searchQuery) count++;
+    if (filters.stockStatus) count++;
+    if (filters.showLowStockOnly) count++;
+    return count;
   };
 
   // Добавление нового товара
@@ -298,6 +374,16 @@ const InventoryCheck = () => {
     return { status: 'normal', color: '#27ae60', text: 'Нормальный' };
   };
 
+  const getStockStatusName = (status) => {
+    switch (status) {
+      case 'out': return 'Закончился';
+      case 'low': return 'Низкий остаток';
+      case 'high': return 'Избыток';
+      case 'normal': return 'Нормальный';
+      default: return status;
+    }
+  };
+
   if (loading) {
     return (
       <div className="technical-dashboard">
@@ -309,6 +395,9 @@ const InventoryCheck = () => {
     );
   }
 
+  const filteredItems = getFilteredItems();
+  const activeFiltersCount = getActiveFiltersCount();
+
   return (
     <div className="technical-dashboard">
       <div className="technical-header">
@@ -316,14 +405,44 @@ const InventoryCheck = () => {
         <div className="user-greeting">
           Привет, {user.first_name}! Контролируем запасы!
         </div>
-        <div style={{ marginTop: '16px' }}>
+        <div style={{ marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button 
             className="btn-start"
             onClick={() => setShowAddItemModal(true)}
-            style={{ marginRight: '12px', background: '#27ae60' }}
+            style={{ background: '#27ae60' }}
           >
             <FiPlus /> Добавить товар
           </button>
+          
+          <button 
+            className="btn-start"
+            onClick={() => setShowFilters(!showFilters)}
+            style={{ 
+              background: showFilters ? '#3498db' : '#95a5a6',
+              position: 'relative'
+            }}
+          >
+            <FiFilter /> Фильтры
+            {activeFiltersCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-5px',
+                right: '-5px',
+                background: '#e74c3c',
+                color: 'white',
+                borderRadius: '50%',
+                width: '18px',
+                height: '18px',
+                fontSize: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+          
           <button 
             className="btn-start"
             onClick={() => inventory.export('xlsx')}
@@ -332,6 +451,160 @@ const InventoryCheck = () => {
             <FiDownload /> Экспорт
           </button>
         </div>
+
+        {/* Панель фильтров */}
+        {showFilters && (
+          <div style={{
+            marginTop: '16px',
+            padding: '16px',
+            background: '#f8f9fa',
+            border: '1px solid #dee2e6',
+            borderRadius: '8px'
+          }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+              gap: '12px',
+              marginBottom: '12px'
+            }}>
+              {/* Поиск */}
+              <div>
+                <label style={{ fontSize: '12px', color: '#666', marginBottom: '4px', display: 'block' }}>
+                  Поиск по названию, описанию, артикулу
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Введите запрос..."
+                    value={filters.searchQuery}
+                    onChange={(e) => setFilters(prev => ({ 
+                      ...prev, 
+                      searchQuery: e.target.value 
+                    }))}
+                    style={{
+                      width: '100%',
+                      padding: '8px 32px 8px 8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                  <FiSearch style={{
+                    position: 'absolute',
+                    right: '8px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#666'
+                  }} />
+                </div>
+              </div>
+
+              {/* Категория */}
+              <div>
+                <label style={{ fontSize: '12px', color: '#666', marginBottom: '4px', display: 'block' }}>
+                  Категория
+                </label>
+                <select
+                  value={filters.category}
+                  onChange={(e) => setFilters(prev => ({ 
+                    ...prev, 
+                    category: e.target.value 
+                  }))}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="">Все категории</option>
+                  {allCategories.map(category => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Статус остатков */}
+              <div>
+                <label style={{ fontSize: '12px', color: '#666', marginBottom: '4px', display: 'block' }}>
+                  Статус остатков
+                </label>
+                <select
+                  value={filters.stockStatus}
+                  onChange={(e) => setFilters(prev => ({ 
+                    ...prev, 
+                    stockStatus: e.target.value 
+                  }))}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="">Все статусы</option>
+                  <option value="out">Закончился</option>
+                  <option value="low">Низкий остаток</option>
+                  <option value="normal">Нормальный</option>
+                  <option value="high">Избыток</option>
+                </select>
+              </div>
+
+              {/* Чекбокс для низких остатков */}
+              <div>
+                <label style={{ fontSize: '12px', color: '#666', marginBottom: '4px', display: 'block' }}>
+                  Быстрые фильтры
+                </label>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  padding: '8px 0'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={filters.showLowStockOnly}
+                    onChange={(e) => setFilters(prev => ({ 
+                      ...prev, 
+                      showLowStockOnly: e.target.checked 
+                    }))}
+                  />
+                  <span>Только низкие остатки</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Кнопки управления фильтрами */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button 
+                onClick={clearFilters}
+                style={{
+                  padding: '6px 12px',
+                  background: 'transparent',
+                  border: '1px solid #dee2e6',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <FiX /> Очистить фильтры
+              </button>
+              
+              <span style={{ fontSize: '12px', color: '#666' }}>
+                Найдено: {filteredItems.length} из {inventoryItems.length} товаров
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Статистика склада */}
@@ -382,7 +655,7 @@ const InventoryCheck = () => {
       </div>
 
       {/* Товары с низким остатком */}
-      {lowStockItems.length > 0 && (
+      {lowStockItems.length > 0 && !filters.showLowStockOnly && (
         <div className="urgent-requests">
           <h2>
             <FiAlertTriangle />
@@ -460,13 +733,26 @@ const InventoryCheck = () => {
         </div>
       )}
 
-      {/* Основной инвентарь */}
-      {inventoryItems.length > 0 && (
+      {/* Основной инвентарь с фильтрацией */}
+      {filteredItems.length > 0 && (
         <div className="requests-sections">
           <div className="requests-section">
-            <h2>Весь инвентарь ({inventoryItems.length})</h2>
+            <h2>
+              {filters.showLowStockOnly ? 'Товары с низким остатком' : 'Инвентарь'} 
+              ({filteredItems.length})
+              {activeFiltersCount > 0 && (
+                <span style={{ 
+                  fontSize: '14px', 
+                  fontWeight: 'normal', 
+                  color: '#666',
+                  marginLeft: '8px'
+                }}>
+                  • фильтров активно: {activeFiltersCount}
+                </span>
+              )}
+            </h2>
             <div className="requests-list">
-              {inventoryItems.map(item => {
+              {filteredItems.map(item => {
                 const stockStatus = getStockStatus(item);
                 return (
                   <div key={item.id} className="request-card">
@@ -538,6 +824,26 @@ const InventoryCheck = () => {
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Сообщение когда нет результатов по фильтрам */}
+      {filteredItems.length === 0 && inventoryItems.length > 0 && activeFiltersCount > 0 && (
+        <div style={{
+          textAlign: 'center',
+          padding: '40px',
+          color: '#666'
+        }}>
+          <FiPackage size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
+          <h3>Товары не найдены</h3>
+          <p>По выбранным фильтрам товары не найдены. Попробуйте изменить критерии поиска.</p>
+          <button 
+            onClick={clearFilters}
+            className="btn-start"
+            style={{ marginTop: '16px', background: '#3498db' }}
+          >
+            <FiX /> Очистить фильтры
+          </button>
         </div>
       )}
 
@@ -653,8 +959,14 @@ const InventoryCheck = () => {
                 value={newItem.category}
                 onChange={(e) => setNewItem(prev => ({ ...prev, category: e.target.value }))}
                 placeholder="Категория"
+                list="categories"
                 style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
               />
+              <datalist id="categories">
+                {allCategories.map(category => (
+                  <option key={category} value={category} />
+                ))}
+              </datalist>
             </div>
             
             <div>

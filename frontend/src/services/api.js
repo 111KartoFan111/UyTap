@@ -1125,6 +1125,102 @@ export const reportsAPI = {
   }
 };
 
+
+// API для эквайринга (добавить в api.js)
+export const acquiringAPI = {
+  async getSettings() {
+    try {
+      return await apiRequest('/api/acquiring/settings');
+    } catch (error) {
+      // Если настроек нет, возвращаем дефолтные
+      if (error.message.includes('404')) {
+        return {
+          id: null,
+          organization_id: null,
+          is_enabled: false,
+          default_provider: null,
+          providers_config: {},
+          auto_capture: true,
+          payment_description_template: "Оплата заказа #{order_id}",
+          created_at: null,
+          updated_at: null
+        };
+      }
+      throw error;
+    }
+  },
+
+  async createSettings(data) {
+    return apiRequest('/api/acquiring/settings', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateSettings(data) {
+    return apiRequest('/api/acquiring/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async deleteSettings() {
+    return apiRequest('/api/acquiring/settings', {
+      method: 'DELETE'
+    });
+  },
+
+  async enableAcquiring() {
+    return apiRequest('/api/acquiring/settings/enable', {
+      method: 'POST'
+    });
+  },
+
+  async disableAcquiring() {
+    return apiRequest('/api/acquiring/settings/disable', {
+      method: 'POST'
+    });
+  },
+
+  async getAvailableProviders() {
+    return apiRequest('/api/acquiring/providers/available');
+  },
+
+  async quickSetup(data) {
+    return apiRequest('/api/acquiring/settings/quick-setup', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async testProvider(providerId) {
+    return apiRequest(`/api/acquiring/test-provider/${providerId}`, {
+      method: 'POST'
+    });
+  },
+
+  async getStatistics(startDate, endDate) {
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate
+    });
+    return apiRequest(`/api/acquiring/statistics?${params}`);
+  },
+
+  async calculateCommission(amount, provider) {
+    const params = new URLSearchParams({
+      amount: amount,
+      provider: provider
+    });
+    return apiRequest(`/api/acquiring/commission-calculator?${params}`);
+  },
+
+  // Методы для отладки (используют эндпоинт из backend)
+  async debugUserInfo() {
+    return apiRequest('/api/acquiring/debug/user-info');
+  }
+};
+
 // Orders API
 export const ordersAPI = {
   async getOrders(params = {}) {
@@ -2329,6 +2425,7 @@ export default {
   orderPaymentsAPI, // новый
   salesAPI, // новый
   inventoryAPI,
+  acquiringAPI,
   documentsAPI,
   payrollAPI,
   reportsAPI,
