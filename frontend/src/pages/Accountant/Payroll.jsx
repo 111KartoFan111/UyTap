@@ -11,7 +11,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { PayrollModal, TemplateModal, OperationModal } from './Payrolls';
 import PayrollExportButton from './Payrolls/PayrollExportButton';
 // Импортируем существующие модальные окна
-import { PayrollModal, TemplateModal, OperationModal } from './Payrolls';
 
 import './Payroll.css';
 
