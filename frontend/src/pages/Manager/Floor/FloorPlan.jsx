@@ -271,7 +271,7 @@ const FloorPlan = ({ onRoomClick }) => {
   try {
     setLoading(true);
     
-    const response = await fetch('http://localhost:8000/api/properties/bulk-release-from-cleaning', {
+    const response = await fetch('http://92.38.49.43:8000/api/properties/bulk-release-from-cleaning', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

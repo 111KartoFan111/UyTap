@@ -253,7 +253,7 @@ const Rentals = () => {
   // Функция добавления платежа
   const handlePaymentAdd = async (rentalId, paymentData) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rentals/${rentalId}/payment`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/rentals/${rentalId}/payment`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -441,7 +441,7 @@ const Rentals = () => {
       const newEndDate = new Date(currentEndDate.getTime() + days * 24 * 60 * 60 * 1000);
       
       // Отправляем запрос на продление с доплатой
-      const response = await fetch(`http://localhost:8000/api/rentals/${rental.id}/extend`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/rentals/${rental.id}/extend`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -492,7 +492,7 @@ const Rentals = () => {
     const handlePayExtension = async (rental, paymentId, amount) => {
       try {
         const response = await fetch(
-          `http://localhost:8000/api/rentals/${rental.id}/extension/${paymentId}/pay`, 
+          `http://92.38.49.43:8000/api/rentals/${rental.id}/extension/${paymentId}/pay`, 
           {
             method: 'POST',
             headers: {

@@ -63,7 +63,7 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
   // Реальные API вызовы вместо моков
   const fetchPaymentStatus = async (rentalId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rentals/${rentalId}/payment-status`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/rentals/${rentalId}/payment-status`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
@@ -93,7 +93,7 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
 
   const fetchPaymentHistory = async (rentalId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rentals/${rentalId}/payments`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/rentals/${rentalId}/payments`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
@@ -126,7 +126,7 @@ const PaymentManager = ({ rental, onClose, onPaymentUpdate }) => {
       setLoading(true);
       
       // Реальный API вызов для добавления платежа
-      const response = await fetch(`http://localhost:8000/api/rentals/${rental.id}/payment`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/rentals/${rental.id}/payment`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

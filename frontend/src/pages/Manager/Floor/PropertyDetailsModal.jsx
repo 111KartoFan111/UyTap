@@ -139,7 +139,7 @@ const PropertyDetailsModal = ({
       const newEndDate = new Date(currentEndDate.getTime() + days * 24 * 60 * 60 * 1000);
 
       // Отправляем запрос на продление с правильно рассчитанной суммой
-      const response = await fetch(`http://localhost:8000/api/rentals/${property.activeRental.id}/extend`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/rentals/${property.activeRental.id}/extend`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

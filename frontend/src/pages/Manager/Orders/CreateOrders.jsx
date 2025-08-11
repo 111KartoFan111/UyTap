@@ -348,7 +348,7 @@ const CreateOrders = () => {
         
         // Fallback: пытаемся использовать прямой API вызов
         try {
-          const response = await fetch(`http://localhost:8000/api/orders/${completedOrder.id}/sale-payment`, {
+          const response = await fetch(`http://92.38.49.43:8000/api/orders/${completedOrder.id}/sale-payment`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

@@ -82,7 +82,7 @@ services:
       dockerfile: Dockerfile
     container_name: rental_frontend
     ports:
-      - "80:80"
+      - "8001:80"
     networks:
       - rental_network
     depends_on:

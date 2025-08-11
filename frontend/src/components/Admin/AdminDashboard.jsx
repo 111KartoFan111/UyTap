@@ -39,7 +39,7 @@ const SystemOwner = () => {
   const loadOrganizations = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8000/api/admin/organizations', {
+      const response = await fetch('http://92.38.49.43:8000/api/admin/organizations', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
@@ -61,7 +61,7 @@ const SystemOwner = () => {
 
   const loadUsers = async (orgId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/organizations/${orgId}/users`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/admin/organizations/${orgId}/users`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
@@ -78,7 +78,7 @@ const SystemOwner = () => {
 
   const handleCreateOrganization = async (orgData) => {
     try {
-      const response = await fetch('http://localhost:8000/api/admin/organizations', {
+      const response = await fetch('http://92.38.49.43:8000/api/admin/organizations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +99,7 @@ const SystemOwner = () => {
 
   const handleCreateUser = async (userData) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/organizations/${selectedOrg.id}/users`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/admin/organizations/${selectedOrg.id}/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ const SystemOwner = () => {
     if (!confirm('Вы уверены что хотите удалить эту организацию?')) return;
     
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/organizations/${orgId}`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/admin/organizations/${orgId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -144,7 +144,7 @@ const SystemOwner = () => {
     if (!confirm('Вы уверены что хотите удалить этого пользователя?')) return;
     
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/users/${userId}`, {
+      const response = await fetch(`http://92.38.49.43:8000/api/admin/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
