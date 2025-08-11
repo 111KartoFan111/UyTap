@@ -54,7 +54,7 @@ services:
       DEBUG: "false"
       ENVIRONMENT: production
       ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,92.38.49.43,kartofan.nl,www.kartofan.nl"
-      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000,http://92.38.49.43,http://kartofan.nl,https://kartofan.nl,http://www.kartofan.nl,https://www.kartofan.nl"
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000,http://92.38.49.43,http://92.38.49.43:8001,http://kartofan.nl,https://kartofan.nl,http://kartofan.nl:8001,https://kartofan.nl:8001,http://www.kartofan.nl,https://www.kartofan.nl,http://www.kartofan.nl:8001,https://www.kartofan.nl:8001"
       
       # Security
       BCRYPT_ROUNDS: 12
@@ -82,7 +82,7 @@ services:
       dockerfile: Dockerfile
     container_name: rental_frontend
     ports:
-      - "8001:80"
+      - "8001:80"    # Только порт 8001, системный Nginx будет проксировать
     networks:
       - rental_network
     depends_on:
