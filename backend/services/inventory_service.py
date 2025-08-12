@@ -11,6 +11,7 @@ from schemas.inventory import (
     InventoryCreate, InventoryUpdate, InventoryMovementCreate, 
     InventorySaleRequest, InventoryProfitAnalysis, InventoryValuationReport
 )
+from models.acquiring_models import AcquiringSettings
 
 
 class InventoryService:
