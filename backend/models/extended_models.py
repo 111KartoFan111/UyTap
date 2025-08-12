@@ -593,9 +593,13 @@ class Inventory(Base):
     min_stock = Column(Float, default=0)
     max_stock = Column(Float)
     
-    # Стоимость
-    cost_per_unit = Column(Float)
-    total_value = Column(Float, default=0)
+    # ОБНОВЛЕНО: Разделение цен
+    purchase_price = Column(Float, comment="Закупочная цена за единицу")  
+    selling_price = Column(Float, comment="Цена продажи за единицу")  
+    cost_per_unit = Column(Float, comment="Себестоимость (устарело, используется purchase_price)")  
+
+    # Стоимость на основе закупочной цены
+    total_purchase_value = Column(Float, default=0, comment="Общая стоимость по закупочным ценам")
     
     # Поставщик
     supplier = Column(String(255))
@@ -615,8 +619,30 @@ class Inventory(Base):
 
     __table_args__ = (
         CheckConstraint("current_stock >= 0", name="check_positive_stock"),
+        CheckConstraint("purchase_price >= 0", name="check_positive_purchase_price"),
+        CheckConstraint("selling_price >= 0", name="check_positive_selling_price"),
         Index("idx_inventory_org_sku", "organization_id", "sku", unique=True),
     )
+
+    # Вычисляемые свойства
+    @property
+    def profit_margin(self) -> float:
+        """Рассчитать маржу прибыли в процентах"""
+        if not self.purchase_price or self.purchase_price == 0:
+            return 0.0
+        return ((self.selling_price - self.purchase_price) / self.purchase_price) * 100
+
+    @property
+    def profit_per_unit(self) -> float:
+        """Прибыль с единицы товара"""
+        return (self.selling_price or 0) - (self.purchase_price or 0)
+
+    def update_total_value(self):
+        """Обновить общую стоимость на основе текущих остатков и закупочной цены"""
+        self.total_purchase_value = self.current_stock * (self.purchase_price or 0)
+        # Обновляем старое поле для совместимости
+        if not self.cost_per_unit and self.purchase_price:
+            self.cost_per_unit = self.purchase_price
 
 
 # Модель движения материалов
@@ -630,12 +656,23 @@ class InventoryMovement(Base):
     task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id"))
     
     # Тип движения
-    movement_type = Column(String(50), nullable=False)  # "in", "out", "adjustment", "writeoff"
+    movement_type = Column(String(50), nullable=False)  # "in", "out", "adjustment", "writeoff", "sale"
     
     # Количество
     quantity = Column(Float, nullable=False)
-    unit_cost = Column(Float)
-    total_cost = Column(Float)
+    
+    # ОБНОВЛЕНО: Разделение цен в движениях
+    unit_purchase_price = Column(Float, comment="Закупочная цена за единицу в момент движения")
+    unit_selling_price = Column(Float, comment="Цена продажи за единицу в момент движения")
+    unit_cost = Column(Float, comment="Себестоимость (для совместимости)")  # Старое поле
+    
+    # Общие суммы
+    total_purchase_cost = Column(Float, comment="Общая закупочная стоимость")
+    total_selling_amount = Column(Float, comment="Общая сумма продажи")
+    total_cost = Column(Float, comment="Общая стоимость (для совместимости)")
+    
+    # Прибыль от операции (для продаж)
+    profit_amount = Column(Float, default=0, comment="Прибыль от операции")
     
     # Причина
     reason = Column(String(255))
@@ -656,7 +693,16 @@ class InventoryMovement(Base):
     __table_args__ = (
         Index("idx_movement_inventory", "inventory_id"),
         Index("idx_movement_date", "created_at"),
+        Index("idx_movement_type", "movement_type"),
     )
+
+    def calculate_profit(self):
+        """Вычислить прибыль для операции продажи"""
+        if self.movement_type in ["sale", "out"] and self.unit_selling_price and self.unit_purchase_price:
+            self.profit_amount = (self.unit_selling_price - self.unit_purchase_price) * abs(self.quantity)
+        else:
+            self.profit_amount = 0
+
 
 def setup_all_relationships():
     """Настройка всех отношений после определения всех моделей"""
