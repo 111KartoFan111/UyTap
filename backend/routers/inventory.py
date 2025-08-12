@@ -313,15 +313,16 @@ async def get_inventory_turnover_analysis(
 
 
 @router.get("/sales-report")
-async def get_inventory_sales_report(
+async def get_inventory_sales_report_with_acquiring(
     start_date: datetime = Query(...),
     end_date: datetime = Query(...),
     category: Optional[str] = Query(None),
+    payment_method: Optional[str] = Query(None),
     format: str = Query("json", regex="^(json|xlsx)$"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Получить отчет по продажам товаров"""
+    """Получить отчет по продажам товаров с учетом эквайринга"""
     
     if current_user.role not in [UserRole.ADMIN, UserRole.STOREKEEPER, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
         raise HTTPException(
@@ -343,13 +344,40 @@ async def get_inventory_sales_report(
         if category:
             query = query.join(Inventory).filter(Inventory.category == category)
         
+        if payment_method:
+            query = query.filter(InventoryMovement.payment_method == payment_method)
+        
         sales = query.order_by(desc(InventoryMovement.created_at)).all()
         
-        # Формируем отчет
-        total_revenue = sum(sale.total_selling_amount or 0 for sale in sales)
+        # Формируем отчет с учетом эквайринга
+        total_gross_revenue = sum(sale.total_selling_amount or 0 for sale in sales)
+        total_commission = sum(sale.acquiring_commission_amount or 0 for sale in sales)
+        total_net_revenue = sum(sale.net_selling_amount or 0 for sale in sales)
         total_cost = sum(sale.total_purchase_cost or 0 for sale in sales)
-        total_profit = total_revenue - total_cost
+        total_profit = total_net_revenue - total_cost
         total_quantity = sum(abs(sale.quantity) for sale in sales)
+        
+        # Группировка по способам оплаты
+        payment_breakdown = {
+            "cash": {
+                "count": len([s for s in sales if s.payment_method == "cash"]),
+                "gross_amount": sum(s.total_selling_amount or 0 for s in sales if s.payment_method == "cash"),
+                "commission": 0,
+                "net_amount": sum(s.total_selling_amount or 0 for s in sales if s.payment_method == "cash")
+            },
+            "card": {
+                "count": len([s for s in sales if s.payment_method == "card"]),
+                "gross_amount": sum(s.total_selling_amount or 0 for s in sales if s.payment_method == "card"),
+                "commission": sum(s.acquiring_commission_amount or 0 for s in sales if s.payment_method == "card"),
+                "net_amount": sum(s.net_selling_amount or 0 for s in sales if s.payment_method == "card")
+            },
+            "qr_code": {
+                "count": len([s for s in sales if s.payment_method == "qr_code"]),
+                "gross_amount": sum(s.total_selling_amount or 0 for s in sales if s.payment_method == "qr_code"),
+                "commission": sum(s.acquiring_commission_amount or 0 for s in sales if s.payment_method == "qr_code"),
+                "net_amount": sum(s.net_selling_amount or 0 for s in sales if s.payment_method == "qr_code")
+            }
+        }
         
         sales_data = []
         for sale in sales:
@@ -362,10 +390,15 @@ async def get_inventory_sales_report(
                 "quantity": abs(sale.quantity),
                 "unit_selling_price": sale.unit_selling_price,
                 "unit_purchase_price": sale.unit_purchase_price,
-                "total_revenue": sale.total_selling_amount,
+                "gross_revenue": sale.total_selling_amount,
+                "payment_method": sale.payment_method,
+                "acquiring_provider": sale.acquiring_provider,
+                "commission_rate": sale.acquiring_commission_rate,
+                "commission_amount": sale.acquiring_commission_amount,
+                "net_revenue": sale.net_selling_amount,
                 "total_cost": sale.total_purchase_cost,
                 "profit": sale.profit_amount,
-                "profit_margin": ((sale.profit_amount / sale.total_selling_amount) * 100) if sale.total_selling_amount else 0,
+                "profit_margin": ((sale.profit_amount / sale.net_selling_amount) * 100) if sale.net_selling_amount else 0,
                 "sale_date": sale.created_at,
                 "notes": sale.notes
             })
@@ -379,23 +412,27 @@ async def get_inventory_sales_report(
             "summary": {
                 "total_sales": len(sales),
                 "total_quantity": total_quantity,
-                "total_revenue": total_revenue,
+                "total_gross_revenue": total_gross_revenue,
+                "total_commission": total_commission,
+                "total_net_revenue": total_net_revenue,
                 "total_cost": total_cost,
                 "total_profit": total_profit,
-                "average_profit_margin": (total_profit / total_revenue * 100) if total_revenue > 0 else 0,
-                "average_sale_value": total_revenue / len(sales) if sales else 0
+                "average_commission_rate": (total_commission / total_gross_revenue * 100) if total_gross_revenue > 0 else 0,
+                "profit_margin": (total_profit / total_net_revenue * 100) if total_net_revenue > 0 else 0,
+                "average_sale_value": total_net_revenue / len(sales) if sales else 0
             },
+            "payment_methods": payment_breakdown,
             "sales": sales_data
         }
         
         if format == "xlsx":
-            # Генерируем Excel файл
+            # Генерируем Excel файл с дополнительными колонками эквайринга
             import xlsxwriter
             import io
             
             output = io.BytesIO()
             workbook = xlsxwriter.Workbook(output, {'in_memory': True})
-            worksheet = workbook.add_worksheet("Отчет по продажам")
+            worksheet = workbook.add_worksheet("Продажи с эквайрингом")
             
             # Стили
             header_format = workbook.add_format({
@@ -408,11 +445,12 @@ async def get_inventory_sales_report(
             percent_format = workbook.add_format({'num_format': '0.00"%"'})
             date_format = workbook.add_format({'num_format': 'dd.mm.yyyy hh:mm'})
             
-            # Заголовки
+            # Заголовки с эквайрингом
             headers = [
                 'Дата продажи', 'Наименование', 'SKU', 'Категория', 'Количество',
-                'Цена продажи', 'Закупочная цена', 'Выручка', 'Себестоимость',
-                'Прибыль', 'Маржа %', 'Примечания'
+                'Цена продажи', 'Закупочная цена', 'Валовая выручка', 'Способ оплаты',
+                'Провайдер эквайринга', 'Ставка комиссии %', 'Сумма комиссии',
+                'Чистая выручка', 'Себестоимость', 'Прибыль', 'Маржа %', 'Примечания'
             ]
             
             for col, header in enumerate(headers):
@@ -427,34 +465,40 @@ async def get_inventory_sales_report(
                 worksheet.write(row, 4, sale["quantity"])
                 worksheet.write(row, 5, sale["unit_selling_price"] or 0, money_format)
                 worksheet.write(row, 6, sale["unit_purchase_price"] or 0, money_format)
-                worksheet.write(row, 7, sale["total_revenue"] or 0, money_format)
-                worksheet.write(row, 8, sale["total_cost"] or 0, money_format)
-                worksheet.write(row, 9, sale["profit"] or 0, money_format)
-                worksheet.write(row, 10, sale["profit_margin"] / 100, percent_format)
-                worksheet.write(row, 11, sale["notes"] or "")
+                worksheet.write(row, 7, sale["gross_revenue"] or 0, money_format)
+                worksheet.write(row, 8, sale["payment_method"] or "")
+                worksheet.write(row, 9, sale["acquiring_provider"] or "")
+                worksheet.write(row, 10, (sale["commission_rate"] or 0) / 100, percent_format)
+                worksheet.write(row, 11, sale["commission_amount"] or 0, money_format)
+                worksheet.write(row, 12, sale["net_revenue"] or 0, money_format)
+                worksheet.write(row, 13, sale["total_cost"] or 0, money_format)
+                worksheet.write(row, 14, sale["profit"] or 0, money_format)
+                worksheet.write(row, 15, (sale["profit_margin"] or 0) / 100, percent_format)
+                worksheet.write(row, 16, sale["notes"] or "")
             
             # Итоговая строка
             total_row = len(sales_data) + 2
             worksheet.write(total_row, 0, "ИТОГО:", header_format)
             worksheet.write(total_row, 4, total_quantity)
-            worksheet.write(total_row, 7, total_revenue, money_format)
-            worksheet.write(total_row, 8, total_cost, money_format)
-            worksheet.write(total_row, 9, total_profit, money_format)
-            worksheet.write(total_row, 10, (total_profit / total_revenue) if total_revenue > 0 else 0, percent_format)
+            worksheet.write(total_row, 7, total_gross_revenue, money_format)
+            worksheet.write(total_row, 11, total_commission, money_format)
+            worksheet.write(total_row, 12, total_net_revenue, money_format)
+            worksheet.write(total_row, 13, total_cost, money_format)
+            worksheet.write(total_row, 14, total_profit, money_format)
+            worksheet.write(total_row, 15, (total_profit / total_net_revenue) if total_net_revenue > 0 else 0, percent_format)
             
             # Автоширина колонок
             worksheet.set_column('A:A', 18)  # Дата
             worksheet.set_column('B:B', 25)  # Наименование
             worksheet.set_column('C:C', 12)  # SKU
             worksheet.set_column('D:D', 15)  # Категория
-            worksheet.set_column('E:E', 12)  # Количество
-            worksheet.set_column('F:K', 15)  # Цены и суммы
-            worksheet.set_column('L:L', 30)  # Примечания
+            worksheet.set_column('E:P', 15)  # Остальные колонки
+            worksheet.set_column('Q:Q', 30)  # Примечания
             
             workbook.close()
             output.seek(0)
             
-            filename = f"sales_report_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.xlsx"
+            filename = f"sales_with_acquiring_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.xlsx"
             
             return Response(
                 content=output.getvalue(),
@@ -469,7 +513,6 @@ async def get_inventory_sales_report(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при генерации отчета по продажам: {str(e)}"
         )
-
 
 @router.get("/profit-dashboard")
 async def get_inventory_profit_dashboard(
@@ -730,6 +773,97 @@ async def create_inventory_movement(
         
         db.commit()
         db.refresh(movement)
+        return movement
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+
+@router.get("/sales-acquiring-report")
+async def get_sales_acquiring_report(
+    start_date: datetime = Query(...),
+    end_date: datetime = Query(...),
+    payment_method: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Отчет по продажам с детализацией эквайринга"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.STOREKEEPER, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав для просмотра отчета по эквайрингу"
+        )
+    
+    try:
+        report = InventoryService.get_sales_with_acquiring_report(
+            db=db,
+            organization_id=current_user.organization_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        # Фильтруем по способу оплаты если указан
+        if payment_method:
+            report["sales_details"] = [
+                sale for sale in report["sales_details"]
+                if sale["payment_method"] == payment_method
+            ]
+        
+        return report
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при генерации отчета: {str(e)}"
+        )
+    
+
+@router.post("/{item_id}/sale-with-acquiring", response_model=InventoryMovementResponse)
+async def process_sale_with_acquiring_details(
+    item_id: uuid.UUID,
+    sale_data: InventorySaleRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Обработать продажу товара с детализацией эквайринга"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.STOREKEEPER, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав для просмотра отчета по эквайрингу"
+        )
+    
+    try:
+        movement = InventoryService.process_sale(
+            db=db,
+            sale_data=sale_data,
+            user_id=current_user.id,
+            organization_id=current_user.organization_id
+        )
+        
+        # Логируем с деталями эквайринга
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="inventory_sale_with_acquiring",
+            organization_id=current_user.organization_id,
+            resource_type="inventory_movement",
+            resource_id=movement.id,
+            details={
+                "item_id": sale_data.inventory_id,
+                "quantity": sale_data.quantity,
+                "gross_amount": movement.total_selling_amount,
+                "payment_method": sale_data.payment_method,
+                "acquiring_commission": movement.acquiring_commission_amount,
+                "net_amount": movement.net_selling_amount,
+                "profit_after_commission": movement.profit_amount
+            }
+        )
+        
         return movement
         
     except ValueError as e:

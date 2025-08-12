@@ -99,6 +99,7 @@ class InventoryMovementBase(BaseModel):
     
     reason: Optional[str] = Field(None, max_length=255)
     notes: Optional[str] = None
+    payment_method: Optional[str] = Field("cash", description="Способ оплаты: cash, card, qr_code")
 
 
 class InventoryMovementCreate(InventoryMovementBase):
@@ -114,11 +115,13 @@ class InventoryMovementCreate(InventoryMovementBase):
 
 
 class InventorySaleRequest(BaseModel):
-    """Специальная схема для продажи товаров"""
+    """Расширенная схема для продажи товаров с эквайрингом"""
     inventory_id: str
     quantity: float = Field(..., gt=0)
-    selling_price: float = Field(..., gt=0, description="Цена продажи за единицу")
+    selling_price: float = Field(..., gt=0)
+    payment_method: str = Field("cash", description="Способ оплаты")
     customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
     order_id: Optional[str] = None
     notes: Optional[str] = None
 
@@ -134,6 +137,11 @@ class InventoryMovementResponse(InventoryMovementBase):
     total_selling_amount: Optional[float] = Field(None, description="Общая сумма продажи")
     profit_amount: Optional[float] = Field(None, description="Прибыль от операции")
     total_cost: Optional[float] = Field(None, description="Общая стоимость (совместимость)")
+    acquiring_provider: Optional[str] = Field(None, description="Провайдер эквайринга")
+    acquiring_commission_rate: Optional[float] = Field(None, description="Ставка комиссии %")
+    acquiring_commission_amount: Optional[float] = Field(None, description="Сумма комиссии")
+    net_selling_amount: Optional[float] = Field(None, description="Чистая сумма после комиссии")
+    
     
     stock_after: float
     created_at: datetime

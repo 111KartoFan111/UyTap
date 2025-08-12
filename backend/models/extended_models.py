@@ -12,6 +12,7 @@ import enum
 from .database import Base
 from models.models import User, UserRole , Organization, OrganizationStatus # Импортируем базовые модели
 from models.payment_models import Payment
+from typing import List, Optional
 
 try:
     from models.order_payment_models import OrderPayment, OrderPaymentStatus, OrderPaymentMethod
@@ -702,6 +703,43 @@ class InventoryMovement(Base):
             self.profit_amount = (self.unit_selling_price - self.unit_purchase_price) * abs(self.quantity)
         else:
             self.profit_amount = 0
+    
+    payment_method: Optional[str] = Column(String(50), comment="Способ оплаты: cash, card, qr_code")
+    acquiring_provider: Optional[str] = Column(String(50), comment="Провайдер эквайринга")
+    acquiring_commission_rate: Optional[float] = Column(Float, comment="Ставка комиссии эквайринга %")
+    acquiring_commission_amount: Optional[float] = Column(Float, default=0, comment="Сумма комиссии эквайринга")
+    net_selling_amount: Optional[float] = Column(Float, comment="Чистая сумма после комиссии")
+    
+    def calculate_acquiring_commission(self, acquiring_settings=None):
+        """Рассчитать комиссию эквайринга для продажи"""
+        if self.movement_type != "sale" or self.payment_method != "card":
+            self.acquiring_commission_amount = 0
+            self.net_selling_amount = self.total_selling_amount or 0
+            return
+        
+        # Определяем ставку комиссии
+        commission_rate = 2.0  # По умолчанию
+        
+        if acquiring_settings and acquiring_settings.providers_config:
+            # Берем минимальную ставку среди активных провайдеров
+            active_providers = [
+                (provider, config) for provider, config in acquiring_settings.providers_config.items()
+                if isinstance(config, dict) and config.get("is_enabled", False)
+            ]
+            
+            if active_providers:
+                min_rate_provider = min(active_providers, key=lambda x: x[1].get("commission_rate", 2.0))
+                commission_rate = min_rate_provider[1].get("commission_rate", 2.0)
+                self.acquiring_provider = min_rate_provider[0]
+        
+        self.acquiring_commission_rate = commission_rate
+        self.acquiring_commission_amount = (self.total_selling_amount or 0) * (commission_rate / 100)
+        self.net_selling_amount = (self.total_selling_amount or 0) - self.acquiring_commission_amount
+        
+        # Пересчитываем прибыль с учетом комиссии
+        if self.movement_type == "sale":
+            self.profit_amount = self.net_selling_amount - (self.total_purchase_cost or 0)
+
 
 
 def setup_all_relationships():

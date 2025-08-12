@@ -35,20 +35,31 @@ class InventoryMovementDetail(BaseModel):
     outgoing_quantity: float
     current_stock: float
     
-    # ИСПРАВЛЕНО: Четкое разделение затрат и выручки
-    incoming_cost: float = Field(..., description="Затраты на поступления (по закупочным ценам)")
+    # Существующие финансовые поля
+    incoming_cost: float = Field(..., description="Затраты на поступления")
     outgoing_cost: float = Field(..., description="Себестоимость списанного товара")
-    selling_revenue: float = Field(0.0, description="Выручка от продаж (по ценам продажи)")
+    
+    # ОБНОВЛЕННЫЕ ПОЛЯ С УЧЕТОМ ЭКВАЙРИНГА
+    gross_sales_revenue: float = Field(0.0, description="Валовая выручка от продаж (до комиссий)")
+    acquiring_commission: float = Field(0.0, description="Комиссия эквайринга")
+    selling_revenue: float = Field(0.0, description="Чистая выручка от продаж (после комиссий)")
     
     # Прибыльность
-    gross_profit: float = Field(0.0, description="Валовая прибыль (выручка - себестоимость)")
-    profit_margin: float = Field(0.0, description="Маржа прибыли в %")
+    gross_profit: float = Field(0.0, description="Валовая прибыль (чистая выручка - себестоимость)")
+    profit_margin: float = Field(0.0, description="Маржа прибыли в % (от чистой выручки)")
     net_profit: float = Field(..., description="Чистая прибыль")
+    
+    # НОВЫЕ ПОЛЯ ДЛЯ ЭКВАЙРИНГА
+    commission_rate: float = Field(0.0, description="Средняя ставка комиссии эквайринга в %")
+    cash_sales_amount: float = Field(0.0, description="Продажи за наличные")
+    card_sales_amount: float = Field(0.0, description="Продажи картами (до комиссии)")
+    card_sales_percentage: float = Field(0.0, description="Доля карточных продаж в %")
     
     # Дополнительная аналитика
     average_purchase_price: float = Field(0.0, description="Средняя закупочная цена")
     average_selling_price: float = Field(0.0, description="Средняя цена продажи")
     turnover_ratio: float = Field(0.0, description="Оборачиваемость")
+
 
 class PropertyRevenueDetail(BaseModel):
     property_id: str
@@ -85,11 +96,11 @@ class ComprehensiveReportResponse(BaseModel):
     organization_name: str
     report_period: Dict[str, datetime]
     
-    # Детализация зарплат с разделением налогов
+    # Детализация зарплат
     staff_payroll: List[StaffPayrollDetail]
     payroll_summary: Dict[str, float]
     
-    # Товары и материалы с расчетом прибыли
+    # ОБНОВЛЕННАЯ детализация товаров с эквайрингом
     inventory_movements: List[InventoryMovementDetail]
     inventory_summary: Dict[str, float]
     
@@ -97,25 +108,56 @@ class ComprehensiveReportResponse(BaseModel):
     property_revenues: List[PropertyRevenueDetail]
     property_summary: Dict[str, float]
     
-    # Административные расходы (включая налоги, комиссии, коммунальные)
+    # Административные расходы
     administrative_expenses: List[AdministrativeExpense]
     administrative_summary: Dict[str, float]
     
-    # Итоговые показатели
-    total_revenue: float
+    # ОБНОВЛЕННЫЕ итоговые показатели
+    total_gross_revenue: float = Field(..., description="Общая валовая выручка (до комиссий)")
+    total_acquiring_commission: float = Field(..., description="Общая комиссия эквайринга")
+    total_revenue: float = Field(..., description="Общая чистая выручка (после комиссий)")
     total_expenses: float
-    gross_profit: float = Field(0.0, description="Валовая прибыль (до налогов)")
-    total_taxes: float = Field(0.0, description="Общая сумма налогов")
-    net_profit: float = Field(..., description="Чистая прибыль (после всех расходов)")
+    gross_profit: float = Field(0.0, description="Валовая прибыль")
+    net_profit: float = Field(..., description="Чистая прибыль")
     profit_margin: float = Field(0.0, description="Рентабельность в %")
     
-    # Эквайринг статистика
+    # РАСШИРЕННАЯ статистика эквайринга
     acquiring_statistics: Dict[str, Any]
     
-    # Налоговая информация
-    tax_breakdown: Dict[str, float] = Field(default_factory=dict, description="Разбивка по налогам")
+    # Детализация по способам оплаты
+    payment_methods_breakdown: Dict[str, Any] = Field(default_factory=dict)
     
     generated_at: datetime
+
+
+class AcquiringAnalysisReport(BaseModel):
+    """Детальный анализ эквайринга по всем источникам"""
+    
+    period: Dict[str, datetime]
+    organization_name: str
+    
+    # Общая статистика
+    total_transactions: int
+    total_gross_amount: float
+    total_commission_paid: float
+    total_net_amount: float
+    average_commission_rate: float
+    
+    # По источникам (аренда vs товары)
+    rental_payments: Dict[str, Any] = Field(..., description="Платежи за аренду")
+    inventory_sales: Dict[str, Any] = Field(..., description="Продажи товаров")
+    
+    # По способам оплаты
+    cash_transactions: Dict[str, Any]
+    card_transactions: Dict[str, Any]
+    qr_transactions: Dict[str, Any]
+    
+    # По провайдерам эквайринга
+    providers_performance: List[Dict[str, Any]]
+    
+    # Рекомендации по оптимизации
+    optimization_recommendations: List[str]
+    potential_savings: float = Field(0.0, description="Потенциальная экономия при смене провайдера")
 
 # Дополнительные схемы для детализации
 class TaxBreakdown(BaseModel):

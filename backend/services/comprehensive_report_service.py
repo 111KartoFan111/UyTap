@@ -17,7 +17,7 @@ from models.acquiring_models import AcquiringSettings
 from schemas.comprehensive_report import (
     ComprehensiveReportRequest, ComprehensiveReportResponse,
     StaffPayrollDetail, InventoryMovementDetail, PropertyRevenueDetail,
-    AdministrativeExpense
+    AdministrativeExpense,AcquiringAnalysisReport
 )
 
 class ComprehensiveReportService:
@@ -203,7 +203,7 @@ class ComprehensiveReportService:
         start_date: datetime,
         end_date: datetime
     ) -> List[InventoryMovementDetail]:
-        """ИСПРАВЛЕННАЯ генерация детализации по товарам с правильными ценами"""
+        """Генерация детализации по товарам С УЧЕТОМ ЭКВАЙРИНГА"""
         
         # Получаем все товары организации
         inventory_items = db.query(Inventory).filter(
@@ -213,7 +213,6 @@ class ComprehensiveReportService:
         inventory_details = []
         
         for item in inventory_items:
-            # Движения за период
             movements = db.query(InventoryMovement).filter(
                 and_(
                     InventoryMovement.inventory_id == item.id,
@@ -225,56 +224,275 @@ class ComprehensiveReportService:
             if not movements:
                 continue
             
-            # Входящие движения (поступления)
+            # Разделяем движения
             incoming_movements = [m for m in movements if m.movement_type == "in"]
             outgoing_movements = [m for m in movements if m.movement_type in ["out", "sale"]]
+            sales_movements = [m for m in movements if m.movement_type == "sale"]
             
-            incoming_quantity = sum(m.quantity for m in incoming_movements)
-            outgoing_quantity = sum(abs(m.quantity) for m in outgoing_movements)
+            # НОВОЕ: Учитываем эквайринг в продажах
+            gross_sales_revenue = sum(m.total_selling_amount or 0 for m in sales_movements)
+            acquiring_commission = sum(m.acquiring_commission_amount or 0 for m in sales_movements)
+            net_sales_revenue = sum(m.net_selling_amount or 0 for m in sales_movements)
             
-            # ИСПРАВЛЕНО: Используем новые поля цен
-            incoming_cost = sum(m.total_purchase_cost or m.total_cost or 0 for m in incoming_movements)
-            outgoing_cost = sum(m.total_purchase_cost or m.total_cost or 0 for m in outgoing_movements)
+            # Прибыль с учетом комиссии эквайринга
+            cost_of_goods_sold = sum(m.total_purchase_cost or 0 for m in sales_movements)
+            net_profit = net_sales_revenue - cost_of_goods_sold
             
-            # ИСПРАВЛЕНО: Реальная выручка от продаж
-            total_selling_amount = sum(m.total_selling_amount or 0 for m in outgoing_movements if m.movement_type == "sale")
-            
-            # ИСПРАВЛЕНО: Реальная прибыль
-            real_profit = sum(m.profit_amount or 0 for m in movements)
-            
-            # Если нет данных о продажах, используем текущие цены для оценки
-            if total_selling_amount == 0 and outgoing_quantity > 0 and item.selling_price:
-                estimated_selling_amount = outgoing_quantity * item.selling_price
-                estimated_profit = estimated_selling_amount - outgoing_cost
-            else:
-                estimated_selling_amount = total_selling_amount
-                estimated_profit = real_profit
-            
-            # Расчет маржи
-            profit_margin = 0
-            if estimated_selling_amount > 0:
-                profit_margin = (estimated_profit / estimated_selling_amount) * 100
+            # Маржа с учетом комиссии
+            profit_margin = (net_profit / net_sales_revenue * 100) if net_sales_revenue > 0 else 0
             
             inventory_details.append(InventoryMovementDetail(
                 inventory_id=str(item.id),
                 item_name=item.name,
                 category=item.category or "Общее",
                 unit=item.unit,
-                incoming_quantity=incoming_quantity,
-                outgoing_quantity=outgoing_quantity,
+                incoming_quantity=sum(m.quantity for m in incoming_movements),
+                outgoing_quantity=sum(abs(m.quantity) for m in outgoing_movements),
                 current_stock=item.current_stock,
-                incoming_cost=incoming_cost,
-                outgoing_cost=outgoing_cost,
-                selling_revenue=estimated_selling_amount,
-                gross_profit=estimated_profit,
+                incoming_cost=sum(m.total_purchase_cost or 0 for m in incoming_movements),
+                outgoing_cost=cost_of_goods_sold,
+                selling_revenue=net_sales_revenue,  # ЧИСТАЯ выручка после комиссии
+                gross_profit=net_profit,
                 profit_margin=round(profit_margin, 2),
-                net_profit=estimated_profit,
-                average_purchase_price=round(incoming_cost / incoming_quantity, 2) if incoming_quantity > 0 else 0,
-                average_selling_price=round(estimated_selling_amount / outgoing_quantity, 2) if outgoing_quantity > 0 else 0,
-                turnover_ratio=round(outgoing_quantity / item.current_stock, 2) if item.current_stock > 0 else 0
+                net_profit=net_profit,
+                # НОВЫЕ ПОЛЯ
+                gross_sales_revenue=gross_sales_revenue,
+                acquiring_commission=acquiring_commission,
+                commission_rate=round(acquiring_commission / gross_sales_revenue * 100, 2) if gross_sales_revenue > 0 else 0
             ))
         
         return sorted(inventory_details, key=lambda x: x.net_profit, reverse=True)
+    
+
+    @staticmethod
+    def _generate_inventory_details_with_acquiring(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> List[InventoryMovementDetail]:
+        """Генерация детализации товаров с полным учетом эквайринга"""
+        
+        inventory_items = db.query(Inventory).filter(
+            Inventory.organization_id == organization_id
+        ).all()
+        
+        inventory_details = []
+        
+        for item in inventory_items:
+            movements = db.query(InventoryMovement).filter(
+                and_(
+                    InventoryMovement.inventory_id == item.id,
+                    InventoryMovement.created_at >= start_date,
+                    InventoryMovement.created_at <= end_date
+                )
+            ).all()
+            
+            if not movements:
+                continue
+            
+            # Разделяем движения по типам
+            incoming_movements = [m for m in movements if m.movement_type == "in"]
+            outgoing_movements = [m for m in movements if m.movement_type in ["out", "sale"]]
+            sales_movements = [m for m in movements if m.movement_type == "sale"]
+            
+            # ПОДРОБНЫЙ АНАЛИЗ ПРОДАЖ ПО СПОСОБАМ ОПЛАТЫ
+            cash_sales = [s for s in sales_movements if s.payment_method == "cash"]
+            card_sales = [s for s in sales_movements if s.payment_method == "card"]
+            qr_sales = [s for s in sales_movements if s.payment_method == "qr_code"]
+            
+            # Суммы по способам оплаты
+            cash_sales_amount = sum(s.total_selling_amount or 0 for s in cash_sales)
+            card_sales_amount = sum(s.total_selling_amount or 0 for s in card_sales)
+            qr_sales_amount = sum(s.total_selling_amount or 0 for s in qr_sales)
+            
+            # Валовая выручка (до комиссий)
+            gross_sales_revenue = cash_sales_amount + card_sales_amount + qr_sales_amount
+            
+            # Комиссии эквайринга
+            acquiring_commission = sum(s.acquiring_commission_amount or 0 for s in sales_movements)
+            
+            # Чистая выручка (после комиссий)
+            net_sales_revenue = sum(s.net_selling_amount or 0 for s in sales_movements)
+            
+            # Себестоимость и прибыль
+            cost_of_goods_sold = sum(s.total_purchase_cost or 0 for s in sales_movements)
+            net_profit = net_sales_revenue - cost_of_goods_sold
+            
+            # Маржа от чистой выручки
+            profit_margin = (net_profit / net_sales_revenue * 100) if net_sales_revenue > 0 else 0
+            
+            # Средняя ставка комиссии
+            avg_commission_rate = (acquiring_commission / (card_sales_amount + qr_sales_amount) * 100) if (card_sales_amount + qr_sales_amount) > 0 else 0
+            
+            # Доля карточных продаж
+            card_sales_percentage = ((card_sales_amount + qr_sales_amount) / gross_sales_revenue * 100) if gross_sales_revenue > 0 else 0
+            
+            inventory_details.append(InventoryMovementDetail(
+                inventory_id=str(item.id),
+                item_name=item.name,
+                category=item.category or "Общее",
+                unit=item.unit,
+                incoming_quantity=sum(m.quantity for m in incoming_movements),
+                outgoing_quantity=sum(abs(m.quantity) for m in outgoing_movements),
+                current_stock=item.current_stock,
+                incoming_cost=sum(m.total_purchase_cost or 0 for m in incoming_movements),
+                outgoing_cost=cost_of_goods_sold,
+                gross_sales_revenue=gross_sales_revenue,
+                acquiring_commission=acquiring_commission,
+                selling_revenue=net_sales_revenue,
+                gross_profit=net_profit,
+                profit_margin=round(profit_margin, 2),
+                net_profit=net_profit,
+                commission_rate=round(avg_commission_rate, 2),
+                cash_sales_amount=cash_sales_amount,
+                card_sales_amount=card_sales_amount + qr_sales_amount,
+                card_sales_percentage=round(card_sales_percentage, 2),
+                average_purchase_price=round(sum(m.unit_purchase_price or 0 for m in incoming_movements) / len(incoming_movements), 2) if incoming_movements else 0,
+                average_selling_price=round(gross_sales_revenue / sum(abs(s.quantity) for s in sales_movements), 2) if sales_movements else 0,
+                turnover_ratio=round(sum(abs(s.quantity) for s in sales_movements) / item.current_stock, 2) if item.current_stock > 0 else 0
+            ))
+        
+        return sorted(inventory_details, key=lambda x: x.net_profit, reverse=True)
+    
+    @staticmethod
+    def generate_acquiring_analysis_report(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> AcquiringAnalysisReport:
+        """Генерация полного анализа эквайринга"""
+        
+        # Получаем настройки эквайринга
+        acquiring_settings = db.query(AcquiringSettings).filter(
+            AcquiringSettings.organization_id == organization_id
+        ).first()
+        
+        # Анализ платежей за аренду (существующий код)
+        property_revenues = ComprehensiveReportService._generate_property_revenue_details(
+            db, organization_id, start_date, end_date, acquiring_settings
+        )
+        
+        # НОВОЕ: Анализ продаж товаров
+        inventory_sales = db.query(InventoryMovement).filter(
+            and_(
+                InventoryMovement.organization_id == organization_id,
+                InventoryMovement.movement_type == "sale",
+                InventoryMovement.created_at >= start_date,
+                InventoryMovement.created_at <= end_date
+            )
+        ).all()
+        
+        # Агрегация данных по источникам
+        rental_gross = sum(p.total_revenue for p in property_revenues)
+        rental_commission = sum(p.acquiring_commission_amount for p in property_revenues)
+        rental_net = sum(p.net_revenue_after_commission for p in property_revenues)
+        
+        inventory_gross = sum(s.total_selling_amount or 0 for s in inventory_sales)
+        inventory_commission = sum(s.acquiring_commission_amount or 0 for s in inventory_sales)
+        inventory_net = sum(s.net_selling_amount or 0 for s in inventory_sales)
+        
+        # Общие показатели
+        total_gross = rental_gross + inventory_gross
+        total_commission = rental_commission + inventory_commission
+        total_net = rental_net + inventory_net
+        
+        # По способам оплаты
+        cash_sales = [s for s in inventory_sales if s.payment_method == "cash"]
+        card_sales = [s for s in inventory_sales if s.payment_method == "card"]
+        qr_sales = [s for s in inventory_sales if s.payment_method == "qr_code"]
+        
+        # Анализ провайдеров
+        providers_performance = []
+        if acquiring_settings and acquiring_settings.providers_config:
+            for provider, config in acquiring_settings.providers_config.items():
+                if isinstance(config, dict) and config.get("is_enabled", False):
+                    provider_rate = config.get("commission_rate", 0)
+                    
+                    # Транзакции этого провайдера
+                    provider_inventory_sales = [s for s in inventory_sales if s.acquiring_provider == provider]
+                    provider_rental_revenue = sum(p.card_payments for p in property_revenues if p.acquiring_provider == provider)
+                    
+                    provider_volume = sum(s.total_selling_amount or 0 for s in provider_inventory_sales) + provider_rental_revenue
+                    provider_commission = sum(s.acquiring_commission_amount or 0 for s in provider_inventory_sales) + sum(p.acquiring_commission_amount for p in property_revenues if p.acquiring_provider == provider)
+                    
+                    providers_performance.append({
+                        "provider_name": provider,
+                        "display_name": config.get("display_name", provider),
+                        "commission_rate": provider_rate,
+                        "transaction_volume": provider_volume,
+                        "commission_paid": provider_commission,
+                        "transaction_count": len(provider_inventory_sales) + len([p for p in property_revenues if p.acquiring_provider == provider])
+                    })
+        
+        # Рекомендации по оптимизации
+        recommendations = []
+        potential_savings = 0
+        
+        if providers_performance:
+            # Находим провайдера с минимальной ставкой
+            min_rate_provider = min(providers_performance, key=lambda x: x["commission_rate"])
+            current_avg_rate = (total_commission / (total_gross - sum(s.total_selling_amount or 0 for s in cash_sales)) * 100) if total_gross > 0 else 0
+            
+            if current_avg_rate > min_rate_provider["commission_rate"]:
+                card_volume = total_gross - sum(s.total_selling_amount or 0 for s in cash_sales)
+                potential_savings = card_volume * (current_avg_rate - min_rate_provider["commission_rate"]) / 100
+                
+                recommendations.append(f"Переход на {min_rate_provider['display_name']} может сэкономить {potential_savings:,.0f} ₸ в месяц")
+            
+            # Анализ доли карточных платежей
+            card_percentage = ((total_gross - sum(s.total_selling_amount or 0 for s in cash_sales)) / total_gross * 100) if total_gross > 0 else 0
+            
+            if card_percentage < 50:
+                recommendations.append("Низкая доля безналичных платежей. Рассмотрите стимулирование карточных платежей")
+            elif card_percentage > 80:
+                recommendations.append("Высокая доля карточных платежей. Важно оптимизировать ставки эквайринга")
+        
+        return AcquiringAnalysisReport(
+            period={"start_date": start_date, "end_date": end_date},
+            organization_name=db.query(Organization).filter(Organization.id == organization_id).first().name,
+            total_transactions=len(inventory_sales) + len(property_revenues),
+            total_gross_amount=total_gross,
+            total_commission_paid=total_commission,
+            total_net_amount=total_net,
+            average_commission_rate=round((total_commission / total_gross * 100), 2) if total_gross > 0 else 0,
+            rental_payments={
+                "transaction_count": len(property_revenues),
+                "gross_amount": rental_gross,
+                "commission_paid": rental_commission,
+                "net_amount": rental_net,
+                "average_commission_rate": round((rental_commission / rental_gross * 100), 2) if rental_gross > 0 else 0
+            },
+            inventory_sales={
+                "transaction_count": len(inventory_sales),
+                "gross_amount": inventory_gross,
+                "commission_paid": inventory_commission,
+                "net_amount": inventory_net,
+                "average_commission_rate": round((inventory_commission / inventory_gross * 100), 2) if inventory_gross > 0 else 0
+            },
+            cash_transactions={
+                "count": len(cash_sales),
+                "amount": sum(s.total_selling_amount or 0 for s in cash_sales),
+                "percentage": round((sum(s.total_selling_amount or 0 for s in cash_sales) / total_gross * 100), 2) if total_gross > 0 else 0
+            },
+            card_transactions={
+                "count": len(card_sales),
+                "gross_amount": sum(s.total_selling_amount or 0 for s in card_sales),
+                "commission_paid": sum(s.acquiring_commission_amount or 0 for s in card_sales),
+                "net_amount": sum(s.net_selling_amount or 0 for s in card_sales)
+            },
+            qr_transactions={
+                "count": len(qr_sales),
+                "gross_amount": sum(s.total_selling_amount or 0 for s in qr_sales),
+                "commission_paid": sum(s.acquiring_commission_amount or 0 for s in qr_sales),
+                "net_amount": sum(s.net_selling_amount or 0 for s in qr_sales)
+            },
+            providers_performance=providers_performance,
+            optimization_recommendations=recommendations,
+            potential_savings=potential_savings
+        )
+
 
     @staticmethod
     def _generate_property_revenue_details(

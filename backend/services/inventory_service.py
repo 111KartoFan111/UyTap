@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session,selectinload
 from sqlalchemy import and_, func, desc
 import uuid
 
@@ -103,6 +103,10 @@ class InventoryService:
                 Inventory.is_active == True
             )
         ).first()
+
+        acquiring_settings = db.query(AcquiringSettings).filter(
+            AcquiringSettings.organization_id == organization_id
+        ).first()
         
         if not item:
             raise ValueError("Товар не найден")
@@ -131,29 +135,27 @@ class InventoryService:
         quantity_abs = abs(movement_data.quantity)
         total_purchase_cost = quantity_abs * unit_purchase_price
         total_selling_amount = quantity_abs * unit_selling_price if movement_data.movement_type == "sale" else 0
-        
-        # Создаем движение
+
         movement = InventoryMovement(
             id=uuid.uuid4(),
             organization_id=organization_id,
             inventory_id=item.id,
             user_id=user_id,
-            task_id=uuid.UUID(movement_data.task_id) if movement_data.task_id else None,
             movement_type=movement_data.movement_type,
             quantity=movement_data.quantity,
             unit_purchase_price=unit_purchase_price,
             unit_selling_price=unit_selling_price,
-            unit_cost=unit_purchase_price,  # Для совместимости
             total_purchase_cost=total_purchase_cost,
             total_selling_amount=total_selling_amount,
-            total_cost=total_purchase_cost,  # Для совместимости
+            payment_method=movement_data.payment_method,
             reason=movement_data.reason,
             notes=movement_data.notes,
             stock_after=new_stock
         )
         
+        
         # Рассчитываем прибыль для продаж
-        movement.calculate_profit()
+        movement.calculate_acquiring_commission(acquiring_settings)
         
         db.add(movement)
         
@@ -192,13 +194,14 @@ class InventoryService:
         user_id: uuid.UUID,
         organization_id: uuid.UUID
     ) -> InventoryMovement:
-        """Обработать продажу товара"""
+        """Обработать продажу товара с эквайрингом"""
         
         movement_data = InventoryMovementCreate(
             inventory_id=sale_data.inventory_id,
             movement_type="sale",
-            quantity=-abs(sale_data.quantity),  # Отрицательное для продажи
+            quantity=-abs(sale_data.quantity),
             unit_selling_price=sale_data.selling_price,
+            payment_method=sale_data.payment_method,  # НОВОЕ
             reason=f"Продажа: {sale_data.customer_name}" if sale_data.customer_name else "Продажа товара",
             notes=sale_data.notes,
             task_id=sale_data.order_id
@@ -210,6 +213,83 @@ class InventoryService:
             user_id=user_id,
             organization_id=organization_id
         )
+    
+
+    @staticmethod
+    def get_sales_with_acquiring_report(
+        db: Session,
+        organization_id: uuid.UUID,
+        start_date: datetime,
+        end_date: datetime
+    ) -> Dict[str, Any]:
+        """Отчет по продажам с детализацией эквайринга"""
+        
+        # Получаем все продажи за период
+        sales = db.query(InventoryMovement).filter(
+            and_(
+                InventoryMovement.organization_id == organization_id,
+                InventoryMovement.movement_type == "sale",
+                InventoryMovement.created_at >= start_date,
+                InventoryMovement.created_at <= end_date
+            )
+        ).options(selectinload(InventoryMovement.inventory_item)).all()
+        
+        # Группируем по способам оплаты
+        cash_sales = [s for s in sales if s.payment_method == "cash"]
+        card_sales = [s for s in sales if s.payment_method == "card"]
+        qr_sales = [s for s in sales if s.payment_method == "qr_code"]
+        
+        # Рассчитываем итоги
+        total_revenue = sum(s.total_selling_amount or 0 for s in sales)
+        total_commission = sum(s.acquiring_commission_amount or 0 for s in sales)
+        net_revenue = sum(s.net_selling_amount or 0 for s in sales)
+        
+        return {
+            "period": {"start_date": start_date, "end_date": end_date},
+            "totals": {
+                "total_sales": len(sales),
+                "total_revenue": total_revenue,
+                "total_commission": total_commission,
+                "net_revenue": net_revenue,
+                "commission_rate": (total_commission / total_revenue * 100) if total_revenue > 0 else 0
+            },
+            "by_payment_method": {
+                "cash": {
+                    "count": len(cash_sales),
+                    "revenue": sum(s.total_selling_amount or 0 for s in cash_sales),
+                    "commission": 0,
+                    "net_revenue": sum(s.total_selling_amount or 0 for s in cash_sales)
+                },
+                "card": {
+                    "count": len(card_sales),
+                    "revenue": sum(s.total_selling_amount or 0 for s in card_sales),
+                    "commission": sum(s.acquiring_commission_amount or 0 for s in card_sales),
+                    "net_revenue": sum(s.net_selling_amount or 0 for s in card_sales)
+                },
+                "qr_code": {
+                    "count": len(qr_sales),
+                    "revenue": sum(s.total_selling_amount or 0 for s in qr_sales),
+                    "commission": sum(s.acquiring_commission_amount or 0 for s in qr_sales),
+                    "net_revenue": sum(s.net_selling_amount or 0 for s in qr_sales)
+                }
+            },
+            "sales_details": [
+                {
+                    "id": str(sale.id),
+                    "item_name": sale.inventory_item.name if sale.inventory_item else "Unknown",
+                    "quantity": abs(sale.quantity),
+                    "unit_price": sale.unit_selling_price,
+                    "total_amount": sale.total_selling_amount,
+                    "payment_method": sale.payment_method,
+                    "commission_rate": sale.acquiring_commission_rate,
+                    "commission_amount": sale.acquiring_commission_amount,
+                    "net_amount": sale.net_selling_amount,
+                    "acquiring_provider": sale.acquiring_provider,
+                    "created_at": sale.created_at
+                }
+                for sale in sales
+            ]
+        }
     
     @staticmethod
     def get_profit_analysis(

@@ -13,7 +13,7 @@ from models.database import get_db
 from models.models import User, UserRole
 from schemas.comprehensive_report import (
     ComprehensiveReportRequest, ComprehensiveReportResponse,
-    AdministrativeExpense, ReportFormat
+    AdministrativeExpense, ReportFormat,AcquiringAnalysisReport
 )
 from utils.dependencies import get_current_active_user
 from services.auth_service import AuthService
@@ -487,4 +487,51 @@ async def validate_data_completeness(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to validate data completeness: {str(e)}"
+        )
+    
+
+
+@router.get("/acquiring-analysis", response_model=AcquiringAnalysisReport)
+async def get_acquiring_analysis_report(
+    start_date: datetime = Query(...),
+    end_date: datetime = Query(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Получить детальный анализ эквайринга по всем источникам"""
+    
+    if current_user.role not in [UserRole.ADMIN, UserRole.ACCOUNTANT, UserRole.SYSTEM_OWNER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to view acquiring analysis"
+        )
+    
+    try:
+        analysis = ComprehensiveReportService.generate_acquiring_analysis_report(
+            db=db,
+            organization_id=current_user.organization_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        # Логируем просмотр анализа
+        AuthService.log_user_action(
+            db=db,
+            user_id=current_user.id,
+            action="acquiring_analysis_viewed",
+            organization_id=current_user.organization_id,
+            details={
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "total_commission": analysis.total_commission_paid,
+                "potential_savings": analysis.potential_savings
+            }
+        )
+        
+        return analysis
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate acquiring analysis: {str(e)}"
         )
