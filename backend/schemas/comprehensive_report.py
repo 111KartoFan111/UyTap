@@ -34,12 +34,21 @@ class InventoryMovementDetail(BaseModel):
     incoming_quantity: float
     outgoing_quantity: float
     current_stock: float
-    incoming_cost: float
-    outgoing_cost: float
-    selling_price: float = Field(0.0, description="Цена продажи")
-    gross_profit: float = Field(0.0, description="Валовая прибыль")
-    profit_margin: float = Field(0.0, description="Процент прибыли")
-    net_profit: float
+    
+    # ИСПРАВЛЕНО: Четкое разделение затрат и выручки
+    incoming_cost: float = Field(..., description="Затраты на поступления (по закупочным ценам)")
+    outgoing_cost: float = Field(..., description="Себестоимость списанного товара")
+    selling_revenue: float = Field(0.0, description="Выручка от продаж (по ценам продажи)")
+    
+    # Прибыльность
+    gross_profit: float = Field(0.0, description="Валовая прибыль (выручка - себестоимость)")
+    profit_margin: float = Field(0.0, description="Маржа прибыли в %")
+    net_profit: float = Field(..., description="Чистая прибыль")
+    
+    # Дополнительная аналитика
+    average_purchase_price: float = Field(0.0, description="Средняя закупочная цена")
+    average_selling_price: float = Field(0.0, description="Средняя цена продажи")
+    turnover_ratio: float = Field(0.0, description="Оборачиваемость")
 
 class PropertyRevenueDetail(BaseModel):
     property_id: str

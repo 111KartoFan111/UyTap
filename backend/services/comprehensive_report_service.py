@@ -195,7 +195,7 @@ class ComprehensiveReportService:
             ))
         
         return sorted(payroll_details, key=lambda x: x.gross_amount, reverse=True)
-    
+
     @staticmethod
     def _generate_inventory_details(
         db: Session,
@@ -203,7 +203,7 @@ class ComprehensiveReportService:
         start_date: datetime,
         end_date: datetime
     ) -> List[InventoryMovementDetail]:
-        """Генерация детализации по товарам и материалам"""
+        """ИСПРАВЛЕННАЯ генерация детализации по товарам с правильными ценами"""
         
         # Получаем все товары организации
         inventory_items = db.query(Inventory).filter(
@@ -227,34 +227,55 @@ class ComprehensiveReportService:
             
             # Входящие движения (поступления)
             incoming_movements = [m for m in movements if m.movement_type == "in"]
-            outgoing_movements = [m for m in movements if m.movement_type == "out"]
+            outgoing_movements = [m for m in movements if m.movement_type in ["out", "sale"]]
             
             incoming_quantity = sum(m.quantity for m in incoming_movements)
-            outgoing_quantity = sum(m.quantity for m in outgoing_movements)
+            outgoing_quantity = sum(abs(m.quantity) for m in outgoing_movements)
             
-            incoming_cost = sum(m.total_cost or 0 for m in incoming_movements)
-            outgoing_cost = sum(m.total_cost or 0 for m in outgoing_movements)
+            # ИСПРАВЛЕНО: Используем новые поля цен
+            incoming_cost = sum(m.total_purchase_cost or m.total_cost or 0 for m in incoming_movements)
+            outgoing_cost = sum(m.total_purchase_cost or m.total_cost or 0 for m in outgoing_movements)
             
-            # Прибыль = выручка от продаж - себестоимость
-            # Предполагаем, что цена продажи в 1.5 раза больше себестоимости
-            revenue_from_sales = outgoing_cost * 1.5  # Примерная наценка
-            net_profit = revenue_from_sales - outgoing_cost
+            # ИСПРАВЛЕНО: Реальная выручка от продаж
+            total_selling_amount = sum(m.total_selling_amount or 0 for m in outgoing_movements if m.movement_type == "sale")
+            
+            # ИСПРАВЛЕНО: Реальная прибыль
+            real_profit = sum(m.profit_amount or 0 for m in movements)
+            
+            # Если нет данных о продажах, используем текущие цены для оценки
+            if total_selling_amount == 0 and outgoing_quantity > 0 and item.selling_price:
+                estimated_selling_amount = outgoing_quantity * item.selling_price
+                estimated_profit = estimated_selling_amount - outgoing_cost
+            else:
+                estimated_selling_amount = total_selling_amount
+                estimated_profit = real_profit
+            
+            # Расчет маржи
+            profit_margin = 0
+            if estimated_selling_amount > 0:
+                profit_margin = (estimated_profit / estimated_selling_amount) * 100
             
             inventory_details.append(InventoryMovementDetail(
                 inventory_id=str(item.id),
                 item_name=item.name,
+                category=item.category or "Общее",
+                unit=item.unit,
                 incoming_quantity=incoming_quantity,
                 outgoing_quantity=outgoing_quantity,
                 current_stock=item.current_stock,
                 incoming_cost=incoming_cost,
                 outgoing_cost=outgoing_cost,
-                net_profit=net_profit,
-                unit=item.unit,
-                category=item.category or "Общее"
+                selling_revenue=estimated_selling_amount,
+                gross_profit=estimated_profit,
+                profit_margin=round(profit_margin, 2),
+                net_profit=estimated_profit,
+                average_purchase_price=round(incoming_cost / incoming_quantity, 2) if incoming_quantity > 0 else 0,
+                average_selling_price=round(estimated_selling_amount / outgoing_quantity, 2) if outgoing_quantity > 0 else 0,
+                turnover_ratio=round(outgoing_quantity / item.current_stock, 2) if item.current_stock > 0 else 0
             ))
         
         return sorted(inventory_details, key=lambda x: x.net_profit, reverse=True)
-    
+
     @staticmethod
     def _generate_property_revenue_details(
         db: Session,
