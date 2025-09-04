@@ -81,14 +81,14 @@ const RentalDetailModal = ({ rental, onClose, onPaymentUpdate }) => {
         }),
         
         // История платежей
-        fetch(`http://92.38.49.43:8000/api/rentals/${rental.id}/payments`, {
+        fetch(`/api/rentals/${rental.id}/payments`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`
           }
         }).then(res => res.ok ? res.json() : { payments: [] }).catch(() => ({ payments: [] })),
         
         // Статус оплаты
-        fetch(`http://92.38.49.43:8000/api/rentals/${rental.id}/payment-status`, {
+        fetch(`/api/rentals/${rental.id}/payment-status`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`
           }
@@ -146,7 +146,7 @@ const RentalDetailModal = ({ rental, onClose, onPaymentUpdate }) => {
     try {
       setLoading(true);
       
-      const response = await fetch(`http://92.38.49.43:8000/api/rentals/${rental.id}/payment`, {
+      const response = await fetch(`/api/rentals/${rental.id}/payment`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

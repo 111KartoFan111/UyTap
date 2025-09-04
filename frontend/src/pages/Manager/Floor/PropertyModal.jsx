@@ -136,7 +136,7 @@ const PropertyModal = ({ property, onClose, onSubmit, organizationLimits }) => {
           </h2>
           <button className="close-btn" onClick={onClose}>
             <FiX size={20} />
-          </button>
+          </button>:
         </div>
 
         {organizationLimits && (
@@ -308,7 +308,6 @@ const PropertyModal = ({ property, onClose, onSubmit, organizationLimits }) => {
                 <input
                   type="number"
                   min="0"
-                  step="100"
                   value={formData.hourly_rate}
                   onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })}
                   className={errors.hourly_rate ? 'error' : ''}
@@ -321,7 +320,6 @@ const PropertyModal = ({ property, onClose, onSubmit, organizationLimits }) => {
                 <input
                   type="number"
                   min="0"
-                  step="1000"
                   value={formData.daily_rate}
                   onChange={(e) => setFormData({ ...formData, daily_rate: e.target.value })}
                   className={errors.daily_rate ? 'error' : ''}
@@ -334,7 +332,6 @@ const PropertyModal = ({ property, onClose, onSubmit, organizationLimits }) => {
                 <input
                   type="number"
                   min="0"
-                  step="5000"
                   value={formData.weekly_rate}
                   onChange={(e) => setFormData({ ...formData, weekly_rate: e.target.value })}
                   className={errors.weekly_rate ? 'error' : ''}
@@ -347,7 +344,6 @@ const PropertyModal = ({ property, onClose, onSubmit, organizationLimits }) => {
                 <input
                   type="number"
                   min="0"
-                  step="10000"
                   value={formData.monthly_rate}
                   onChange={(e) => setFormData({ ...formData, monthly_rate: e.target.value })}
                   className={errors.monthly_rate ? 'error' : ''}
@@ -360,7 +356,6 @@ const PropertyModal = ({ property, onClose, onSubmit, organizationLimits }) => {
                 <input
                   type="number"
                   min="0"
-                  step="50000"
                   value={formData.yearly_rate}
                   onChange={(e) => setFormData({ ...formData, yearly_rate: e.target.value })}
                   className={errors.yearly_rate ? 'error' : ''}

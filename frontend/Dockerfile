@@ -1,4 +1,3 @@
-# frontend/Dockerfile
 FROM node:20-alpine AS build
 
 WORKDIR /app
@@ -15,17 +14,19 @@ COPY . .
 # Собираем приложение для продакшена
 RUN npm run build
 
-# Второй этап - nginx для статических файлов
-FROM nginx:alpine
+# Используем простой HTTP сервер для статических файлов
+FROM node:20-alpine
 
-# Копируем собранное приложение в nginx
-COPY --from=build /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-# Копируем конфигурацию nginx
-COPY nginx.conf /etc/nginx/nginx.conf
+# Устанавливаем serve для раздачи статических файлов
+RUN npm install -g serve
 
-# Открываем порт 80
-EXPOSE 80
+# Копируем собранное приложение
+COPY --from=build /app/dist ./dist
 
-# Запускаем nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Открываем порт 3000
+EXPOSE 3000
+
+# Запускаем serve
+CMD ["serve", "-s", "dist", "-l", "3000"]

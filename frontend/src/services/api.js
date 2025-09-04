@@ -1,5 +1,5 @@
 // frontend/src/services/api.js - Исправленная версия
-const API_BASE_URL = 'http://92.38.49.43:8000';
+const API_BASE_URL = '';
 
 // API Request helper with auth token
 const apiRequest = async (endpoint, options = {}) => {
